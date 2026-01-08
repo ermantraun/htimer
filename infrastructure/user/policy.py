@@ -1,18 +1,14 @@
 """
-Authorization/Policy layer for user operations.
+User authorization policy implementation.
 
-This layer makes authorization decisions based on domain entities and rules.
-It's separate from validation to keep concerns separated:
-- Validators check data format/constraints
-- Policies check permissions/authorization
+This infrastructure layer implements authorization decisions based on domain rules.
 """
 from domain import entities
-from . import dto
-from . import exceptions
+from application.user import dto, exceptions
 
 
-class UserPolicy:
-    """Policy class that makes authorization decisions for user operations."""
+class UserAuthorizationPolicyImpl:
+    """Implementation of user authorization policy."""
     
     def can_create_user(self, actor: entities.User) -> exceptions.UserValidationError | None:
         """Check if actor can create users."""

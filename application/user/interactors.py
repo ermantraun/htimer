@@ -5,7 +5,6 @@ from . import interfaces
 from . import validators
 from . import dto
 from . import exceptions
-from . import policy
 
 
 class CreateUserInteractor:
@@ -17,7 +16,7 @@ class CreateUserInteractor:
         hash_generator: interfaces.HashGenerator,
         user_creator: interfaces.UserCreator,
         validator: validators.CreateUserValidator,
-        user_policy: policy.UserPolicy,
+        user_policy: interfaces.UserAuthorizationPolicy,
     ):
         self.user_getter = user_getter
         self.user_creator = user_creator
@@ -85,7 +84,7 @@ class UpdateUserInteractor:
         user_getter: interfaces.UserGetter,
         context: interfaces.UserContext,
         validator: validators.UpdateUserValidator,
-        user_policy: policy.UserPolicy,
+        user_policy: interfaces.UserAuthorizationPolicy,
     ):
         self.user_context = context
         self.validator = validator
@@ -175,7 +174,7 @@ class GetUsersInteractor:
         user_projects_getter: interfaces.UserProjectsGetter,
         projects_users_getter: interfaces.ProjectsUsersGetter,
         validator: validators.GetUsersListValidator,
-        user_policy: policy.UserPolicy,
+        user_policy: interfaces.UserAuthorizationPolicy,
     ):
         self.user_getter = user_getter
         self.user_context = context

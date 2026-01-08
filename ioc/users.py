@@ -3,7 +3,7 @@ from dishka import Provider, provide, Scope
 from application.user import interfaces as user_interfaces
 from application.user import interactors
 from application.user import validators
-from application.user import policy
+from infrastructure.user import policy
 
 
 class UserProvider(Provider):
@@ -18,11 +18,11 @@ class UserProvider(Provider):
     user_projects_getter = provide(None, scope=Scope.REQUEST, provides=user_interfaces.UserProjectsGetter)
     projects_users_getter = provide(None, scope=Scope.REQUEST, provides=user_interfaces.ProjectsUsersGetter)
     
-    # Authorization/Policy
-    user_policy = provide(
-        policy.UserPolicy,
+    # Authorization/Policy (Infrastructure implementation)
+    user_authorization_policy = provide(
+        policy.UserAuthorizationPolicyImpl,
         scope=Scope.REQUEST,
-        provides=policy.UserPolicy,
+        provides=user_interfaces.UserAuthorizationPolicy,
     )
     
     # Validators
