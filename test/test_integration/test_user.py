@@ -11,8 +11,8 @@ Tests for User interactors following consistent style guidelines:
 """
 import pytest
 from uuid import uuid4, UUID
-from modules.users.domain import entities
-from modules.users.application import interactors, dto, exceptions
+from domain import entities
+from application.user import interactors, dto, exceptions
 from test.test_integration.test_helpers import (
     make_interactor,
     patch_current_user,

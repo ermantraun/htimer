@@ -9,8 +9,8 @@ This module provides:
 from typing import Callable, Any, Type, TypeVar
 from uuid import UUID
 import dishka
-from modules.users.domain import entities
-from modules.users.application import interfaces, exceptions
+from domain import entities
+from application.user import interfaces, exceptions
 from application import common_interfaces
 
 

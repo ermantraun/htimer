@@ -1,8 +1,9 @@
 """IoC providers for Users bounded context."""
 from dishka import Provider, provide, Scope
-from modules.users.application import interfaces as user_interfaces
-from modules.users.application import interactors
-from modules.users.application import validators
+from application.user import interfaces as user_interfaces
+from application.user import interactors
+from application.user import validators
+from application.user import policy
 
 
 class UserProvider(Provider):
@@ -16,6 +17,13 @@ class UserProvider(Provider):
     user_context = provide(None, scope=Scope.REQUEST, provides=user_interfaces.UserContext)
     user_projects_getter = provide(None, scope=Scope.REQUEST, provides=user_interfaces.UserProjectsGetter)
     projects_users_getter = provide(None, scope=Scope.REQUEST, provides=user_interfaces.ProjectsUsersGetter)
+    
+    # Authorization/Policy
+    user_policy = provide(
+        policy.UserPolicy,
+        scope=Scope.REQUEST,
+        provides=policy.UserPolicy,
+    )
     
     # Validators
     create_user_validator = provide(
