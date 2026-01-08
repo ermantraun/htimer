@@ -1,14 +1,4 @@
-"""
-Tests for User interactors following consistent style guidelines:
-- DI/Container only in fixtures, never in tests
-- No indirect enum fixtures for scenarios
-- Scenarios via patch/override callables
-- InteractorPatch type for customization
-- Parametrize only for DTO validation tables with ids
-- Validation tested separately from RBAC/not-found/already-exists
-- One test = one reason to fail
-- Container guaranteed to close (no leaks)
-"""
+
 import pytest
 from uuid import uuid4, UUID
 from domain import entities
@@ -20,9 +10,6 @@ from test.test_integration.test_helpers import (
 )
 
 
-# ============================================================================
-# Helper factories for test data
-# ============================================================================
 
 def make_admin_user(uuid: UUID | None = None) -> entities.User:
     """Create an admin user for testing."""
@@ -75,11 +62,7 @@ def make_create_user_dto(
     )
 
 
-# ============================================================================
-# CreateUserInteractor Tests
-# ============================================================================
 
-# --- Validation Tests (DTO field validation) ---
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
@@ -254,22 +237,3 @@ async def test_create_user_success_with_custom_status():
     finally:
         await container.close()
 
-
-# ============================================================================
-# TODO: UpdateUserInteractor Tests
-# ============================================================================
-# Following same pattern:
-# - Validation tests (parametrized with ids)
-# - RBAC tests (separate from validation)
-# - Not found tests
-# - Already exists tests
-# - Success cases
-
-# ============================================================================
-# TODO: GetUsersInteractor Tests
-# ============================================================================
-# Following same pattern:
-# - Validation tests (parametrized with ids)
-# - RBAC tests (separate from validation)
-# - Success cases with various filters
-    

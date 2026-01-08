@@ -6,7 +6,7 @@ This module provides:
 - Patch helper functions for common test scenarios
 - Fixture factory for creating interactors with custom patches
 """
-from typing import Callable, Any, Type, TypeVar
+from typing import Callable,  Type, TypeVar
 from uuid import UUID
 import dishka
 from domain import entities
