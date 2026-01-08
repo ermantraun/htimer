@@ -1,7 +1,10 @@
-"""IoC (Inversion of Control) package for dependency injection."""
-from .app import get_providers
+"""IoC (Inversion of Control) package.
 
-# For backward compatibility with existing code
-app = get_providers()
+Единый composition root: `ioc.app`.
+Не экспортируем готовый список providers как переменную `app`, чтобы не было
+зависимости от побочных эффектов импорта и случайного порядка сборки.
+"""
 
-__all__ = ['get_providers', 'app']
+from .app import build_container, get_providers
+
+__all__ = ["build_container", "get_providers"]
