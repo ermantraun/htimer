@@ -1,6 +1,7 @@
 from uuid import UUID
 from domain.entities import User, Project
 from application.user.dto import UpdateUserInDTO
+from application.user import exceptions
 
 from application.user.interfaces import (
     UserCreator,
@@ -13,7 +14,6 @@ from application.user.interfaces import (
 )
 
 from application.common_interfaces import DBSession
-
 
 
 
@@ -48,19 +48,49 @@ class DummyUserCreator(UserCreator):
         return data
 
 
+class DummyUserCreatorReturns(UserCreator):
+    """UserCreator that returns a specific result."""
+    def __init__(self, db_session: DBSession, result: User | exceptions.UserRepositoryError):
+        self._result = result
+        
+    async def create(self, data: User) -> User | exceptions.UserRepositoryError:
+        if isinstance(self._result, Exception):
+            return self._result
+        return self._result
+
+
 class DummyUserUpdater(UserUpdater):
-    def __init__(self, db_session: DBSession, updated_user: User | None = None):
-        self._updated_user = updated_user
+    def __init__(self, db_session: DBSession):
+        pass
 
     async def update(self, data: UpdateUserInDTO) -> User:
-        # стаб НЕ анализирует DTO
-        # либо возвращает заранее подготовленного пользователя,
-        # либо явно падает, если его использовать не планировали
-        if self._updated_user is None:
-            raise AssertionError(
-                "DummyUserUpdater was called, but no updated_user was provided"
-            )
-        return self._updated_user
+        # Stub that raises an error if called unexpectedly
+        raise AssertionError(
+            "DummyUserUpdater was called, but no specific behavior was configured. "
+            "Use patch_user_updater_returns() to configure behavior."
+        )
+
+
+class DummyUserUpdaterReturns(UserUpdater):
+    """UserUpdater that returns a specific result."""
+    def __init__(self, db_session: DBSession, result: User | exceptions.UserRepositoryError):
+        self._result = result
+
+    async def update(self, data: UpdateUserInDTO) -> User | exceptions.UserRepositoryError:
+        if isinstance(self._result, Exception):
+            return self._result
+        return self._result
+
+
+class DummyUserGetterReturns(UserGetter):
+    """UserGetter that returns a specific result for any UUID."""
+    def __init__(self, db_session: DBSession, result: User | exceptions.UserRepositoryError):
+        self._result = result
+        
+    async def get(self, user_uuid: UUID) -> User | exceptions.UserRepositoryError:
+        if isinstance(self._result, Exception):
+            return self._result
+        return self._result
 
 
 # =========================
@@ -75,6 +105,17 @@ class DummyUserProjectsGetter(UserProjectsGetter):
         return set()
 
 
+class DummyUserProjectsGetterReturns(UserProjectsGetter):
+    """UserProjectsGetter that returns a specific result."""
+    def __init__(self, session: DBSession, result: set[Project] | exceptions.UserRepositoryError):
+        self._result = result
+        
+    async def get(self, user_uuid: UUID) -> set[Project] | exceptions.UserRepositoryError:
+        if isinstance(self._result, Exception):
+            return self._result
+        return self._result
+
+
 class DummyProjectsUsersGetter(ProjectsUsersGetter):
     def __init__(self, session: DBSession) -> None:
         pass
@@ -85,6 +126,22 @@ class DummyProjectsUsersGetter(ProjectsUsersGetter):
         is_active: bool | None,
     ) -> list[User]:
         return []
+
+
+class DummyProjectsUsersGetterReturns(ProjectsUsersGetter):
+    """ProjectsUsersGetter that returns a specific result."""
+    def __init__(self, session: DBSession, result: list[User] | exceptions.UserRepositoryError):
+        self._result = result
+        
+    async def get(
+        self,
+        projects_uuid: list[UUID] | None,
+        is_active: bool | None,
+    ) -> list[User] | exceptions.UserRepositoryError:
+        if isinstance(self._result, Exception):
+            return self._result
+        return self._result
+
 
 def dummy_get_user_factory(
     user: User,
