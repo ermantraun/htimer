@@ -71,14 +71,12 @@ class ProjectsUsersGetter(Protocol):
         pass
 
 
-# Authorization/Policy Protocols
+
 
 class UserAuthorizationPolicy(Protocol):
-    """Protocol for user authorization decisions."""
     
     @abstractmethod
     def can_create_user(self, actor: entities.User) -> exceptions.UserValidationError | None:
-        """Check if actor can create users."""
         pass
     
     @abstractmethod
@@ -90,7 +88,6 @@ class UserAuthorizationPolicy(Protocol):
         actor_projects: set[entities.Project] | None = None,
         target_projects: set[entities.Project] | None = None,
     ) -> exceptions.UserValidationError | None:
-        """Check if actor can update target user with given data."""
         pass
     
     @abstractmethod
@@ -100,6 +97,5 @@ class UserAuthorizationPolicy(Protocol):
         filter_data: GetUsersInDto,
         actor_projects_names: set[str],
     ) -> exceptions.UserValidationError | None:
-        """Check if actor can list users with given filters."""
         pass
 

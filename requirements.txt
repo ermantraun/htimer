@@ -1,0 +1,5 @@
+pytest>=7.0
+anyio>=4.0
+pytest-asyncio>=0.23
+# app runtime deps (если уже стоят глобально/в другом месте — можно удалить отсюда)
+dishka
