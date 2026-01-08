@@ -15,7 +15,7 @@ from domain import entities
 
 
 @pytest_asyncio.fixture(scope="module")
-async def test_container() -> AsyncGenerator[dishka.AsyncContainer]:
+async def test_container() -> AsyncGenerator[dishka.AsyncContainer, None]:
 
 
     test_container = dishka.make_async_container(*app)
