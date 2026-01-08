@@ -1,9 +1,9 @@
 from uuid import UUID
-from domain.entities import User, Project
-from application.user.dto import UpdateUserInDTO
-from application.user import exceptions
+from modules.users.domain.entities import User, Project
+from modules.users.application.dto import UpdateUserInDTO
+from modules.users.application import exceptions
 
-from application.user.interfaces import (
+from modules.users.application.interfaces import (
     UserCreator,
     UserUpdater,
     UserGetter,
