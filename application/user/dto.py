@@ -1,22 +1,34 @@
 from dataclasses import dataclass
 from uuid import UUID
+from domain import entities
+
+
+@dataclass
+class LoginUserInDTO:
+    email: str
+    password: str
+    
+    
+@dataclass
+class LoginUserOutDTO:
+    token: str
+    user_uuid: UUID
 
 @dataclass
 class CreateUserInDTO:
     name: str
     email: str
     password: str
-    is_admin: bool
-    is_archived: bool | None = False
-    is_active: bool | None = True
+    role: entities.UserRole
 
 @dataclass
 class CreateUserOutDTO:
-    name: str
-    email: str
-    is_active: bool
-    is_archived: bool
-    is_admin: bool
+    user_uuid: UUID
+
+@dataclass
+class ResetUserPasswordInDTO:
+    user_uuid: UUID | None
+    new_password: str
 
 @dataclass
 class UpdateUserInDTO:
@@ -24,34 +36,20 @@ class UpdateUserInDTO:
     name: str | None
     email: str | None
     password: str | None
-    is_active: bool | None 
-    is_archived: bool | None
-    is_admin: bool | None
-    
+    status: entities.UserStatus | None
+    role: entities.UserRole | None
+
 @dataclass
 class UpdateUserOutDTO:
-    name: str
-    email: str
-    is_active: bool
-    is_archived: bool
-    is_admin: bool
-    
-    
+    user: entities.User
+
 @dataclass
-class GetUsersInDto:
-    projects_names: set[str] | None
+class GetUserListInDTO:
+    projects_names: set[str]
     status: bool | None  # 'active' or 'all'
-    
+
 @dataclass
-class GetUserIn:
-    name: str
-    email: str
-    is_active: bool
-    is_archived: bool
-    is_admin: bool
+class GetUserListOutDTO:
+    users: list[entities.User]
     
-        
-    
-@dataclass
-class GetUsersOutDTO:
-    users: list[GetUserIn]
+
