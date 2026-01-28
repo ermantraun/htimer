@@ -15,7 +15,7 @@ class CreateUserInteractor:
         user_repository: common_interfaces.UserRepository,
         hash_generator: interfaces.HashGenerator,
         validator: validators.CreateUserValidator,
-        user_policy: interfaces.UserCreateAuthorizationPolicy,
+        user_policy: interfaces.UserAuthorizationPolicy,
         clock: common_interfaces.Clock,
         logger: common_interfaces.Logger,
     ):
@@ -55,7 +55,7 @@ class CreateUserInteractor:
             name=data.name,
             email=data.email,
             password_hash=password_hash,
-            creator_uuid=current_user.uuid,
+            creator=current_user,
             created_at=self.clock.now_date(),
             role=data.role,
         )
@@ -80,7 +80,7 @@ class GetUsersListInteractor:
         context: common_interfaces.UserContext,
         project_repository: common_interfaces.ProjectRepository,
         validator: validators.GetUsersListValidator,
-        user_policy: interfaces.UsersListAuthorizationPolicy,
+        user_policy: interfaces.UserAuthorizationPolicy,
     ):
 
         self.user_context = context
@@ -89,7 +89,7 @@ class GetUsersListInteractor:
         self.validator = validator
         self.policy = user_policy
 
-    async def execute(self, data: dto.GetUserListInDTO) -> dto.GetUserListOutDTO | common_exceptions.UserNotFoundError | common_exceptions.InvalidToken:
+    async def execute(self, data: dto.GetUserListInDTO) -> dto.GetUserListOutDTO | common_exceptions.UserNotFoundError | common_exceptions.InvalidToken | exceptions.UserAuthorizationError :
         current_user_uuid = self.user_context.get_current_user_uuid()
         if isinstance(current_user_uuid, common_exceptions.InvalidToken):
             raise current_user_uuid
@@ -122,7 +122,7 @@ class GetUsersListInteractor:
 
         users = await self.project_repository.get_members(
             projects_uuid=projects_uuid,
-            is_active=data.status if data.status is not None else False,
+            is_active=data.is_active if data.is_active is not None else False,
         )
 
         if isinstance(users, common_exceptions.ProjectNotFoundError):
@@ -186,7 +186,7 @@ class ResetUserPasswordInteractor:
         context: common_interfaces.UserContext,
         hash_generator: interfaces.HashGenerator,
         validator: validators.ResetUserPasswordValidator,
-        user_policy: interfaces.UserPasswordResetAuthorizationPolicy,
+        user_policy: interfaces.UserAuthorizationPolicy,
         
     ):
         self.session = session
@@ -249,7 +249,7 @@ class UpdateUserInteractor:
         user_repository: common_interfaces.UserRepository,
         context: common_interfaces.UserContext,
         validator: validators.UpdateUserValidator,
-        user_policy: interfaces.UserUpdateAuthorizationPolicy,
+        user_policy: interfaces.UserAuthorizationPolicy,
         logger: common_interfaces.Logger,
     ):
         self.user_context = context
@@ -319,3 +319,5 @@ class UpdateUserInteractor:
         self.logger.info(operation='UpdateUser', message=f'User {updated_user.uuid} updated by {current_user.uuid}')    
         
         return dto.UpdateUserOutDTO(user=updated_user)
+
+

@@ -1,34 +1,42 @@
 from domain import entities
 from application.stage import interfaces
-import exceptions # type: ignore
+import infrastructure.policy.stage.exceptions as infra_exceptions
+from application.stage import exceptions as stage_exceptions
 
-class StageAuthorizationPolicyImpl(interfaces.StageCreateAuthorizationPolicy, interfaces.StageUpdateAuthorizationPolicy):
-    
-    def can_create_stage(
-        self, actor: entities.User, project: entities.Project, project_members: list[entities.User], 
-    ) -> interfaces.exceptions.StageAuthorizationError | None:
-       
+class StageAuthorizationPolicyImpl(interfaces.StageAuthorizationPolicy):
+
+    def decide_create_stage(self, actor: entities.User, project: entities.Project, project_members: list[entities.User]) -> stage_exceptions.StageAuthorizationError | None:
         actor_decision = actor.decide_create_stage(project, project_members)
-        
+
         if actor_decision is entities.UserDecisions.CreateStageDecision.ALLOWED:
             return None
-        
+
         if actor_decision is entities.UserDecisions.CreateStageDecision.FORBIDDEN_FOR_NON_MEMBER:
-            return exceptions.UserNotProjectMemberError(
+            return infra_exceptions.UserNotProjectMemberError(
                 "Пользователь не является участником проекта и не может создать этап."
             )
-   
-    def can_update_stage(self, actor: entities.User, project: entities.Project, project_members: list[entities.User],
-   ) -> exceptions.UserNotProjectMemberError | None:
-         
-         actor_decision = actor.decide_update_stage(project, project_members)
-         
-         if actor_decision is entities.UserDecisions.UpdateStageDecision.ALLOWED:
-              return None
-         
-         if actor_decision is entities.UserDecisions.UpdateStageDecision.FORBIDDEN_FOR_NON_MEMBER:
-              return exceptions.UserNotProjectMemberError(
+
+        return None
+
+    def decide_update_stage(self, actor: entities.User, project: entities.Project, project_members: list[entities.User]) -> stage_exceptions.StageAuthorizationError | None:
+        actor_decision = actor.decide_update_stage(project, project_members)
+
+        if actor_decision is entities.UserDecisions.UpdateStageDecision.ALLOWED:
+            return None
+
+        if actor_decision is entities.UserDecisions.UpdateStageDecision.FORBIDDEN_FOR_NON_MEMBER:
+            return infra_exceptions.UserNotProjectMemberError(
                 "Пользователь не является участником проекта и не может обновить этап."
-              )
-         
-         return None
+            )
+
+        return None
+
+    def decide_get_stage_list(self, actor: entities.User, project: entities.Project, project_members: list[entities.User]) -> stage_exceptions.StageAuthorizationError | None:
+        actor_decision = actor.decide_get_project(project, project_members)
+
+        if actor_decision is entities.UserDecisions.GetProjectDecision.FORBIDDEN_FOR_NON_MEMBER:
+            return infra_exceptions.UserNotProjectMemberError(
+                "Пользователь не является участником проекта и не может получить список этапов."
+            )
+
+        return None

@@ -20,8 +20,23 @@ class UpdateStageInDTO:
     uuid: UUID
     name: str | None = None
     description: str | None = None
-    status: entities.StageStatus | None = None
+    status: str | None = None
     
 @dataclass
 class UpdateStageOutDTO:
     stage: entities.Stage
+
+
+@dataclass
+class DeleteStageInDTO:
+    uuid: UUID
+
+
+@dataclass
+class GetStageListInDTO:
+    project_uuid: UUID
+
+
+@dataclass
+class GetStageListOutDTO:
+    stages: list[entities.Stage]

@@ -53,10 +53,14 @@ class RemoveMembersInDTO:
 class RemoveMembersOutDTO:
     project: entities.Project
     
-@dataclass
-class GetProjectStageListInDTO:
-    project_uuid: UUID
     
 @dataclass
-class GetProjectStageListOutDTO:
-    stages: list[entities.Stage]
+class GetProjectListInDTO:
+    # no fields for now; reserved for future filters
+    pass
+
+
+@dataclass
+class GetProjectListOutDTO:
+    projects: list[entities.Project]
+

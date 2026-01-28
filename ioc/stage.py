@@ -1,4 +1,4 @@
-from dishka import Provider, Scope, provide, AnyOf # type: ignore
+from dishka import Provider, Scope, provide, AnyOf, provide_all # type: ignore
 from application.stage import interactors, interfaces
 from infrastructure.policy.stage import policy
 
@@ -8,11 +8,14 @@ class StageProvider(Provider):
     authorization_policy = provide(
         policy.StageAuthorizationPolicyImpl,
         scope=Scope.REQUEST,
-        provides=AnyOf[interfaces.StageCreateAuthorizationPolicy]
+        provides=interfaces.StageAuthorizationPolicy
     )
 
-    create_stage_interactor = provide(
+    
+    interactors = provide_all(
         interactors.CreateStageInteractor,
-        scope=Scope.REQUEST,
-        provides=interactors.CreateStageInteractor,
+        interactors.UpdateStageInteractor,
+        interactors.DeleteStageInteractor,
+        interactors.GetStageListInteractor,
+        scope=Scope.REQUEST
     )

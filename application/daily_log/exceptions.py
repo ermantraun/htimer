@@ -8,11 +8,6 @@ class DayliLogValidationError(Exception):
     pass
 
 
-class InvalidDailyLogHoursError(DayliLogValidationError):
-    """Raised when provided hours_spent is invalid."""
-    pass
-
-
 class InvalidDailyLogDescriptionError(DayliLogValidationError):
     """Raised when provided description is invalid (too long)."""
     pass

@@ -4,7 +4,7 @@ from uuid import UUID
 from domain import entities
 from . import exceptions
 
-class UserUpdateAuthorizationPolicy(Protocol):
+class UserAuthorizationPolicy(Protocol):
     @abstractmethod
     def decide_update_user(
         self,
@@ -15,12 +15,10 @@ class UserUpdateAuthorizationPolicy(Protocol):
     ) -> exceptions.UserAuthorizationError | None:
         pass
     
-class UserCreateAuthorizationPolicy(Protocol):
     @abstractmethod
     def decide_create_user(self, actor: entities.User) -> exceptions.UserAuthorizationError | None:
-        pass
+        pass 
     
-class UsersListAuthorizationPolicy(Protocol):
     @abstractmethod
     def decide_get_users_list(
         self,
@@ -29,8 +27,7 @@ class UsersListAuthorizationPolicy(Protocol):
         actor_projects_names: set[str],
     ) -> exceptions.UserAuthorizationError | None:
         pass
-
-class UserPasswordResetAuthorizationPolicy(Protocol):
+    
     @abstractmethod
     def decide_reset_password(self, actor: entities.User, target: entities.User) -> exceptions.UserAuthorizationError | None:
         pass
@@ -41,7 +38,6 @@ class HashVerifier(Protocol):
     @abstractmethod
     def verify(self, plain_password: str, hashed_text: str) -> bool:
         pass
-
 
 class HashGenerator(Protocol):
     @abstractmethod

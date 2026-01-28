@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dishka import Provider, Scope, provide, AnyOf # type: ignore
+from dishka import Provider, Scope, provide, AnyOf, provide_all # type: ignore
 from application.user import interactors, interfaces
 from infrastructure.policy.user import policy
 
@@ -16,29 +16,14 @@ class UserProvider(Provider):
     user_authorization_policy = provide(
         policy.UserAuthorizationPolicyImpl,
         scope=Scope.REQUEST,
-        provides=[interfaces.UserCreateAuthorizationPolicy, interfaces.UserUpdateAuthorizationPolicy, 
-                  interfaces.UserPasswordResetAuthorizationPolicy, interfaces.UsersListAuthorizationPolicy],
+        provides=interfaces.UserAuthorizationPolicy,
     )
 
-    create_user_interactor = provide(
+    interactors = provide_all(
         interactors.CreateUserInteractor,
-        scope=Scope.REQUEST,
-        provides=interactors.CreateUserInteractor,
-    )
-    update_user_interactor = provide(
         interactors.UpdateUserInteractor,
-        scope=Scope.REQUEST,
-        provides=interactors.UpdateUserInteractor,
-    )
-    get_users_interactor = provide(
         interactors.GetUsersListInteractor,
-        scope=Scope.REQUEST,
-        provides=interactors.GetUsersListInteractor,
-    )
-
-    reset_user_password_interactor = provide(
         interactors.ResetUserPasswordInteractor,
-        scope=Scope.REQUEST,
-        provides=interactors.ResetUserPasswordInteractor,
+        interactors.LoginUserInteractor,
+        scope=Scope.REQUEST
     )
-    

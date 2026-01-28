@@ -2,10 +2,7 @@ from domain import entities
 from application.user import interfaces
 import infrastructure.policy.user.user_exceptions as user_exceptions
 
-class UserAuthorizationPolicyImpl(interfaces.UserCreateAuthorizationPolicy,
-                                  interfaces.UserUpdateAuthorizationPolicy,
-                                  interfaces.UsersListAuthorizationPolicy,
-                                  interfaces.UserPasswordResetAuthorizationPolicy):
+class UserAuthorizationPolicyImpl(interfaces.UserAuthorizationPolicy):
 
     def decide_create_user(self, actor: entities.User) -> user_exceptions.UserAuthorizationError | None:
         decision = actor.decide_create_users()

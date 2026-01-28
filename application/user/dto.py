@@ -36,8 +36,8 @@ class UpdateUserInDTO:
     name: str | None
     email: str | None
     password: str | None
-    status: entities.UserStatus | None
-    role: entities.UserRole | None
+    status: str | None
+    role: str | None
 
 @dataclass
 class UpdateUserOutDTO:
@@ -46,10 +46,14 @@ class UpdateUserOutDTO:
 @dataclass
 class GetUserListInDTO:
     projects_names: set[str]
-    status: bool | None  # 'active' or 'all'
+    is_active: bool | None
 
 @dataclass
 class GetUserListOutDTO:
     users: list[entities.User]
     
+
+
+
+
 

@@ -33,6 +33,12 @@ class UpdateProjectValidator:
                 return err
         return None
 
+class GetProjectListValidator:
+    """Validator for GetProjectList DTO - currently no constraints."""
+
+    def validate(self, dto_data: dto.GetProjectListInDTO) -> exceptions.ProjectValidationError | None:
+        return None
+
 def _validate_name(name: str) -> exceptions.InvalidProjectNameError | None:
     
     if not name or not name.strip():

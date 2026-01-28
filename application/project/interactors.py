@@ -17,7 +17,7 @@ class CreateProjectInteractor:
         self,
         project_repository: common_interfaces.ProjectRepository,
         create_project_validator: validators.CreateProjectValidator,
-        authorization_policy: interfaces.ProjectCreateAuthorizationPolicy,
+        authorization_policy: interfaces.ProjectAuthorizationPolicy,
         db_session: common_interfaces.DBSession,
         user_context: common_interfaces.UserContext,
         user_repository : common_interfaces.UserRepository,
@@ -81,8 +81,9 @@ class UpdateProjectInteractor:
     def __init__(
         self,
         project_repository: common_interfaces.ProjectRepository,
+        subscription_repository: common_interfaces.SubscriptionRepository,
         update_project_validator: validators.UpdateProjectValidator,
-        authorization_policy: interfaces.ProjectUpdateAuthorizationPolicy,
+        authorization_policy: interfaces.ProjectAuthorizationPolicy,
         db_session: common_interfaces.DBSession,
         user_context: common_interfaces.UserContext,
         user_repository: common_interfaces.UserRepository,
@@ -94,6 +95,7 @@ class UpdateProjectInteractor:
         self.user_context = user_context
         self.user_repository = user_repository
         self.project_repository = project_repository
+        self.subscription_repository = subscription_repository
         self.text_normalizer = text_normalizer
         
     async def execute(self, data: dto.UpdateProjectInDTO) -> dto.UpdateProjectOutDTO | common_exceptions.UserNotFoundError | common_exceptions.ProjectNotFoundError | common_exceptions.InvalidToken | exceptions.ProjectAuthorizationError | exceptions.InvalidProjectDescriptionError | exceptions.InvalidProjectNameError:
@@ -133,7 +135,14 @@ class UpdateProjectInteractor:
         if authorization_error is not None:
             raise authorization_error
 
-        if error := project.ensure_update():
+        # obtain active subscription entity (or None)
+        subscription = await self.subscription_repository.get_active_subscription(project.uuid)
+        if isinstance(subscription, common_exceptions.ProjectNotFoundError):
+            raise subscription
+        if isinstance(subscription, common_exceptions.SubscriptionNotFoundError):
+            subscription = None
+
+        if error := project.ensure_update(subscription):
             raise exceptions.CantUpdateProjectError(error)
 
         updated_project = await self.project_repository.update(asdict(data), release_record=True)
@@ -152,7 +161,7 @@ class GetProjectInteractor:
     def __init__(
         self,
         project_repository: common_interfaces.ProjectRepository,
-        authorization_policy: interfaces.ProjectGetterAuthorizationPolicy,
+        authorization_policy: interfaces.ProjectAuthorizationPolicy,
         db_session: common_interfaces.DBSession,
         user_repository: common_interfaces.UserRepository,
         context: common_interfaces.UserContext,
@@ -196,6 +205,34 @@ class GetProjectInteractor:
         return dto.GetProjectsOutDTO(
             project=project,
             members=members)  # type: ignore
+
+
+class GetProjectListInteractor:
+    def __init__(
+        self,
+        user_repository: common_interfaces.UserRepository,
+        user_context: common_interfaces.UserContext,
+        validator: validators.GetProjectListValidator,
+    ):
+        self.user_repository = user_repository
+        self.user_context = user_context
+        self.validator = validator
+
+    async def execute(self, data: dto.GetProjectListInDTO) -> dto.GetProjectListOutDTO | exceptions.ProjectValidationError | common_exceptions.UserNotFoundError | common_exceptions.InvalidToken:
+
+        validation_error = self.validator.validate(data)
+        if validation_error is not None:
+            raise validation_error
+
+        current_user_uuid = self.user_context.get_current_user_uuid()
+        if isinstance(current_user_uuid, common_exceptions.InvalidToken):
+            raise current_user_uuid
+
+        projects = await self.user_repository.get_projects(current_user_uuid)
+        if isinstance(projects, common_exceptions.UserNotFoundError):
+            raise projects
+
+        return dto.GetProjectListOutDTO(projects=projects)
         
 class AddMembersToProjectInteractor:
     def __init__(
@@ -204,7 +241,7 @@ class AddMembersToProjectInteractor:
         user_repository: common_interfaces.UserRepository,
         db_session: common_interfaces.DBSession,
         context: common_interfaces.UserContext,
-        authorization_policy: interfaces.ProjectUpdateAuthorizationPolicy,
+        authorization_policy: interfaces.ProjectAuthorizationPolicy,
         clock: common_interfaces.Clock,
     ):
         self.project_repository = project_repository
@@ -232,7 +269,6 @@ class AddMembersToProjectInteractor:
         if isinstance(project, common_exceptions.ProjectNotFoundError):
             raise project
         
-
         authorization_error = self.authorization_policy.decide_update_project(
             actor,
             project, 
@@ -254,6 +290,8 @@ class AddMembersToProjectInteractor:
         await self.db_session.commit()
         
         return dto.AddMembersOutDTO(members=members)
+
+
     
 class RemoveMembersFromProjectInteractor:
     def __init__(
@@ -262,7 +300,7 @@ class RemoveMembersFromProjectInteractor:
         user_repository: common_interfaces.UserRepository,
         db_session: common_interfaces.DBSession,
         context: common_interfaces.UserContext,
-        authorization_policy: interfaces.ProjectUpdateAuthorizationPolicy,
+        authorization_policy: interfaces.ProjectAuthorizationPolicy,
     ):
         self.project_repository = project_repository
         self.user_repository = user_repository
@@ -310,57 +348,7 @@ class RemoveMembersFromProjectInteractor:
         await self.db_session.commit()
         
         return dto.RemoveMembersOutDTO(project=updated_project)
-    
-class GetProjectStageListInteractor:
-    def __init__(
-        self,
-        project_repository: common_interfaces.ProjectRepository,
-        stage_repository: common_interfaces.StageRepository,
-        user_repository: common_interfaces.UserRepository,
-        context: common_interfaces.UserContext,
-        authorization_policy: interfaces.ProjectGetterAuthorizationPolicy,
-    ):
-        self.project_repository = project_repository
-        self.stage_repository = stage_repository
-        self.user_repository = user_repository
-        self.context = context
-        self.authorization_policy = authorization_policy
-        
-    async def execute(self, data: dto.GetProjectStageListInDTO) -> dto.GetProjectStageListOutDTO | common_exceptions.UserNotFoundError | common_exceptions.ProjectNotFoundError | exceptions.ProjectAuthorizationError:
-        actor_uuid = self.context.get_current_user_uuid()
-        
-        if isinstance(actor_uuid, common_exceptions.InvalidToken):
-            raise actor_uuid
-        
-        actor = await self.user_repository.get_by_uuid(actor_uuid)
-        
-        if isinstance(actor, common_exceptions.UserNotFoundError):
-            raise actor
-        
-        
-        project = await self.project_repository.get_by_uuid(data.project_uuid)
 
-        if isinstance(project, common_exceptions.ProjectNotFoundError):
-            raise project
-        
 
-        members = await self.project_repository.get_members([project.uuid])
         
-        if isinstance(members, common_exceptions.ProjectNotFoundError):
-            raise members
-        
-        authorization_error = self.authorization_policy.decide_get_project(
-            actor,
-            project,
-            members) # type: ignore
-        
-        if authorization_error is not None:
-            raise authorization_error
-        
-        stages = await self.stage_repository.get_list(project.uuid)
-        
-        if isinstance(stages, common_exceptions.ProjectNotFoundError):
-            raise stages
-        
-        return dto.GetProjectStageListOutDTO(
-            stages=stages)  # type: ignore
+ 

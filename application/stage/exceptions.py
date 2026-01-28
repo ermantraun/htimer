@@ -52,3 +52,7 @@ class AllFieldsNoneError(StageValidationError):
 class StageCantUpdateError(Exception):
     """Raised when a stage cannot be updated due to business logic constraints."""
     pass
+
+class StageCantCreateError(Exception):
+    """Raised when a stage cannot be created due to business logic constraints (e.g., inactive subscription)."""
+    pass

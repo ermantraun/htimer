@@ -57,6 +57,9 @@ class GetUsersListValidator:
         return None
 
 
+
+
+
 def _validate_common_create(dto_data: dto.CreateUserInDTO) -> exceptions.UserValidationError | None:
     if (err := _validate_name(dto_data.name)) is not None:
         return err

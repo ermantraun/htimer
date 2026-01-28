@@ -26,7 +26,11 @@ class RepositoryProvider(Provider):
     user_repository = provide(None, scope=Scope.REQUEST, provides=common_interfaces.UserRepository)
     project_repository = provide(None, scope=Scope.REQUEST, provides=common_interfaces.ProjectRepository)
     stage_repository = provide(None, scope=Scope.REQUEST, provides=common_interfaces.StageRepository)
-
+    daily_log_repository = provide(None, scope=Scope.REQUEST, provides=common_interfaces.DailyLogRepository)
+    file_repository = provide(None, scope=Scope.REQUEST, provides=common_interfaces.FileRepository)
+    task_repository = provide(None, scope=Scope.REQUEST, provides=common_interfaces.TaskRepository)
+    subscription_repository = provide(None, scope=Scope.REQUEST, provides=common_interfaces.SubscriptionRepository)
+    
 class LogerProvider(Provider):
     logger = provide(None, scope=Scope.REQUEST, provides=common_interfaces.Logger)
     

@@ -1,12 +1,19 @@
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, date
 from enum import Enum
 from uuid import UUID
+import value_objects
+    
+"""
+    todo: 
+    1) Исправления - реализовать запрет создания подэтаппа в цепочке где есть незавершенные этапы
+    2) реализовать корректное изменение статусов
+    
+    """
 
 
-# ===== Helpers for typed defaults =====
 
-def _empty_str_list() -> list[str]:
+def _empty_date_list() -> list[date]:
     return []
 
 
@@ -26,12 +33,17 @@ def _empty_str_object_dict() -> dict[str, object]:
     return {}
 
 
-# ==================== ENUMS ====================
+
 
 class UserRole(Enum):
     ADMIN = "admin"        # Администратор / Руководитель проекта
     EXECUTOR = "executor"  # Пользователь / Исполнитель
 
+
+class PaymentMethod(Enum):
+    CREDIT_CARD = "credit_card"
+    BANK_TRANSFER = "bank_transfer"
+    CRYPTOCURRENCY = "cryptocurrency"
 
 class UserStatus(Enum):
     ACTIVE = "active"
@@ -53,11 +65,10 @@ class TaskStatus(Enum):
 
 
 class SubscriptionStatus(Enum):
-    TRIAL = "trial"
     ACTIVE = "active"
+    UNACTIVE = "unactive"
     EXPIRED = "expired"
     CANCELLED = "cancelled"
-
 
 class PaymentStatus(Enum):
     PENDING = "pending"
@@ -101,8 +112,10 @@ class StageStatus(Enum):
     COMPLETED = "completed"
     ARCHIVED = "archived"
 
-
-# ==================== AUTHORIZATION DECISIONS ====================
+class PaymentContext(Enum):
+    OK = "ok"
+    FAILED = "failed"
+    
 
 
 class UserDecisions:
@@ -129,7 +142,7 @@ class UserDecisions:
         
     class UpdateProjectDecision(Enum):
         ALLOWED = "allowed"
-        FORBIDDEN_FOR_NON_PROJECT_ADMIN = "forbidden_for_non_project_admin"
+        FORBIDDEN_FOR_NON_PROJECT_ADMIN_OR_CREATOR = "FORBIDDEN_FOR_NON_PROJECT_ADMIN_OR_CREATOR"
     
     class GetProjectDecision(Enum):
         ALLOWED = "allowed"
@@ -138,6 +151,10 @@ class UserDecisions:
     class DecideGetProjectDecision(Enum):
         ALLOWED = "allowed"
         FORBIDDEN_FOR_NON_MEMBER = "forbidden_for_non_member"
+    
+    class DecideGetDailyLogListDecision(Enum):
+        ALLOWED = "allowed"
+        FORBIDDEN_FOR_NON_PROJECT_ADMIN_OR_CREATOR = "forbidden_for_non_project_admin_or_creator"
     
     class CreateStageDecision(Enum):
         ALLOWED = "allowed"
@@ -151,7 +168,37 @@ class UserDecisions:
         ALLOWED = "allowed"
         FORBIDDEN_FOR_NON_MEMBER = "forbidden_for_non_member"
     
+    class UpdateDailyLogDecision(Enum):
+        ALLOWED = "allowed"
+        FORBIDDEN_FOR_NON_CREATOR = "forbidden_for_non_creator"
+        
+    class GetDailyLogDecision(Enum):
+        ALLOWED = "allowed"
+        FORBIDDEN_FOR_NON_PROJECT_ADMIN_OR_CREATOR = "forbidden_for_non_project_admin_or_creator"
     
+    class CreateTaskDecision(Enum):
+        ALLOWED = "allowed"
+        FORBIDDEN_FOR_NON_MEMBER = "forbidden_for_non_member"
+
+    class CreateSubscriptionDecision(Enum):
+        ALLOWED = "allowed"
+        FORBIDDEN_FOR_NON_PROJECT_CREATOR = "forbidden_for_non_project_creator"
+
+    class CreatePaymentDecision(Enum):
+        ALLOWED = "allowed"
+        FORBIDDEN_FOR_NON_PROJECT_CREATOR = "forbidden_for_non_project_creator"
+
+    class UpdateTaskDecision(Enum):
+        ALLOWED = "allowed"
+        FORBIDDEN_FOR_NON_MEMBER = "forbidden_for_non_member"
+
+    class GetTaskDecision(Enum):
+        ALLOWED = "allowed"
+        FORBIDDEN_FOR_NON_MEMBER = "forbidden_for_non_member"
+
+    class DeleteTaskDecision(Enum):
+        ALLOWED = "allowed"
+        FORBIDDEN_FOR_NON_MEMBER = "forbidden_for_non_member"
 # ==================== USER ====================
 
 @dataclass
@@ -167,9 +214,9 @@ class User:
     name: str
     email: str
     password_hash: str
-    creator_uuid: UUID
+    creator: User
     role: UserRole
-    created_at: str
+    created_at: date
     status: UserStatus = UserStatus.ACTIVE
     last_login: str | None = None
 
@@ -183,7 +230,7 @@ class User:
 
     
     def ensure_update(self, target: User, change_role: bool, change_status: bool) -> str:
-        is_self_update = self.uuid == target.uuid
+        is_self_update = self is target
 
         if is_self_update:
             if change_role:
@@ -199,36 +246,75 @@ class User:
         self,
         target: User,
     ) -> UserDecisions.UpdateUserDecision:
-        """Решение о возможности обновления пользователя"""
  
-        if self.uuid != target.creator_uuid:
+        if self is not target.creator:
             return UserDecisions.UpdateUserDecision.FORBIDDEN_FOR_NON_CREATOR
         else:
             return UserDecisions.UpdateUserDecision.ALLOWED
 
-    def decid_create_daily_log(
+    def decide_create_daily_log(
         self,
         project: Project,
         project_members: list[User],
     ) -> UserDecisions.CreateDailyLogDecision:
-        """Решение о возможности создания дневного лога"""
         
-        if self.uuid not in {member.uuid for member in project_members} or self.uuid != project.creator.uuid:
+        if self.uuid not in {member.uuid for member in project_members} or self is not project.creator:
             return UserDecisions.CreateDailyLogDecision.FORBIDDEN_FOR_NON_MEMBER
 
         return UserDecisions.CreateDailyLogDecision.ALLOWED
 
+    def decide_create_subscription(
+        self,
+        project: Project,
+    ) -> UserDecisions.CreateSubscriptionDecision:
+
+        if self is project.creator:
+            return UserDecisions.CreateSubscriptionDecision.ALLOWED
+
+        return UserDecisions.CreateSubscriptionDecision.FORBIDDEN_FOR_NON_PROJECT_CREATOR
+
+    def decide_create_payment(
+        self,
+        project: Project,
+    ) -> UserDecisions.CreatePaymentDecision:
+
+        if self is project.creator:
+            return UserDecisions.CreatePaymentDecision.ALLOWED
+
+        return UserDecisions.CreatePaymentDecision.FORBIDDEN_FOR_NON_PROJECT_CREATOR
+
+    def decide_update_daily_log(
+        self,
+        daily_log: DailyLog
+    ) -> UserDecisions.UpdateDailyLogDecision:
+        
+        if daily_log.creator is not self:
+            return UserDecisions.UpdateDailyLogDecision.FORBIDDEN_FOR_NON_CREATOR
+        
+        return UserDecisions.UpdateDailyLogDecision.ALLOWED
+
+    def decide_get_daily_log(
+        self,
+        daily_log: DailyLog,
+        project_members: list[User]
+        
+    ) -> UserDecisions.GetDailyLogDecision:
+            
+        if self is not daily_log.creator and self is not daily_log.project.creator and (self.role is not UserRole.ADMIN and self not in project_members):
+                return UserDecisions.GetDailyLogDecision.FORBIDDEN_FOR_NON_PROJECT_ADMIN_OR_CREATOR
+        
+        return UserDecisions.GetDailyLogDecision.ALLOWED
+    
     def ensure_reset_password(self, target: User) -> str:
-        return 'Нельзя сбросить пароль самому себе.' if self.uuid == target.uuid else ''
+        return 'Нельзя сбросить пароль самому себе.' if self is target else ''
 
     
     def decide_reset_user_password(
         self,
         target: User,
     ) -> UserDecisions.ResetUserPasswordDecision:
-        """Решение о возможности сброса пароля пользователя"""
 
-        if self.uuid != target.creator_uuid:
+        if self is not target and self is not target.creator:
             return UserDecisions.ResetUserPasswordDecision.FORBIDDEN_FOR_NON_CREATOR
         else:
             return UserDecisions.ResetUserPasswordDecision.ALLOWED
@@ -240,10 +326,9 @@ class User:
         else:
             return UserDecisions.CreateProjectDecision.FORBIDDEN_FOR_NON_ADMIN
     
-    def decide_update_project(self, members: list[User]) -> UserDecisions.UpdateProjectDecision:
-        """Решение о возможности обновления проекта"""
-        if self.role is not UserRole.ADMIN or self.uuid not in {member.uuid for member in members}:
-            return UserDecisions.UpdateProjectDecision.FORBIDDEN_FOR_NON_PROJECT_ADMIN
+    def decide_update_project(self, project: Project, members: list[User]) -> UserDecisions.UpdateProjectDecision:
+        if self is not project.creator and (self.role is not UserRole.ADMIN and self not in members):
+            return UserDecisions.UpdateProjectDecision.FORBIDDEN_FOR_NON_PROJECT_ADMIN_OR_CREATOR
 
         return UserDecisions.UpdateProjectDecision.ALLOWED
 
@@ -252,39 +337,85 @@ class User:
         project: Project,
         project_members: list[User],
     ) -> UserDecisions.GetProjectDecision:
-        """Решение о возможности получения проекта"""
 
         if self.uuid not in {member.uuid for member in project_members} or project.creator.uuid != self.uuid:
             return UserDecisions.GetProjectDecision.FORBIDDEN_FOR_NON_MEMBER
 
         return UserDecisions.GetProjectDecision.ALLOWED
 
+    def decide_get_daily_log_list(
+        self, target: User, project: Project, project_members: list[User]
+    ) -> UserDecisions.DecideGetDailyLogListDecision:
+        
+        if self is not target and self is not project.creator and (self.role is not UserRole.ADMIN and self not in project_members):
+            return UserDecisions.DecideGetDailyLogListDecision.FORBIDDEN_FOR_NON_PROJECT_ADMIN_OR_CREATOR
+
+        return UserDecisions.DecideGetDailyLogListDecision.ALLOWED
+        
     def decide_create_stage(
         self,
         project: Project,
         project_members: list[User],
     ) -> UserDecisions.CreateStageDecision:
-        """Решение о возможности создания этапа"""
 
-        if self.uuid not in {member.uuid for member in project_members}:
+        if self.uuid not in {member.uuid for member in project_members} or project.creator is not self:
             return UserDecisions.CreateStageDecision.FORBIDDEN_FOR_NON_MEMBER
 
         return UserDecisions.CreateStageDecision.ALLOWED
+
+    def decide_create_task(
+        self,
+        project: Project,
+        project_members: list[User],
+    ) -> UserDecisions.CreateTaskDecision:
+
+        if self.uuid not in {member.uuid for member in project_members} and self is not project.creator:
+            return UserDecisions.CreateTaskDecision.FORBIDDEN_FOR_NON_MEMBER
+
+        return UserDecisions.CreateTaskDecision.ALLOWED
+
+    def decide_update_task(
+        self,
+        task: "Task",
+        project_members: list[User],
+    ) -> UserDecisions.UpdateTaskDecision:
+
+        if self.uuid not in {member.uuid for member in project_members}:
+            return UserDecisions.UpdateTaskDecision.FORBIDDEN_FOR_NON_MEMBER
+        else:
+            return UserDecisions.UpdateTaskDecision.ALLOWED
+
+    def decide_get_task(
+        self, task_project: Project,
+        task_project_members: list[User],
+    ) -> UserDecisions.GetTaskDecision:
+
+        if self.uuid not in {member.uuid for member in task_project_members} and self is not task_project.creator:
+            return UserDecisions.GetTaskDecision.FORBIDDEN_FOR_NON_MEMBER
+
+        return UserDecisions.GetTaskDecision.ALLOWED
+
+    def decide_delete_task(
+        self,
+        task: "Task",
+        project_members: list[User],
+    ) -> UserDecisions.DeleteTaskDecision:
+        if self.uuid not in {member.uuid for member in project_members}:
+            return UserDecisions.DeleteTaskDecision.FORBIDDEN_FOR_NON_MEMBER
+        else:
+            return UserDecisions.DeleteTaskDecision.ALLOWED
     
     def decide_update_stage(
         self,
         project: Project,
         project_members: list[User],
     ) -> UserDecisions.UpdateStageDecision:
-        """Решение о возможности обновления этапа"""
         
-        if self.uuid not in {member.uuid for member in project_members} or project.creator.uuid != self.uuid:
+        if self.uuid not in {member.uuid for member in project_members} or project.creator is not self:
             return UserDecisions.UpdateStageDecision.FORBIDDEN_FOR_NON_MEMBER
 
         return UserDecisions.UpdateStageDecision.ALLOWED
         
-    
-
     
     def decide_get_users(
         self,
@@ -292,15 +423,12 @@ class User:
         requested_projects_names: set[str] | None,
         actor_projects_names: set[str],
     ) -> UserDecisions.ListUsersDecision:
-        """Решение о возможности получения списка пользователей"""
 
-        if requested_projects_names is not None and not requested_projects_names <= actor_projects_names:
+        if requested_projects_names is not None and not ((requested_projects_names <= actor_projects_names) and self.creator.role is not UserRole.ADMIN):
             return UserDecisions.ListUsersDecision.FORBIDDEN_FOR_NON_PROJECT_ADMIN
 
         return UserDecisions.ListUsersDecision.ALLOWED
 
-
-# ==================== PROJECT ====================
 
 @dataclass
 class Project:
@@ -308,30 +436,139 @@ class Project:
     name: str
     description: str | None
     creator: User
-    created_at: str
+    created_at: date
     status: ProjectStatus = ProjectStatus.ACTIVE
-    start_date: str | None = None
-    end_date: str | None = None
-    
+    start_date: date | None = None
+    end_date: date | None = None
 
-    def ensure_update(self) -> str:
+    def ensure_update(self, subscription: 'Subscription | None' = None) -> str:
+ 
         if self.status in {ProjectStatus.ARCHIVED, ProjectStatus.BLOCKED, ProjectStatus.COMPLETED}:
             return "Нельзя изменить проект в архивном, заблокированном или завершённом статусе."
+
+        if self.status is not ProjectStatus.ACTIVE:
+            if subscription is None:
+                return "Нельзя изменить проект: проект не активен и нет активной подписки."
+            if not subscription.is_active(datetime.now().isoformat()):
+                return "Нельзя изменить проект: проект не активен и нет активной подписки."
+
         return ""
 
+@dataclass
+class Subscription:
+    uuid: UUID
+    project: Project
+    created_at: date
+    auto_renew: bool = True
+    start_date: date | None = None
+    end_date: date | None = None
+    status: SubscriptionStatus = SubscriptionStatus.UNACTIVE
 
 
-# ==================== MEMBERSHIP ====================
+    def is_active(self, current_time: str) -> bool:
+        if self.status == SubscriptionStatus.ACTIVE:
+            return True
+
+        if self.end_date is not None and datetime.fromisoformat(current_time) <= datetime.combine(self.end_date, datetime.min.time()):
+            return True
+
+        return False
+    
+    def expire(self) -> None:
+        self.status = SubscriptionStatus.EXPIRED
+
+    def cancel(self) -> None:
+        self.status = SubscriptionStatus.CANCELLED
+        self.auto_renew = False
+
+    def ensure_create(self) -> str:
+
+        if self.project.status is not ProjectStatus.ACTIVE:
+            return "Нельзя создать подписку для неактивного проекта."
+
+        return ""
+
+    def ensure_update(self, status: SubscriptionStatus | None) -> str:
+
+        if self.project.status is not ProjectStatus.ACTIVE:
+            return "Нельзя изменить подписку для неактивного проекта."
+
+        if self.status is SubscriptionStatus.CANCELLED:
+            return "Нельзя изменить отменённую подписку."
+
+        if status is not SubscriptionStatus.CANCELLED:
+            return "Можно менять статус только на отмененную."
+
+        return ""
+
+    def ensure_extend(self) -> str:
+
+        if self.status is SubscriptionStatus.CANCELLED:
+            return "Нельзя продлить отменённую подписку."
+        
+        if not self.auto_renew:
+            return "Нельзя продлить подписку с отключённым авто-продлением."
+
+        if self.project.status is not ProjectStatus.ACTIVE:
+            return "Нельзя продлить подписку для неактивного проекта."
+
+        return ""
+    
+    def ensure_activate(self) -> str:
+
+        if self.status is not SubscriptionStatus.UNACTIVE:
+            return "Можно активировать только неактивную подписку."
+
+        if self.project.status is not ProjectStatus.ACTIVE:
+            return "Нельзя активировать подписку для неактивного проекта."
+
+        return ""
+
+@dataclass
+class Payment:
+    uuid: UUID
+    subscription: Subscription
+    amount: value_objects.MoneyAmount
+    created_at: date
+    status: PaymentStatus = PaymentStatus.PENDING
+    payment_date: date | None = None
+    payment_method: PaymentMethod | None = None
+    
+
+    def ensure_complete(self) -> str:
+        
+        if self.subscription.project.status is not ProjectStatus.ACTIVE:
+            return "Нельзя завершить платёж для подписки, если проект не активен."
+
+        if self.subscription.status is SubscriptionStatus.CANCELLED:
+            return "Нельзя завершить платёж для отменённой подписки."
+        
+        return ''
+
+    def fail(self) -> None:
+        self.status = PaymentStatus.FAILED
+
+    def refund(self) -> None:
+        self.status = PaymentStatus.REFUNDED
+
+    def ensure_create(self) -> str:
+
+        if self.subscription.project.status is not ProjectStatus.ACTIVE:
+            return "Нельзя создать платёж для подписки, если проект не активен."
+
+        if self.subscription.status is SubscriptionStatus.CANCELLED:
+            return "Нельзя завершить платёж для отменённой подписки."
+        
+        return ""
 
 @dataclass
 class MemberShip:
     uuid: UUID
     user: User
     project: Project
-    joined_at: str
+    joined_at: date
     assigned_by: UUID | None = None
 
-# ==================== STAGE ====================
 
 @dataclass
 class Stage:
@@ -339,15 +576,18 @@ class Stage:
     name: str
     description: str | None
     creator: User
-    created_at: str
+    created_at: date
     project: Project
     parent: Stage | None = None
     main_path: bool | None = None
     status: StageStatus = StageStatus.ACTIVE
-    end_date: str | None = None
 
-    def ensure_update(self) -> str:
-        
+    def ensure_update(self, subscription: Subscription | None = None) -> str:
+
+        proj_err = self.project.ensure_update(subscription)
+        if proj_err:
+            return proj_err
+
         if self.status in {StageStatus.COMPLETED, StageStatus.ARCHIVED}:
             return "Нельзя изменить этап в завершённом или архивном статусе."
 
@@ -358,9 +598,14 @@ class Stage:
 
     def archive(self) -> None:
         self.status = StageStatus.ARCHIVED
+    
+    def ensure_create(self, subscription: Subscription | None = None) -> str:
+ 
+        proj_err = self.project.ensure_update(subscription)
+        if proj_err:
+            return proj_err
 
-
-# ==================== TASK ====================
+        return ""
 
 @dataclass
 class Task:
@@ -368,19 +613,27 @@ class Task:
     name: str
     description: str
     creator: User
-    created_at: str
+    created_at: date
     substage: Stage
-    completed: bool = False
+    working_dates: value_objects.WorkingDates = value_objects.WorkingDates(dates=(), complete_date=None)
     status: TaskStatus = TaskStatus.PENDING
-    completion_dates: list[str] = field(default_factory=_empty_str_list)
-
+    completion_dates: list[date] = field(default_factory=_empty_date_list)
     
+    def add_working_date(self, date: date) -> None:
+        if date not in self.working_dates.dates:
+            new_dates: tuple[date, ...] = self.working_dates.dates + (date,)
+            self.working_dates = value_objects.WorkingDates(
+                dates=new_dates,
+                complete_date=self.working_dates.complete_date
+            )
     
-    def mark_completed(self, date: str) -> None:
-        self.completed = True
+    def mark_completed(self, date: date) -> None:
         self.status = TaskStatus.COMPLETED
-        if date not in self.completion_dates:
-            self.completion_dates.append(date)
+        self.completion_dates.append(date)
+        self.working_dates = value_objects.WorkingDates(
+            dates=self.working_dates.dates,
+            complete_date=date
+        )
 
     def mark_in_progress(self) -> None:
         self.status = TaskStatus.IN_PROGRESS
@@ -388,16 +641,48 @@ class Task:
     def archive(self) -> None:
         self.status = TaskStatus.ARCHIVED
 
+    def ensure_update(self, subscription: 'Subscription | None' = None) -> str:
+        """Проверяет возможность обновления задачи.
 
-# ==================== DAY ENTRY ====================
+        Делегирует проверку проекту и затем выполняет проверки уровня задачи.
+        """
+    
+        proj_err = self.substage.project.ensure_update(subscription)
+        if proj_err:
+            return proj_err
+
+        if self.status is TaskStatus.COMPLETED:
+            return "Нельзя изменить завершённую задачу."
+
+        if self.substage.parent is None:
+            return "Таск можно изменять только если он принадлежит подэтапу."
+        return ""
+
+    @staticmethod
+    def ensure_create(substage: Stage, subscription: 'Subscription | None' = None) -> str:
+        """Проверяет возможность создания задачи в подэтапе.
+
+        Делегирует проверку проекту и затем проверяет, что создаём в подэтапе.
+        """
+    
+        proj_err = substage.project.ensure_update(subscription)
+        if proj_err:
+            return proj_err
+
+        if substage.parent is None:
+            return "Таск можно создавать только в подэтапе."
+        return ""
+
+
 
 @dataclass
 class DailyLog:
     uuid: UUID
     creator: User
     project: Project
-    created_at: str
-    updated_at: str | None = None
+    created_at: date
+    draft: bool = False
+    updated_at: date | None = None
     hours_spent: float = 0.0
     description: str = ""
     substage: Stage | None = None
@@ -405,6 +690,8 @@ class DailyLog:
     def update_description(self, description: str) -> None:
         self.description = description
 
+    def draft_viewers(self) -> list[User]:
+        return [self.project.creator]
 
     def set_substage(self, substage: Stage) -> None:
         self.substage = substage
@@ -414,43 +701,14 @@ class DailyLog:
         self.hours_spent = hours
 
 
-
-# ==================== DAY TASK LINK ====================
-
-@dataclass
-class DayTaskLink:
-    uuid: UUID
-    day_entry: DailyLog
-    task: Task
-    linked_at: str
-    completed_today: bool = False
-    notes: str | None = None
-
-    def mark_completed(self, notes: str | None = None) -> None:
-        self.completed_today = True
-        if notes:
-            self.notes = notes
-
-
-# ==================== FILE ====================
-
 @dataclass
 class File:
     uuid: UUID
     filename: str
     url: str
     day_entry: DailyLog
-    uploader: User
-    uploaded_at: str
-    file_size: int = 0  # bytes
-    file_type: str | None = None
+    uploaded_at: date
 
-    def is_image(self) -> bool:
-        image_types = {"image/jpeg", "image/png", "image/gif", "image/webp"}
-        return self.file_type in image_types if self.file_type else False
-
-
-# ==================== TABLE ====================
 
 @dataclass
 class TableColumn:
@@ -471,8 +729,8 @@ class TableRow:
 class Table:
     uuid: UUID
     day_entry: DailyLog
-    created_at: str
-    updated_at: str
+    created_at: date
+    updated_at: date
     columns: list[TableColumn] = field(default_factory=_empty_table_columns)
     rows: list[TableRow] = field(default_factory=_empty_table_rows)
 
@@ -503,25 +761,6 @@ class Table:
                 break
 
 
-# ==================== DRAFT ====================
-
-@dataclass
-class Draft:
-    uuid: UUID
-    day_entry: DailyLog
-    created_at: str
-    updated_at: str 
-    content: dict[str, object] = field(default_factory=_empty_str_object_dict)
-    auto_saved: bool = True
-
-
-    def update_content(self, content: dict[str, object]) -> None:
-        self.content = content
-
-
-
-# ==================== VOICE RECORD ====================
-
 @dataclass
 class VoiceRecord:
     uuid: UUID
@@ -541,96 +780,6 @@ class VoiceRecord:
         self.status = TranscriptionStatus.FAILED
 
 
-# ==================== SUBSCRIPTION ====================
-
-@dataclass
-class Subscribe:
-    uuid: UUID
-    project: Project
-    plan_type: str
-    start_date: str
-    start_date: str
-    status: SubscriptionStatus = SubscriptionStatus.TRIAL
-    
-    end_date: str | None = None
-    auto_renew: bool = True
-
-    def is_active(self, current_time: str) -> bool:
-        if self.status != SubscriptionStatus.ACTIVE:
-            return False
-        if self.end_date:
-            return datetime.fromisoformat(current_time) <= datetime.fromisoformat(self.end_date)
-        return True
-
-    def get_features_limit(self, current_time: str) -> dict[str, bool | int]:
-        if self.status == SubscriptionStatus.ACTIVE and self.is_active(current_time):
-            return {
-                "can_export": True,
-                "can_add_users": True,
-                "can_add_projects": True,
-                "max_users": 100,
-                "max_projects": 50,
-                "read_only": False,
-            }
-        elif self.status == SubscriptionStatus.TRIAL:
-            return {
-                "can_export": True,
-                "can_add_users": True,
-                "can_add_projects": True,
-                "max_users": 5,
-                "max_projects": 1,
-                "read_only": False,
-            }
-        else:
-            return {
-                "can_export": False,
-                "can_add_users": False,
-                "can_add_projects": False,
-                "read_only": True,
-            }
-
-    def expire(self) -> None:
-        self.status = SubscriptionStatus.EXPIRED
-
-    def cancel(self) -> None:
-        self.status = SubscriptionStatus.CANCELLED
-        self.auto_renew = False
-
-    def renew(self, end_date: str) -> None:
-        self.status = SubscriptionStatus.ACTIVE
-        self.end_date = end_date
-
-
-# ==================== PAYMENT ====================
-
-@dataclass
-class Payment:
-    uuid: UUID
-    subscription: Subscribe
-    amount: float
-    created_at: str
-    currency: str = "RUB"
-    status: PaymentStatus = PaymentStatus.PENDING
-    payment_date: str | None = None
-    invoice_url: str | None = None
-    receipt_url: str | None = None
-    payment_method: str | None = None
-    
-
-    def complete(self, receipt_url: str | None = None) -> None:
-        self.status = PaymentStatus.COMPLETED
-        self.payment_date = datetime.now().isoformat()
-        if receipt_url:
-            self.receipt_url = receipt_url
-
-    def fail(self) -> None:
-        self.status = PaymentStatus.FAILED
-
-    def refund(self) -> None:
-        self.status = PaymentStatus.REFUNDED
-
-
-# ==================== REPORT ====================
 
 @dataclass
 class Report:
@@ -658,7 +807,6 @@ class Report:
         self.status = ReportStatus.FAILED
 
 
-# ==================== AUDIT LOG ====================
 
 @dataclass
 class AuditLog:

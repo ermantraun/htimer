@@ -62,6 +62,55 @@ class DailyLogNotFoundError(DailyLogRepositoryError):
     """Raised when a daily log is not found."""
     pass
 
+
+class TaskRepositoryError(Exception):
+    """Raised when there is an error in the task repository."""
+    pass
+
+class TaskNotFoundError(TaskRepositoryError):
+    """Raised when a task is not found."""
+    pass
+
 class InvalidDate(Exception):
     """Raised when a provided date is invalid."""
     pass
+
+class PaymentRepositoryError(Exception):
+    """Raised when there is an error in the payment repository."""
+    pass
+
+class PaymentNotFoundError(PaymentRepositoryError):
+    """Raised when a payment is not found."""
+    pass
+
+class SubscriptionRepositoryError(Exception):
+    """Raised when there is an error in the subscription repository."""
+    pass
+
+class SubscriptionNotFoundError(SubscriptionRepositoryError):
+    """Raised when a subscription is not found."""
+    pass
+
+class SubscriptionAlreadyExistsError(SubscriptionRepositoryError):
+    """Raised when a subscription already exists."""
+    pass
+
+class PaymentGatewayError(Exception):
+    """Raised when there is an error with the payment gateway."""
+    pass
+
+class PaymentFailedError(PaymentGatewayError):
+    """Raised when a payment through the gateway fails."""
+    pass
+
+class PaymentNotComplete(PaymentGatewayError):
+    """Raised when a payment is not completed successfully."""
+    pass
+
+class PaymentNotExistsError(PaymentGatewayError):
+    """Raised when a payment does not exist."""
+    pass
+
+class PaymentRefundFailedError(PaymentGatewayError):
+    """Raised when a payment refund fails."""
+    pass 
