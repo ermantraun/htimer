@@ -250,7 +250,7 @@ class DeleteTaskInteractor:
         await self.db_session.commit()
 
 
-class ListTasksInteractor:
+class GetTaskListInteractor:
     def __init__(
         self,
         task_repository: common_interfaces.TaskRepository,

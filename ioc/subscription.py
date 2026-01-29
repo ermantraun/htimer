@@ -12,6 +12,11 @@ class SubscriptionProvider(Provider):
         provides=interfaces.SubscriptionAuthorizationPolicy
     )
 
+    payment_gateway = provide(None,
+        interfaces.PaymentGateway,
+        scope=Scope.REQUEST
+    )
+    
     interactors = provide_all(
         interactors.CreateSubscriptionInteractor,
         interactors.UpdateSubscriptionInteractor,

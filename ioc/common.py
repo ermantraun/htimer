@@ -1,6 +1,9 @@
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from dishka import Provider, provide, Scope # type: ignore
+from typing import AsyncGenerator
 from application import common_interfaces
 from infrastructure import text_normalizer
+from infrastructure.db import database
 
 """
 ВАЖНО:
@@ -20,7 +23,15 @@ SQLAlchemy НЕ делает retry автоматически и НЕ восст
 """
 
 class DBProvider(Provider):
-    db_session = provide(None, scope=Scope.REQUEST, provides=common_interfaces.DBSession)
+    
+    async_sessionmaker = provide(database.async_sessionmaker, scope=Scope.APP, provides=async_sessionmaker[AsyncSession])
+    
+    @provide(scope=Scope.REQUEST, provides=AsyncSession)
+    async def session(self, async_sessionmaker: async_sessionmaker[AsyncSession]) -> AsyncGenerator[AsyncSession, None]:
+        async with async_sessionmaker() as session:
+            yield session
+    
+
 
 class RepositoryProvider(Provider):
     user_repository = provide(None, scope=Scope.REQUEST, provides=common_interfaces.UserRepository)
@@ -30,7 +41,10 @@ class RepositoryProvider(Provider):
     file_repository = provide(None, scope=Scope.REQUEST, provides=common_interfaces.FileRepository)
     task_repository = provide(None, scope=Scope.REQUEST, provides=common_interfaces.TaskRepository)
     subscription_repository = provide(None, scope=Scope.REQUEST, provides=common_interfaces.SubscriptionRepository)
-    
+
+class PaymentGatewayProvider(Provider):
+    payment_gateway = provide(None, scope=Scope.REQUEST, provides=common_interfaces.PaymentGateway)
+
 class LogerProvider(Provider):
     logger = provide(None, scope=Scope.REQUEST, provides=common_interfaces.Logger)
     
