@@ -236,7 +236,7 @@ class CreateDailyLogFileInteractor:
         file = entities.File(
             uuid=uuid4(),
             filename=data.filename,
-            day_entry=daily_log,
+            daily_log=daily_log,
             uploaded_at=self.clock.now_date(),
             url = daily_log.uuid.hex + '/' + data.filename,
             

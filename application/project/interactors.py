@@ -135,7 +135,6 @@ class UpdateProjectInteractor:
         if authorization_error is not None:
             raise authorization_error
 
-        # obtain active subscription entity (or None)
         subscription = await self.subscription_repository.get_active_subscription(project.uuid)
         if isinstance(subscription, common_exceptions.ProjectNotFoundError):
             raise subscription

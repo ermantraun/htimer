@@ -11,12 +11,6 @@ import value_objects
     
     """
 
-
-
-def _empty_date_list() -> list[date]:
-    return []
-
-
 def _empty_uuid_str_dict() -> dict[UUID, str]:
     return {}
 
@@ -57,6 +51,8 @@ class ProjectStatus(Enum):
     BLOCKED = "blocked"
     COMPLETED = "completed"
 
+
+
 class TaskStatus(Enum):
     PENDING = "pending"
     IN_PROGRESS = "in_progress"
@@ -64,11 +60,14 @@ class TaskStatus(Enum):
     ARCHIVED = "archived"
 
 
+
 class SubscriptionStatus(Enum):
     ACTIVE = "active"
     UNACTIVE = "unactive"
     EXPIRED = "expired"
     CANCELLED = "cancelled"
+
+
 
 class PaymentStatus(Enum):
     PENDING = "pending"
@@ -107,10 +106,14 @@ class AuditAction(Enum):
     DAY_ENTRY_UPDATED = "day_entry_updated"
 
 
+
+
 class StageStatus(Enum):
     ACTIVE = "active"
     COMPLETED = "completed"
     ARCHIVED = "archived"
+
+
 
 class PaymentContext(Enum):
     OK = "ok"
@@ -218,7 +221,7 @@ class User:
     role: UserRole
     created_at: date
     status: UserStatus = UserStatus.ACTIVE
-    last_login: str | None = None
+    last_login: date | None = None
 
 
     def decide_create_users(self) -> UserDecisions.CreateUserDecision:
@@ -608,6 +611,31 @@ class Stage:
         return ""
 
 @dataclass
+class DailyLog:
+    uuid: UUID
+    creator: User
+    project: Project
+    created_at: date
+    draft: bool = False
+    updated_at: date | None = None
+    hours_spent: float = 0.0
+    description: str = ""
+    substage: Stage | None = None
+
+    def update_description(self, description: str) -> None:
+        self.description = description
+
+    def draft_viewers(self) -> list[User]:
+        return [self.project.creator]
+
+    def set_substage(self, substage: Stage) -> None:
+        self.substage = substage
+
+
+    def update_hours(self, hours: float) -> None:
+        self.hours_spent = hours
+
+@dataclass
 class Task:
     uuid: UUID
     name: str
@@ -615,31 +643,29 @@ class Task:
     creator: User
     created_at: date
     substage: Stage
-    working_dates: value_objects.WorkingDates = value_objects.WorkingDates(dates=(), complete_date=None)
     status: TaskStatus = TaskStatus.PENDING
-    completion_dates: list[date] = field(default_factory=_empty_date_list)
+    working_dates: frozenset[date] = field(default_factory=frozenset) #type: ignore
+    completion_dates: frozenset[date] = field(default_factory=frozenset) #type: ignore
     
-    def add_working_date(self, date: date) -> None:
-        if date not in self.working_dates.dates:
-            new_dates: tuple[date, ...] = self.working_dates.dates + (date,)
-            self.working_dates = value_objects.WorkingDates(
-                dates=new_dates,
-                complete_date=self.working_dates.complete_date
-            )
+    # def add_working_date(self, date: date) -> None:
+    #     if date not in self.working_dates.dates:
+    #         new_dates: tuple[date, ...] = self.working_dates.dates + (date,)
+    #         self.working_dates = value_objects.WorkingDates(
+    #             dates=new_dates,
+    #         )
     
-    def mark_completed(self, date: date) -> None:
-        self.status = TaskStatus.COMPLETED
-        self.completion_dates.append(date)
-        self.working_dates = value_objects.WorkingDates(
-            dates=self.working_dates.dates,
-            complete_date=date
-        )
+    # def mark_completed(self, date: date) -> None:
+    #     self.status = TaskStatus.COMPLETED
+    #     self.completion_dates.append(date)
+    #     self.working_dates = value_objects.WorkingDates(
+    #         dates=self.working_dates.dates,
+    #     )
 
-    def mark_in_progress(self) -> None:
-        self.status = TaskStatus.IN_PROGRESS
+    # def mark_in_progress(self) -> None:
+    #     self.status = TaskStatus.IN_PROGRESS
 
-    def archive(self) -> None:
-        self.status = TaskStatus.ARCHIVED
+    # def archive(self) -> None:
+    #     self.status = TaskStatus.ARCHIVED
 
     def ensure_update(self, subscription: 'Subscription | None' = None) -> str:
         """Проверяет возможность обновления задачи.
@@ -674,39 +700,12 @@ class Task:
         return ""
 
 
-
-@dataclass
-class DailyLog:
-    uuid: UUID
-    creator: User
-    project: Project
-    created_at: date
-    draft: bool = False
-    updated_at: date | None = None
-    hours_spent: float = 0.0
-    description: str = ""
-    substage: Stage | None = None
-
-    def update_description(self, description: str) -> None:
-        self.description = description
-
-    def draft_viewers(self) -> list[User]:
-        return [self.project.creator]
-
-    def set_substage(self, substage: Stage) -> None:
-        self.substage = substage
-
-
-    def update_hours(self, hours: float) -> None:
-        self.hours_spent = hours
-
-
 @dataclass
 class File:
     uuid: UUID
     filename: str
-    url: str
-    day_entry: DailyLog
+    uri: str
+    daily_log: DailyLog
     uploaded_at: date
 
 
