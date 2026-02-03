@@ -570,7 +570,7 @@ class MemberShip:
     user: User
     project: Project
     joined_at: date
-    assigned_by: UUID | None = None
+    assigned_by: UUID
 
 
 @dataclass
