@@ -30,7 +30,7 @@ class CreateStageInteractor:
         self.validator = validator
         self.text_normalizer = text_normalizer
         
-    async def execute(self, data: dto.CreateStageInDTO) -> dto.CreateStageOutDTO | common_exceptions.StageAlreadyExistsError | common_exceptions.ParentStageAlreadyHasMainSubStageError | exceptions.StageAuthorizationError | common_exceptions.ProjectNotFoundError | common_exceptions.UserNotFoundError | exceptions.InvalidStageDescriptionError | exceptions.InvalidStageNameError | common_exceptions.InvalidToken:
+    async def execute(self, data: dto.CreateStageInDTO) -> dto.CreateStageOutDTO | common_exceptions.StageAlreadyExistsError | common_exceptions.ParentStageAlreadyHasMainSubStageError | exceptions.StageAuthorizationError | common_exceptions.ProjectNotFoundError | common_exceptions.UserNotFoundError | exceptions.InvalidStageDescriptionError | exceptions.InvalidStageNameError | common_exceptions.InvalidToken | common_exceptions.UserRepositoryError | common_exceptions.ProjectRepositoryError | common_exceptions.StageRepositoryError | common_exceptions.SubscriptionRepositoryError:
         
         data.description = self.text_normalizer.normalize(data.description) if data.description else data.description
         
@@ -45,20 +45,20 @@ class CreateStageInteractor:
             raise actor_uuid
         
         actor = await self.user_repository.get_by_uuid(actor_uuid)
-        if isinstance(actor, common_exceptions.UserNotFoundError):
+        if isinstance(actor, (common_exceptions.UserNotFoundError, common_exceptions.UserRepositoryError)):
             raise actor
         
         project = await self.project_repository.get_by_uuid(data.project_uuid)
-        if isinstance(project, common_exceptions.ProjectNotFoundError):
+        if isinstance(project, (common_exceptions.ProjectNotFoundError, common_exceptions.ProjectRepositoryError)):
             raise project
         
         parent_stage = await self.stage_repository.get_by_uuid(data.parent_uuid) if data.parent_uuid else None
         
-        if isinstance(parent_stage, common_exceptions.StageNotFoundError):
+        if isinstance(parent_stage, (common_exceptions.StageNotFoundError, common_exceptions.StageRepositoryError)):
             raise parent_stage
         
         project_members = await self.project_repository.get_members([project.uuid])
-        if isinstance(project_members, common_exceptions.ProjectNotFoundError):
+        if isinstance(project_members, (common_exceptions.ProjectNotFoundError, common_exceptions.ProjectRepositoryError)):
             raise project_members
         
         authorization_error = self.authorization_policy.decide_create_stage(actor, project, project_members)
@@ -83,13 +83,15 @@ class CreateStageInteractor:
             raise subscription
         if isinstance(subscription, common_exceptions.SubscriptionNotFoundError):
             subscription = None
+        if isinstance(subscription, common_exceptions.SubscriptionRepositoryError):
+            raise subscription
 
         if error := new_stage.ensure_create(subscription):
             raise exceptions.StageCantCreateError(str(error))
 
         created_stage = await self.stage_repository.create(new_stage)
         
-        if isinstance(created_stage, (common_exceptions.StageAlreadyExistsError, common_exceptions.ParentStageAlreadyHasMainSubStageError, common_exceptions.UserNotFoundError, common_exceptions.ProjectNotFoundError)):
+        if isinstance(created_stage, (common_exceptions.StageAlreadyExistsError, common_exceptions.ParentStageAlreadyHasMainSubStageError, common_exceptions.UserNotFoundError, common_exceptions.ProjectNotFoundError, common_exceptions.StageRepositoryError)):
             raise created_stage
         
         await self.db_session.commit()
@@ -120,7 +122,7 @@ class UpdateStageInteractor:
         self.validator = validator
         self.text_normalizer = text_normalizer
         
-    async def execute(self, data: dto.UpdateStageInDTO) -> dto.UpdateStageOutDTO | common_exceptions.StageNotFoundError | exceptions.StageAuthorizationError | common_exceptions.UserNotFoundError | exceptions.InvalidStageNameError | exceptions.InvalidStageDescriptionError | exceptions.AllFieldsNoneError | common_exceptions.InvalidToken | common_exceptions.ProjectNotFoundError:
+    async def execute(self, data: dto.UpdateStageInDTO) -> dto.UpdateStageOutDTO | common_exceptions.StageNotFoundError | exceptions.StageAuthorizationError | common_exceptions.UserNotFoundError | exceptions.InvalidStageNameError | exceptions.InvalidStageDescriptionError | exceptions.AllFieldsNoneError | common_exceptions.InvalidToken | common_exceptions.ProjectNotFoundError | common_exceptions.UserRepositoryError | common_exceptions.ProjectRepositoryError | common_exceptions.StageRepositoryError | common_exceptions.SubscriptionRepositoryError:
         
         if data.description is not None:
             data.description = self.text_normalizer.normalize(data.description)
@@ -136,15 +138,15 @@ class UpdateStageInteractor:
             raise actor_uuid
         
         actor = await self.user_repository.get_by_uuid(actor_uuid)
-        if isinstance(actor, common_exceptions.UserNotFoundError):
+        if isinstance(actor, (common_exceptions.UserNotFoundError, common_exceptions.UserRepositoryError)):
             raise actor
         
         stage = await self.stage_repository.get_by_uuid(data.uuid)
-        if isinstance(stage, common_exceptions.StageNotFoundError):
+        if isinstance(stage, (common_exceptions.StageNotFoundError, common_exceptions.StageRepositoryError)):
             raise stage
         
         project_members = await self.project_repository.get_members([stage.project.uuid])
-        if isinstance(project_members, common_exceptions.ProjectNotFoundError):
+        if isinstance(project_members, (common_exceptions.ProjectNotFoundError, common_exceptions.ProjectRepositoryError)):
             raise project_members
         
         authorization_error = self.authorization_policy.decide_update_stage(actor, stage.project, project_members)
@@ -165,13 +167,15 @@ class UpdateStageInteractor:
             raise subscription
         if isinstance(subscription, common_exceptions.SubscriptionNotFoundError):
             subscription = None
+        if isinstance(subscription, common_exceptions.SubscriptionRepositoryError):
+            raise subscription
 
         if error := stage.ensure_update(subscription):
             raise exceptions.StageCantUpdateError(str(error))
         
         updated_stage = await self.stage_repository.update(stage.uuid, update_data)
         
-        if isinstance(updated_stage, common_exceptions.StageNotFoundError):
+        if isinstance(updated_stage, (common_exceptions.StageNotFoundError, common_exceptions.StageRepositoryError)):
             raise updated_stage
         
         await self.db_session.commit()
@@ -195,29 +199,31 @@ class DeleteStageInteractor:
         self.db_session = db_session
         self.context = context
 
-    async def execute(self, data: dto.DeleteStageInDTO) -> None | common_exceptions.StageNotFoundError | exceptions.StageAuthorizationError | common_exceptions.UserNotFoundError | common_exceptions.ProjectNotFoundError | common_exceptions.InvalidToken:
+    async def execute(self, data: dto.DeleteStageInDTO) -> None | common_exceptions.StageNotFoundError | exceptions.StageAuthorizationError | common_exceptions.UserNotFoundError | common_exceptions.ProjectNotFoundError | common_exceptions.InvalidToken | common_exceptions.UserRepositoryError | common_exceptions.ProjectRepositoryError | common_exceptions.StageRepositoryError:
         actor_uuid = self.context.get_current_user_uuid()
 
         if isinstance(actor_uuid, common_exceptions.InvalidToken):
             raise actor_uuid
 
         actor = await self.user_repository.get_by_uuid(actor_uuid)
-        if isinstance(actor, common_exceptions.UserNotFoundError):
+        if isinstance(actor, (common_exceptions.UserNotFoundError, common_exceptions.UserRepositoryError)):
             raise actor
 
         stage = await self.stage_repository.get_by_uuid(data.uuid, lock_record=True)
-        if isinstance(stage, common_exceptions.StageNotFoundError):
+        if isinstance(stage, (common_exceptions.StageNotFoundError, common_exceptions.StageRepositoryError)):
             raise stage
 
         project_members = await self.project_repository.get_members([stage.project.uuid])
-        if isinstance(project_members, common_exceptions.ProjectNotFoundError):
+        if isinstance(project_members, (common_exceptions.ProjectNotFoundError, common_exceptions.ProjectRepositoryError)):
             raise project_members
 
         authorization_error = self.authorization_policy.decide_update_stage(actor, stage.project, project_members)
         if authorization_error is not None:
             raise authorization_error
 
-        await self.stage_repository.delete(stage.uuid, release_record=True)
+        delete_result = await self.stage_repository.delete(stage.uuid, release_record=True)
+        if isinstance(delete_result, common_exceptions.StageRepositoryError):
+            raise delete_result
         await self.db_session.commit()
 
         return None
@@ -237,7 +243,7 @@ class GetStageListInteractor:
         self.context = context
         self.authorization_policy = authorization_policy
 
-    async def execute(self, data: dto.GetStageListInDTO) -> dto.GetStageListOutDTO | common_exceptions.UserNotFoundError | common_exceptions.ProjectNotFoundError | exceptions.StageAuthorizationError:
+    async def execute(self, data: dto.GetStageListInDTO) -> dto.GetStageListOutDTO | common_exceptions.UserNotFoundError | common_exceptions.ProjectNotFoundError | exceptions.StageAuthorizationError | common_exceptions.UserRepositoryError | common_exceptions.ProjectRepositoryError | common_exceptions.StageRepositoryError:
         actor_uuid = self.context.get_current_user_uuid()
 
         if isinstance(actor_uuid, common_exceptions.InvalidToken):
@@ -245,17 +251,17 @@ class GetStageListInteractor:
 
         actor = await self.user_repository.get_by_uuid(actor_uuid)
 
-        if isinstance(actor, common_exceptions.UserNotFoundError):
+        if isinstance(actor, (common_exceptions.UserNotFoundError, common_exceptions.UserRepositoryError)):
             raise actor
 
         project = await self.project_repository.get_by_uuid(data.project_uuid)
 
-        if isinstance(project, common_exceptions.ProjectNotFoundError):
+        if isinstance(project, (common_exceptions.ProjectNotFoundError, common_exceptions.ProjectRepositoryError)):
             raise project
 
         members = await self.project_repository.get_members([project.uuid])
 
-        if isinstance(members, common_exceptions.ProjectNotFoundError):
+        if isinstance(members, (common_exceptions.ProjectNotFoundError, common_exceptions.ProjectRepositoryError)):
             raise members
 
         authorization_error = self.authorization_policy.decide_get_stage_list(
@@ -269,7 +275,7 @@ class GetStageListInteractor:
 
         stages = await self.stage_repository.get_list(project.uuid)
 
-        if isinstance(stages, common_exceptions.ProjectNotFoundError):
+        if isinstance(stages, (common_exceptions.ProjectNotFoundError, common_exceptions.StageRepositoryError)):
             raise stages
 
         return dto.GetStageListOutDTO(stages=stages)

@@ -1,10 +1,11 @@
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-from dishka import Provider, provide, Scope # type: ignore
+from sqlalchemy.ext.asyncio import  AsyncSession, async_sessionmaker
+
+from dishka import Provider, provide, Scope, from_context # type: ignore
 from typing import AsyncGenerator
 from application import common_interfaces
 from infrastructure import text_normalizer
 from infrastructure.db import database
-
+from config import Config
 """
 ВАЖНО:
 Все операции с БД в этом модуле потенциально могут:
@@ -22,9 +23,12 @@ SQLAlchemy НЕ делает retry автоматически и НЕ восст
   (ТОЛЬКО для идемпотентных операций).
 """
 
+class ConfigProvider(Provider):
+    config = from_context( scope=Scope.APP, provides=Config)
+
 class DBProvider(Provider):
     
-    async_sessionmaker = provide(database.async_sessionmaker, scope=Scope.APP, provides=async_sessionmaker[AsyncSession])
+    sessionmaker = provide(staticmethod(database.new_session_maker), scope=Scope.APP, provides=async_sessionmaker[AsyncSession])
     
     @provide(scope=Scope.REQUEST, provides=AsyncSession)
     async def session(self, async_sessionmaker: async_sessionmaker[AsyncSession]) -> AsyncGenerator[AsyncSession, None]:

@@ -1,14 +1,16 @@
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from config import PostgresConfig
+from config import Config
 
-async def new_session_maker(psql_config: PostgresConfig) -> async_sessionmaker[AsyncSession]:
+async def new_session_maker(config: Config) -> async_sessionmaker[AsyncSession]:
+    psql_config = config.postgres
+    
     database_uri = "{driver}://{login}:{password}@{host}:{port}/{database}".format(
         driver=psql_config.async_driver,
-        login=psql_config.login,
+        login=psql_config.user,
         password=psql_config.password,
         host=psql_config.host,
         port=psql_config.port,
-        database=psql_config.database,
+        database=psql_config.db,
     )
 
     engine = create_async_engine(

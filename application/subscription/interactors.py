@@ -23,17 +23,17 @@ class CreateSubscriptionInteractor:
         self.authorization_policy = authorization_policy
         self.project_repository = project_repository
         
-    async def execute(self, data: dto.CreateSubscriptionInDTO) -> dto.CreateSubscriptionOutDTO | common_exceptions.SubscriptionAlreadyExistsError | common_exceptions.ProjectNotFoundError | common_exceptions.InvalidToken | common_exceptions.UserNotFoundError | exceptions.SubscriptionAuthorizationError | exceptions.CantCreateSubscription:
+    async def execute(self, data: dto.CreateSubscriptionInDTO) -> dto.CreateSubscriptionOutDTO | common_exceptions.SubscriptionAlreadyExistsError | common_exceptions.ProjectNotFoundError | common_exceptions.InvalidToken | common_exceptions.UserNotFoundError | exceptions.SubscriptionAuthorizationError | exceptions.CantCreateSubscription | common_exceptions.UserRepositoryError | common_exceptions.ProjectRepositoryError | common_exceptions.SubscriptionRepositoryError:
         actor_uuid = self.context.get_current_user_uuid()
         if isinstance(actor_uuid, common_exceptions.InvalidToken):
             raise actor_uuid
 
         actor = await self.user_repository.get_by_uuid(actor_uuid)
-        if isinstance(actor, common_exceptions.UserNotFoundError):
+        if isinstance(actor, (common_exceptions.UserNotFoundError, common_exceptions.UserRepositoryError)):
             raise actor
 
         project = await self.project_repository.get_by_uuid(data.project_uuid)
-        if isinstance(project, common_exceptions.ProjectNotFoundError):
+        if isinstance(project, (common_exceptions.ProjectNotFoundError, common_exceptions.ProjectRepositoryError)):
             raise project
 
 
@@ -56,7 +56,7 @@ class CreateSubscriptionInteractor:
             raise exceptions.CantCreateSubscription(ensure_err)
 
         created_subscription = await self.subscription_repository.create(new_subscription)
-        if isinstance(created_subscription, common_exceptions.SubscriptionAlreadyExistsError) or isinstance(created_subscription, common_exceptions.ProjectNotFoundError):
+        if isinstance(created_subscription, (common_exceptions.SubscriptionAlreadyExistsError, common_exceptions.ProjectNotFoundError, common_exceptions.SubscriptionRepositoryError)):
             raise created_subscription
 
         return dto.CreateSubscriptionOutDTO(created_subscription)
@@ -78,18 +78,18 @@ class UpdateSubscriptionInteractor:
         self.clock = clock
         self.authorization_policy = authorization_policy
 
-    async def execute(self, data: dto.UpdateSubscriptionInDTO) -> None | common_exceptions.SubscriptionNotFoundError | common_exceptions.ProjectNotFoundError | common_exceptions.InvalidToken | common_exceptions.UserNotFoundError | exceptions.SubscriptionAuthorizationError | exceptions.CantUpdateSubscription:
+    async def execute(self, data: dto.UpdateSubscriptionInDTO) -> None | common_exceptions.SubscriptionNotFoundError | common_exceptions.ProjectNotFoundError | common_exceptions.InvalidToken | common_exceptions.UserNotFoundError | exceptions.SubscriptionAuthorizationError | exceptions.CantUpdateSubscription | common_exceptions.UserRepositoryError | common_exceptions.ProjectRepositoryError | common_exceptions.SubscriptionRepositoryError:
 
         actor_uuid = self.context.get_current_user_uuid()
         if isinstance(actor_uuid, common_exceptions.InvalidToken):
             raise actor_uuid
 
         actor = await self.user_repository.get_by_uuid(actor_uuid)
-        if isinstance(actor, common_exceptions.UserNotFoundError):
+        if isinstance(actor, (common_exceptions.UserNotFoundError, common_exceptions.UserRepositoryError)):
             raise actor
 
         project = await self.project_repository.get_by_uuid(data.project_uuid)
-        if isinstance(project, common_exceptions.ProjectNotFoundError):
+        if isinstance(project, (common_exceptions.ProjectNotFoundError, common_exceptions.ProjectRepositoryError)):
             raise project
 
         auth_err = self.authorization_policy.decide_update_subscription(actor=actor, project=project)
@@ -97,7 +97,7 @@ class UpdateSubscriptionInteractor:
             raise auth_err
 
         subscription = await self.subscription_repository.get_active_subscription(data.project_uuid)
-        if isinstance(subscription, common_exceptions.SubscriptionNotFoundError) or isinstance(subscription, common_exceptions.ProjectNotFoundError):
+        if isinstance(subscription, (common_exceptions.SubscriptionNotFoundError, common_exceptions.ProjectNotFoundError, common_exceptions.SubscriptionRepositoryError)):
             raise subscription
 
         ensure_err = subscription.ensure_update(entities.SubscriptionStatus(data.status))
@@ -112,7 +112,7 @@ class UpdateSubscriptionInteractor:
                   'end_date': None}
         )
 
-        if isinstance(update_result, common_exceptions.SubscriptionNotFoundError):
+        if isinstance(update_result, (common_exceptions.SubscriptionNotFoundError, common_exceptions.SubscriptionRepositoryError)):
             raise update_result
 
         return None
@@ -132,19 +132,19 @@ class ExtendSubscriptionInteractor:
         self.clock = clock
         self.payment_repository = payment_repository
         self.payment_gateway = payment_gateway
-    async def execute(self, data: dto.ExtendSubscriptionInDTO) -> None | common_exceptions.SubscriptionNotFoundError | common_exceptions.ProjectNotFoundError | exceptions.CantExtendSubscription | common_exceptions.PaymentNotFoundError | common_exceptions.PaymentNotComplete | common_exceptions.PaymentNotExistsError:
+    async def execute(self, data: dto.ExtendSubscriptionInDTO) -> None | common_exceptions.SubscriptionNotFoundError | common_exceptions.ProjectNotFoundError | exceptions.CantExtendSubscription | common_exceptions.PaymentNotFoundError | common_exceptions.PaymentNotComplete | common_exceptions.PaymentNotExistsError | common_exceptions.ProjectRepositoryError | common_exceptions.SubscriptionRepositoryError | common_exceptions.PaymentRepositoryError:
 
         project = await self.project_repository.get_by_uuid(data.project_uuid)
-        if isinstance(project, common_exceptions.ProjectNotFoundError):
+        if isinstance(project, (common_exceptions.ProjectNotFoundError, common_exceptions.ProjectRepositoryError)):
             raise project
 
         subscription = await self.subscription_repository.get_active_subscription(data.project_uuid)
-        if isinstance(subscription, common_exceptions.SubscriptionNotFoundError) or isinstance(subscription, common_exceptions.ProjectNotFoundError):
+        if isinstance(subscription, (common_exceptions.SubscriptionNotFoundError, common_exceptions.ProjectNotFoundError, common_exceptions.SubscriptionRepositoryError)):
             raise subscription
 
         payment = await self.payment_repository.get_by_uuid(data.payment_uuid)
         
-        if isinstance(payment, common_exceptions.PaymentNotFoundError):
+        if isinstance(payment, (common_exceptions.PaymentNotFoundError, common_exceptions.PaymentRepositoryError)):
             raise payment
         
         verify = await self.payment_gateway.verify_payment(payment.uuid)
@@ -171,7 +171,7 @@ class ExtendSubscriptionInteractor:
             data=update_data
         )
 
-        if isinstance(update_res, common_exceptions.SubscriptionNotFoundError):
+        if isinstance(update_res, (common_exceptions.SubscriptionNotFoundError, common_exceptions.SubscriptionRepositoryError)):
             raise update_res
 
         return None
@@ -186,14 +186,14 @@ class ActivateSubscriptionInteractor:
         self.subscription_repository = subscription_repository
         self.project_repository = project_repository
         self.clock = clock
-    async def execute(self, data: dto.ActivateSubscriptionInDTO) -> None | common_exceptions.SubscriptionNotFoundError | common_exceptions.ProjectNotFoundError | exceptions.CantActivateSubscription | common_exceptions.PaymentNotFoundError | common_exceptions.PaymentNotComplete | common_exceptions.PaymentNotExistsError:
+    async def execute(self, data: dto.ActivateSubscriptionInDTO) -> None | common_exceptions.SubscriptionNotFoundError | common_exceptions.ProjectNotFoundError | exceptions.CantActivateSubscription | common_exceptions.PaymentNotFoundError | common_exceptions.PaymentNotComplete | common_exceptions.PaymentNotExistsError | common_exceptions.ProjectRepositoryError | common_exceptions.SubscriptionRepositoryError:
 
         project = await self.project_repository.get_by_uuid(data.project_uuid)
-        if isinstance(project, common_exceptions.ProjectNotFoundError):
+        if isinstance(project, (common_exceptions.ProjectNotFoundError, common_exceptions.ProjectRepositoryError)):
             raise project
 
         subscription = await self.subscription_repository.get_by_project_uuid(data.project_uuid)
-        if isinstance(subscription, common_exceptions.SubscriptionNotFoundError) or isinstance(subscription, common_exceptions.ProjectNotFoundError):
+        if isinstance(subscription, (common_exceptions.SubscriptionNotFoundError, common_exceptions.ProjectNotFoundError, common_exceptions.SubscriptionRepositoryError)):
             raise subscription
 
         ensure_res = subscription.ensure_activate()
@@ -208,7 +208,7 @@ class ActivateSubscriptionInteractor:
                   'end_date': self.clock.now_date() + timedelta(30)}
         )
 
-        if isinstance(update_res, common_exceptions.SubscriptionNotFoundError):
+        if isinstance(update_res, (common_exceptions.SubscriptionNotFoundError, common_exceptions.SubscriptionRepositoryError)):
             raise update_res
 
         return None
@@ -234,17 +234,17 @@ class CreatePaymentInteractor:
         self.payment_repository = payment_repository
         self.payment_gateway = payment_gateway
         
-    async def execute(self, data: dto.CreatePaymentInDTO) -> dto.CreatePaymentOutDTO | common_exceptions.SubscriptionNotFoundError | common_exceptions.ProjectNotFoundError | common_exceptions.InvalidToken | common_exceptions.UserNotFoundError | exceptions.SubscriptionAuthorizationError | exceptions.CantCreateSubscription | common_exceptions.PaymentFailedError | exceptions.CantCreatePayment:
+    async def execute(self, data: dto.CreatePaymentInDTO) -> dto.CreatePaymentOutDTO | common_exceptions.SubscriptionNotFoundError | common_exceptions.ProjectNotFoundError | common_exceptions.InvalidToken | common_exceptions.UserNotFoundError | exceptions.SubscriptionAuthorizationError | exceptions.CantCreateSubscription | common_exceptions.PaymentFailedError | exceptions.CantCreatePayment | common_exceptions.UserRepositoryError | common_exceptions.ProjectRepositoryError | common_exceptions.SubscriptionRepositoryError | common_exceptions.PaymentRepositoryError:
         actor_uuid = self.context.get_current_user_uuid()
         if isinstance(actor_uuid, common_exceptions.InvalidToken):
             raise actor_uuid
 
         actor = await self.user_repository.get_by_uuid(actor_uuid)
-        if isinstance(actor, common_exceptions.UserNotFoundError):
+        if isinstance(actor, (common_exceptions.UserNotFoundError, common_exceptions.UserRepositoryError)):
             raise actor
 
         project = await self.project_repository.get_by_uuid(data.project_uuid)
-        if isinstance(project, common_exceptions.ProjectNotFoundError):
+        if isinstance(project, (common_exceptions.ProjectNotFoundError, common_exceptions.ProjectRepositoryError)):
             raise project
 
 
@@ -257,7 +257,7 @@ class CreatePaymentInteractor:
             raise authorization_error
 
         subscription = await self.subscription_repository.get_by_project_uuid(data.project_uuid)
-        if isinstance(subscription, common_exceptions.SubscriptionNotFoundError) or isinstance(subscription, common_exceptions.ProjectNotFoundError):
+        if isinstance(subscription, (common_exceptions.SubscriptionNotFoundError, common_exceptions.ProjectNotFoundError, common_exceptions.SubscriptionRepositoryError)):
             raise subscription
 
         payment = entities.Payment(
@@ -273,7 +273,7 @@ class CreatePaymentInteractor:
 
         payment =  await self.payment_repository.create(payment)
         
-        if isinstance(payment, common_exceptions.SubscriptionNotFoundError):
+        if isinstance(payment, (common_exceptions.SubscriptionNotFoundError, common_exceptions.PaymentRepositoryError)):
             raise payment
         
         payment_link = await self.payment_gateway.get_process_payment_link(
@@ -301,10 +301,10 @@ class CompletePaymentInteractor:
         self.payment_repository = payment_repository
         self.payment_gateway = payment_gateway
 
-    async def execute(self, data: dto.CompletePaymentInDTO) -> None | common_exceptions.SubscriptionNotFoundError | common_exceptions.ProjectNotFoundError | common_exceptions.PaymentNotFoundError | exceptions.CantCompletePayment | common_exceptions.PaymentNotComplete | common_exceptions.PaymentNotExistsError:
+    async def execute(self, data: dto.CompletePaymentInDTO) -> None | common_exceptions.SubscriptionNotFoundError | common_exceptions.ProjectNotFoundError | common_exceptions.PaymentNotFoundError | exceptions.CantCompletePayment | common_exceptions.PaymentNotComplete | common_exceptions.PaymentNotExistsError | common_exceptions.PaymentRepositoryError:
         
         payment = await self.payment_repository.get_by_uuid(data.payment_uuid, lock_record=True)
-        if isinstance(payment, common_exceptions.PaymentNotFoundError):
+        if isinstance(payment, (common_exceptions.PaymentNotFoundError, common_exceptions.PaymentRepositoryError)):
             raise payment
 
         is_verified = await self.payment_gateway.verify_payment(data.payment_uuid)
@@ -324,7 +324,7 @@ class CompletePaymentInteractor:
             payment_uuid=payment.uuid,
             data={'status': entities.PaymentStatus.COMPLETED, 'payment_method': data.method, 'payment_date': data.date.isoformat()}, release_record=True)
 
-        if isinstance(payment_error, common_exceptions.PaymentNotFoundError):
+        if isinstance(payment_error, (common_exceptions.PaymentNotFoundError, common_exceptions.PaymentRepositoryError)):
             await self.payment_gateway.refund_payment(payment.uuid)
             raise payment_error
         

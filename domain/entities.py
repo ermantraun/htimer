@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, date
 from enum import Enum
 from uuid import UUID
-import value_objects
+from . import value_objects
     
 """
     todo: 
@@ -570,7 +570,7 @@ class MemberShip:
     user: User
     project: Project
     joined_at: date
-    assigned_by: UUID
+    assigned_by: User
 
 
 @dataclass

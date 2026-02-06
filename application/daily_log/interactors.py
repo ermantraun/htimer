@@ -28,7 +28,7 @@ class CreateDailyLogInteractor:
         self.validator = validator
         self.text_normalizer = text_normalizer
     
-    async def execute(self, data: dto.CreateDailyLogInDTO) -> dto.CreateDailyLogOutDTO | common_exceptions.DailyLogAlreadyExistsError | common_exceptions.UserNotFoundError | common_exceptions.ProjectNotFoundError | exceptions.DayliLogAuthorizationError | common_exceptions.StageNotFoundError | common_exceptions.InvalidDate | common_exceptions.InvalidToken:
+    async def execute(self, data: dto.CreateDailyLogInDTO) -> dto.CreateDailyLogOutDTO | common_exceptions.DailyLogAlreadyExistsError | common_exceptions.UserNotFoundError | common_exceptions.ProjectNotFoundError | exceptions.DayliLogAuthorizationError | common_exceptions.StageNotFoundError | common_exceptions.InvalidDate | common_exceptions.InvalidToken | common_exceptions.UserRepositoryError | common_exceptions.ProjectRepositoryError | common_exceptions.DailyLogRepositoryError:
         
         validation_error = self.validator.validate(data)
         
@@ -46,15 +46,15 @@ class CreateDailyLogInteractor:
             raise actor_uuid
         
         actor = await self.user_repository.get_by_uuid(actor_uuid)
-        if isinstance(actor, common_exceptions.UserNotFoundError):
+        if isinstance(actor, (common_exceptions.UserNotFoundError, common_exceptions.UserRepositoryError)):
             raise actor
         
         project = await self.project_repository.get_by_uuid(data.project_uuid)
-        if isinstance(project, common_exceptions.ProjectNotFoundError):
+        if isinstance(project, (common_exceptions.ProjectNotFoundError, common_exceptions.ProjectRepositoryError)):
             raise project
         
         project_members = await self.project_repository.get_members([project.uuid])
-        if isinstance(project_members, common_exceptions.ProjectNotFoundError):
+        if isinstance(project_members, (common_exceptions.ProjectNotFoundError, common_exceptions.ProjectRepositoryError)):
             raise project_members
         
         authorization_error = self.authorization_policy.decide_create_daily_log(actor, project, project_members)
@@ -73,7 +73,7 @@ class CreateDailyLogInteractor:
             )
         )
         
-        if isinstance(daily_log, (common_exceptions.DailyLogAlreadyExistsError, common_exceptions.UserNotFoundError, common_exceptions.ProjectNotFoundError, common_exceptions.DailyLogAlreadyExistsError, common_exceptions.StageNotFoundError)):
+        if isinstance(daily_log, (common_exceptions.DailyLogAlreadyExistsError, common_exceptions.UserNotFoundError, common_exceptions.ProjectNotFoundError, common_exceptions.DailyLogAlreadyExistsError, common_exceptions.StageNotFoundError, common_exceptions.DailyLogRepositoryError)):
             raise daily_log
         
         await self.db_session.commit()
@@ -105,7 +105,7 @@ class UpdateDailyLogInteractor:
         self.validator = validator
         self.text_normalizer = text_normalizer
 
-    async def execute(self, data: dto.UpdateDailyLogInDTO) -> dto.UpdateDailyLogOutDTO | common_exceptions.DailyLogNotFoundError | common_exceptions.UserNotFoundError | common_exceptions.ProjectNotFoundError | exceptions.DayliLogAuthorizationError | common_exceptions.InvalidToken:
+    async def execute(self, data: dto.UpdateDailyLogInDTO) -> dto.UpdateDailyLogOutDTO | common_exceptions.DailyLogNotFoundError | common_exceptions.UserNotFoundError | common_exceptions.ProjectNotFoundError | exceptions.DayliLogAuthorizationError | common_exceptions.InvalidToken | common_exceptions.UserRepositoryError | common_exceptions.DailyLogRepositoryError:
         validation_error = self.validator.validate(data)
 
         if validation_error is not None:
@@ -116,11 +116,11 @@ class UpdateDailyLogInteractor:
             raise actor_uuid
 
         actor = await self.user_repository.get_by_uuid(actor_uuid)
-        if isinstance(actor, common_exceptions.UserNotFoundError):
+        if isinstance(actor, (common_exceptions.UserNotFoundError, common_exceptions.UserRepositoryError)):
             raise actor
 
         daily_log = await self.daily_log_repository.get_by_uuid(data.uuid, lock_record=True)
-        if isinstance(daily_log, common_exceptions.DailyLogNotFoundError):
+        if isinstance(daily_log, (common_exceptions.DailyLogNotFoundError, common_exceptions.DailyLogRepositoryError)):
             raise daily_log
 
         authorization_error = self.authorization_policy.decide_update_daily_log(actor, daily_log)
@@ -147,7 +147,7 @@ class UpdateDailyLogInteractor:
         
         
         updated = await self.daily_log_repository.update(data.uuid, update_data, release_record=True)
-        if isinstance(updated, common_exceptions.DailyLogNotFoundError):
+        if isinstance(updated, (common_exceptions.DailyLogNotFoundError, common_exceptions.DailyLogRepositoryError)):
             raise updated
 
         await self.db_session.commit()
@@ -169,23 +169,23 @@ class GetDailyLogInteractor:
         self.context = context
         self.project_repository = project_repository
         
-    async def execute(self, data: dto.GetDailyLogInDTO) -> dto.GetDailyLogOutDTO | common_exceptions.DailyLogNotFoundError | common_exceptions.UserNotFoundError | common_exceptions.InvalidToken:
+    async def execute(self, data: dto.GetDailyLogInDTO) -> dto.GetDailyLogOutDTO | common_exceptions.DailyLogNotFoundError | common_exceptions.UserNotFoundError | common_exceptions.InvalidToken | common_exceptions.UserRepositoryError | common_exceptions.DailyLogRepositoryError | common_exceptions.ProjectRepositoryError:
         actor_uuid = self.context.get_current_user_uuid()
 
         if isinstance(actor_uuid, common_exceptions.InvalidToken):
             raise actor_uuid
 
         actor = await self.user_repository.get_by_uuid(actor_uuid)
-        if isinstance(actor, common_exceptions.UserNotFoundError):
+        if isinstance(actor, (common_exceptions.UserNotFoundError, common_exceptions.UserRepositoryError)):
             raise actor
 
         daily_log = await self.daily_log_repository.get_by_uuid(data.uuid)
-        if isinstance(daily_log, common_exceptions.DailyLogNotFoundError):
+        if isinstance(daily_log, (common_exceptions.DailyLogNotFoundError, common_exceptions.DailyLogRepositoryError)):
             raise daily_log
 
         project_members = await self.project_repository.get_members([daily_log.project.uuid])
         
-        if isinstance(project_members, common_exceptions.ProjectNotFoundError):
+        if isinstance(project_members, (common_exceptions.ProjectNotFoundError, common_exceptions.ProjectRepositoryError)):
             raise project_members
         
         authorization_error = self.authorization_policy.decide_get_daily_log(actor, daily_log, project_members)
@@ -215,18 +215,18 @@ class CreateDailyLogFileInteractor:
         self.clock = clock
         self.context = context
 
-    async def execute(self, data: dto.CreateDailyLogFileInDTO) -> dto.CreateDailyLogFileOutDTO | common_exceptions.DailyLogNotFoundError | common_exceptions.UserNotFoundError | common_exceptions.InvalidToken | exceptions.DayliLogAuthorizationError:
+    async def execute(self, data: dto.CreateDailyLogFileInDTO) -> dto.CreateDailyLogFileOutDTO | common_exceptions.DailyLogNotFoundError | common_exceptions.UserNotFoundError | common_exceptions.InvalidToken | exceptions.DayliLogAuthorizationError | common_exceptions.UserRepositoryError | common_exceptions.DailyLogRepositoryError:
         actor_uuid = self.context.get_current_user_uuid()
 
         if isinstance(actor_uuid, common_exceptions.InvalidToken):
             raise actor_uuid
 
         actor = await self.user_repository.get_by_uuid(actor_uuid)
-        if isinstance(actor, common_exceptions.UserNotFoundError):
+        if isinstance(actor, (common_exceptions.UserNotFoundError, common_exceptions.UserRepositoryError)):
             raise actor
 
         daily_log = await self.daily_log_repository.get_by_uuid(data.daily_log_uuid)
-        if isinstance(daily_log, common_exceptions.DailyLogNotFoundError):
+        if isinstance(daily_log, (common_exceptions.DailyLogNotFoundError, common_exceptions.DailyLogRepositoryError)):
             raise daily_log
 
         authorization_error = self.authorization_policy.decide_update_daily_log(actor, daily_log)
@@ -238,7 +238,7 @@ class CreateDailyLogFileInteractor:
             filename=data.filename,
             daily_log=daily_log,
             uploaded_at=self.clock.now_date(),
-            url = daily_log.uuid.hex + '/' + data.filename,
+            uri=daily_log.uuid.hex + '/' + data.filename,
             
         )
 
@@ -266,22 +266,22 @@ class GetDailyLogFileInteractor:
         self.file_repository = file_repository
         self.context = context
 
-    async def execute(self, data: dto.GetDailyLogFileInDTO) -> dto.GetDailyLogFileOutDTO | common_exceptions.DailyLogNotFoundError | common_exceptions.UserNotFoundError | common_exceptions.InvalidToken | exceptions.DayliLogAuthorizationError:
+    async def execute(self, data: dto.GetDailyLogFileInDTO) -> dto.GetDailyLogFileOutDTO | common_exceptions.DailyLogNotFoundError | common_exceptions.UserNotFoundError | common_exceptions.InvalidToken | exceptions.DayliLogAuthorizationError | common_exceptions.UserRepositoryError | common_exceptions.DailyLogRepositoryError | common_exceptions.ProjectRepositoryError:
         actor_uuid = self.context.get_current_user_uuid()
 
         if isinstance(actor_uuid, common_exceptions.InvalidToken):
             raise actor_uuid
 
         actor = await self.user_repository.get_by_uuid(actor_uuid)
-        if isinstance(actor, common_exceptions.UserNotFoundError):
+        if isinstance(actor, (common_exceptions.UserNotFoundError, common_exceptions.UserRepositoryError)):
             raise actor
 
         daily_log = await self.daily_log_repository.get_by_uuid(data.daily_log_uuid)
-        if isinstance(daily_log, common_exceptions.DailyLogNotFoundError):
+        if isinstance(daily_log, (common_exceptions.DailyLogNotFoundError, common_exceptions.DailyLogRepositoryError)):
             raise daily_log
 
         project_members = await self.project_repository.get_members([daily_log.project.uuid])
-        if isinstance(project_members, common_exceptions.ProjectNotFoundError):
+        if isinstance(project_members, (common_exceptions.ProjectNotFoundError, common_exceptions.ProjectRepositoryError)):
             raise project_members
 
         authorization_error = self.authorization_policy.decide_get_daily_log(actor, daily_log, project_members)
@@ -308,18 +308,18 @@ class RemoveDailyLogFileInteractor:
         self.file_repository = file_repository
         self.db_session = db_session
         self.context = context
-    async def execute(self, data: dto.RemoveDailyLogFileInDTO) -> entities.File | common_exceptions.DailyLogNotFoundError | common_exceptions.UserNotFoundError | common_exceptions.InvalidToken | exceptions.DayliLogAuthorizationError:
+    async def execute(self, data: dto.RemoveDailyLogFileInDTO) -> entities.File | common_exceptions.DailyLogNotFoundError | common_exceptions.UserNotFoundError | common_exceptions.InvalidToken | exceptions.DayliLogAuthorizationError | common_exceptions.UserRepositoryError | common_exceptions.DailyLogRepositoryError:
         actor_uuid = self.context.get_current_user_uuid()
 
         if isinstance(actor_uuid, common_exceptions.InvalidToken):
             raise actor_uuid
 
         actor = await self.user_repository.get_by_uuid(actor_uuid)
-        if isinstance(actor, common_exceptions.UserNotFoundError):
+        if isinstance(actor, (common_exceptions.UserNotFoundError, common_exceptions.UserRepositoryError)):
             raise actor
 
         daily_log = await self.daily_log_repository.get_by_uuid(data.daily_log_uuid, lock_record=True)
-        if isinstance(daily_log, common_exceptions.DailyLogNotFoundError):
+        if isinstance(daily_log, (common_exceptions.DailyLogNotFoundError, common_exceptions.DailyLogRepositoryError)):
             raise daily_log
 
         authorization_error = self.authorization_policy.decide_update_daily_log(actor, daily_log)
@@ -350,22 +350,22 @@ class GetDailyLogFileListInteractor:
         self.file_repository = file_repository
         self.context = context
 
-    async def execute(self, data: dto.GetDailyLogFileListInDTO) -> dto.GetDailyLogFileListOutDTO | common_exceptions.DailyLogNotFoundError | common_exceptions.UserNotFoundError | common_exceptions.InvalidToken | exceptions.DayliLogAuthorizationError:
+    async def execute(self, data: dto.GetDailyLogFileListInDTO) -> dto.GetDailyLogFileListOutDTO | common_exceptions.DailyLogNotFoundError | common_exceptions.UserNotFoundError | common_exceptions.InvalidToken | exceptions.DayliLogAuthorizationError | common_exceptions.UserRepositoryError | common_exceptions.DailyLogRepositoryError | common_exceptions.ProjectRepositoryError:
         actor_uuid = self.context.get_current_user_uuid()
 
         if isinstance(actor_uuid, common_exceptions.InvalidToken):
             raise actor_uuid
 
         actor = await self.user_repository.get_by_uuid(actor_uuid)
-        if isinstance(actor, common_exceptions.UserNotFoundError):
+        if isinstance(actor, (common_exceptions.UserNotFoundError, common_exceptions.UserRepositoryError)):
             raise actor
 
         daily_log = await self.daily_log_repository.get_by_uuid(data.daily_log_uuid)
-        if isinstance(daily_log, common_exceptions.DailyLogNotFoundError):
+        if isinstance(daily_log, (common_exceptions.DailyLogNotFoundError, common_exceptions.DailyLogRepositoryError)):
             raise daily_log
 
         project_members = await self.project_repository.get_members([daily_log.project.uuid])
-        if isinstance(project_members, common_exceptions.ProjectNotFoundError):
+        if isinstance(project_members, (common_exceptions.ProjectNotFoundError, common_exceptions.ProjectRepositoryError)):
             raise project_members
 
         authorization_error = self.authorization_policy.decide_get_daily_log(actor, daily_log, project_members)
@@ -392,14 +392,14 @@ class GetDailyLogListInteractor:
         self.authorization_policy = authorization_policy
         self.context = context
 
-    async def execute(self, data: dto.GetDailyLogListInDTO) -> dto.GetDailyLogListOutDTO | common_exceptions.ProjectNotFoundError | common_exceptions.UserNotFoundError | exceptions.DayliLogAuthorizationError | common_exceptions.InvalidToken:
+    async def execute(self, data: dto.GetDailyLogListInDTO) -> dto.GetDailyLogListOutDTO | common_exceptions.ProjectNotFoundError | common_exceptions.UserNotFoundError | exceptions.DayliLogAuthorizationError | common_exceptions.InvalidToken | common_exceptions.UserRepositoryError | common_exceptions.ProjectRepositoryError | common_exceptions.DailyLogRepositoryError:
         actor_uuid = self.context.get_current_user_uuid()
 
         if isinstance(actor_uuid, common_exceptions.InvalidToken):
             raise actor_uuid
 
         actor = await self.user_repository.get_by_uuid(actor_uuid)
-        if isinstance(actor, common_exceptions.UserNotFoundError):
+        if isinstance(actor, (common_exceptions.UserNotFoundError, common_exceptions.UserRepositoryError)):
             raise actor
 
         target = actor
@@ -407,16 +407,16 @@ class GetDailyLogListInteractor:
         if data.user_uuid is not None:
             target = await self.user_repository.get_by_uuid(data.user_uuid)
 
-            if isinstance(target, common_exceptions.UserNotFoundError):
+            if isinstance(target, (common_exceptions.UserNotFoundError, common_exceptions.UserRepositoryError)):
                 raise target
             
         project = await self.project_repository.get_by_uuid(data.project_uuid)
-        if isinstance(project, common_exceptions.ProjectNotFoundError):
+        if isinstance(project, (common_exceptions.ProjectNotFoundError, common_exceptions.ProjectRepositoryError)):
             raise project
 
         project_members = await self.project_repository.get_members([project.uuid])
         
-        if isinstance(project_members, common_exceptions.ProjectNotFoundError):
+        if isinstance(project_members, (common_exceptions.ProjectNotFoundError, common_exceptions.ProjectRepositoryError)):
             raise project_members
         
         authorization_error = self.authorization_policy.decide_get_daily_log_list(actor, target, project, project_members)
@@ -424,7 +424,7 @@ class GetDailyLogListInteractor:
             raise authorization_error
 
         daily_logs = await self.daily_log_repository.get_list(project.uuid, data.date)
-        if isinstance(daily_logs, common_exceptions.ProjectNotFoundError):
+        if isinstance(daily_logs, (common_exceptions.ProjectNotFoundError, common_exceptions.DailyLogRepositoryError)):
             raise daily_logs
 
         return dto.GetDailyLogListOutDTO(daily_logs=daily_logs)
