@@ -54,7 +54,7 @@ class CreateDailyLogInteractor:
             raise project
         
         project_members = await self.project_repository.get_members([project.uuid])
-        if isinstance(project_members, (common_exceptions.ProjectNotFoundError, common_exceptions.ProjectRepositoryError)):
+        if isinstance(project_members, (common_exceptions.ProjectNotFoundError, common_exceptions.UserNotFoundError, common_exceptions.RepositoryError)):
             raise project_members
         
         authorization_error = self.authorization_policy.decide_create_daily_log(actor, project, project_members)
@@ -185,7 +185,7 @@ class GetDailyLogInteractor:
 
         project_members = await self.project_repository.get_members([daily_log.project.uuid])
         
-        if isinstance(project_members, (common_exceptions.ProjectNotFoundError, common_exceptions.ProjectRepositoryError)):
+        if isinstance(project_members, (common_exceptions.ProjectNotFoundError, common_exceptions.UserNotFoundError, common_exceptions.RepositoryError)):
             raise project_members
         
         authorization_error = self.authorization_policy.decide_get_daily_log(actor, daily_log, project_members)
@@ -281,7 +281,7 @@ class GetDailyLogFileInteractor:
             raise daily_log
 
         project_members = await self.project_repository.get_members([daily_log.project.uuid])
-        if isinstance(project_members, (common_exceptions.ProjectNotFoundError, common_exceptions.ProjectRepositoryError)):
+        if isinstance(project_members, (common_exceptions.ProjectNotFoundError, common_exceptions.UserNotFoundError, common_exceptions.RepositoryError)):
             raise project_members
 
         authorization_error = self.authorization_policy.decide_get_daily_log(actor, daily_log, project_members)
@@ -365,7 +365,7 @@ class GetDailyLogFileListInteractor:
             raise daily_log
 
         project_members = await self.project_repository.get_members([daily_log.project.uuid])
-        if isinstance(project_members, (common_exceptions.ProjectNotFoundError, common_exceptions.ProjectRepositoryError)):
+        if isinstance(project_members, (common_exceptions.ProjectNotFoundError, common_exceptions.ProjectRepositoryError, common_exceptions.UserNotFoundError, common_exceptions.RepositoryError)):
             raise project_members
 
         authorization_error = self.authorization_policy.decide_get_daily_log(actor, daily_log, project_members)
@@ -416,7 +416,7 @@ class GetDailyLogListInteractor:
 
         project_members = await self.project_repository.get_members([project.uuid])
         
-        if isinstance(project_members, (common_exceptions.ProjectNotFoundError, common_exceptions.ProjectRepositoryError)):
+        if isinstance(project_members, (common_exceptions.ProjectNotFoundError, common_exceptions.UserNotFoundError, common_exceptions.RepositoryError)):
             raise project_members
         
         authorization_error = self.authorization_policy.decide_get_daily_log_list(actor, target, project, project_members)

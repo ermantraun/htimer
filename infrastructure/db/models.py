@@ -63,7 +63,7 @@ class User(Base):
 
     uuid: Mapped[UUID] = mapped_column(sq.UUID(as_uuid=True), primary_key=True)
     name: Mapped[str] = mapped_column(sq.String(255), nullable=False)
-    email: Mapped[str] = mapped_column(sq.String(100), nullable=False, unique=True)
+    email: Mapped[str] = mapped_column(sq.String(100), nullable=False)
     password_hash: Mapped[str] = mapped_column(sq.String(255), nullable=False)
     role: Mapped[UserRole] = mapped_column(sq.Enum(UserRole), nullable=False)
     status: Mapped[UserStatus] = mapped_column(sq.Enum(UserStatus), nullable=False, default=UserStatus.ACTIVE)
@@ -86,6 +86,15 @@ class User(Base):
     created_users: Mapped[list[User]] = relationship(
         "User", back_populates="creator", cascade="all, delete-orphan"
     )
+    
+    __table_args__ = (
+        sq.UniqueConstraint("email", name="uq_users_email"),
+        sq.CheckConstraint(
+            "(role == 'admin' OR role == 'user') and creator_uuid IS NOT NULL",
+            name="check_user_creator_for_user_role",
+        ),
+    )
+
 
 # ======= PROJECT =======
 class Project(Base):
@@ -108,6 +117,13 @@ class Project(Base):
     subscription: Mapped[Subscription | None] = relationship("Subscription", back_populates="project", uselist=False, cascade="all, delete-orphan")
     memberships: Mapped[list[MemberShip]] = relationship("MemberShip", back_populates="project", cascade="all, delete-orphan")
 
+    __table_args__ = (
+        sq.CheckConstraint(
+            "start_date IS NULL OR end_date IS NULL OR start_date <= end_date",
+            name="check_project_start_end_dates",
+        ),
+    )
+
 
 # ======= MEMBER / ASSOCIATION =======
 class MemberShip(Base):
@@ -123,13 +139,17 @@ class MemberShip(Base):
     user: Mapped[User] = relationship("User", back_populates="memberships")
     project: Mapped[Project] = relationship("Project", back_populates="memberships")
 
+    
+    __table_args__ = (
+        sq.UniqueConstraint("user_uuid", "project_uuid", name="uq_memberships_user_project"),
+    )
 
 # ======= SUBSCRIPTION =======
 class Subscription(Base):
     __tablename__ = "subscriptions"
 
     uuid: Mapped[UUID] = mapped_column(sq.UUID(as_uuid=True), primary_key=True)
-    project_uuid: Mapped[UUID] = mapped_column(sq.ForeignKey("projects.uuid", ondelete="CASCADE"), nullable=False, unique=True)
+    project_uuid: Mapped[UUID] = mapped_column(sq.ForeignKey("projects.uuid", ondelete="CASCADE"), nullable=False)
     project: Mapped[Project] = relationship("Project", back_populates="subscription")
     
     payments: Mapped[list[Payment]] = relationship("Payment", back_populates="subscription", cascade="all, delete-orphan")
@@ -139,6 +159,14 @@ class Subscription(Base):
     start_date: Mapped[date | None] = mapped_column(sq.Date)
     end_date: Mapped[date | None] = mapped_column(sq.Date)
     status: Mapped[SubscriptionStatus] = mapped_column(sq.Enum(SubscriptionStatus), default=SubscriptionStatus.UNACTIVE)
+
+    __table_args__ = (
+        sq.UniqueConstraint("project_uuid", name="uq_subscriptions_project_uuid"),
+        sq.CheckConstraint(
+            "start_date IS NULL OR end_date IS NULL OR start_date <= end_date",
+            name="check_subscription_start_end_dates",
+        ),
+    )
 
 
 # ======= PAYMENT =======
@@ -155,6 +183,10 @@ class Payment(Base):
     payment_method: Mapped[PaymentMethod | None] = mapped_column(sq.Enum(PaymentMethod))
     created_at: Mapped[date] = mapped_column(sq.Date, nullable=False)
 
+    __table_args__ = (
+        sq.CheckConstraint("amount >= 0", name="ck_payment_amount_positive"),
+    )
+
 
 # ======= STAGE =======
 class Stage(Base):
@@ -168,7 +200,11 @@ class Stage(Base):
     project_uuid: Mapped[UUID | None] = mapped_column(sq.ForeignKey("projects.uuid", ondelete="CASCADE"))
     project: Mapped[Project] = relationship("Project", back_populates="stages")
 
-    parent_uuid: Mapped[UUID | None] = mapped_column(sq.ForeignKey("stages.uuid"))
+    parent_uuid: Mapped[UUID | None] = mapped_column(
+        sq.ForeignKey('stages.uuid', ondelete='DELETE'),
+        nullable=True,
+        comment='Родительский этап'
+    )
     parent: Mapped[Stage | None] = relationship("Stage", remote_side="Stage.uuid", back_populates="children")
     children: Mapped[list[Stage]] = relationship("Stage", back_populates="parent", cascade="all, delete-orphan")
 
@@ -178,6 +214,10 @@ class Stage(Base):
     created_at: Mapped[date] = mapped_column(sq.Date, nullable=False)
     main_path: Mapped[bool] = mapped_column(sq.Boolean, nullable=False, default=False)
     status: Mapped[StageStatus] = mapped_column(sq.Enum(StageStatus), default=StageStatus.ACTIVE)
+
+    __table_args__ = (
+        sq.CheckConstraint("main_path OR parent_uuid IS NOT NULL", name="ck_stage_main_path_boolean"),
+    )
 
 
 # ======= TASK =======
@@ -198,6 +238,20 @@ class Task(Base):
     status: Mapped[TaskStatus] = mapped_column(sq.Enum(TaskStatus), default=TaskStatus.PENDING)
     completion_date: Mapped[date | None] = mapped_column(sq.Date)
     working_days: Mapped[list[date]] = mapped_column(ARRAY(sq.Date), default=[])
+
+    __table_args__ = (
+        
+        sq.UniqueConstraint("substage_uuid", "name", name="uq_substage_name"),
+        
+        sq.CheckConstraint(
+            "array_length(working_days, 1) = cardinality(ARRAY(SELECT DISTINCT unnest(working_days)))",
+            name="ck_tasks_working_days_unique",
+        ),
+        sq.CheckConstraint(
+            "completion_date IS NULL OR completion_date = ANY(working_days)",
+            name="ck_tasks_completion_date_in_working_days",
+        ),
+    )
 
 
 # ======= DAILY LOG =======
@@ -223,6 +277,12 @@ class DailyLog(Base):
     hours_spent: Mapped[float] = mapped_column(sq.Float, default=0.0)
     description: Mapped[str] = mapped_column(sq.String(2000), default="")
 
+    __table_args__ = (
+        sq.UniqueConstraint(
+            "creator_uuid", "project_uuid", "created_at", name="uq_creator_project_dailylog_date"
+        ),
+    )
+
 
 # ======= FILE =======
 class File(Base):
@@ -235,3 +295,7 @@ class File(Base):
 
     daily_log_uuid: Mapped[UUID] = mapped_column(sq.ForeignKey("daily_logs.uuid", ondelete="CASCADE"))
     daily_log: Mapped[DailyLog] = relationship("DailyLog", back_populates="files")
+
+    __table_args__ = (
+        sq.UniqueConstraint("daily_log_uuid", "name", name="uq_daily_log_name"),
+    )

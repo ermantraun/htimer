@@ -124,7 +124,7 @@ class UpdateProjectInteractor:
 
         members = await self.project_repository.get_members([project.uuid])
         
-        if isinstance(members, common_exceptions.ProjectRepositoryError):
+        if isinstance(members, (common_exceptions.ProjectNotFoundError, common_exceptions.UserNotFoundError, common_exceptions.RepositoryError)):
             raise members
         
         authorization_error = self.authorization_policy.decide_update_project(
@@ -280,7 +280,7 @@ class AddMembersToProjectInteractor:
             raise project_members
         
         
-        if isinstance(project, common_exceptions.ProjectNotFoundError):
+        if isinstance(project, (common_exceptions.ProjectNotFoundError, common_exceptions.UserNotFoundError, common_exceptions.RepositoryError)):
             raise project
         
         authorization_error = self.authorization_policy.decide_update_project(

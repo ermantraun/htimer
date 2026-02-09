@@ -2,7 +2,11 @@ class InvalidToken(Exception):
     """Ошибка: недействительный токен."""
     pass
 
-class UserRepositoryError(Exception):
+class RepositoryError(Exception):
+    """Raised when there is a generic repository error."""
+    pass
+
+class UserRepositoryError(RepositoryError):
     """Ошибка репозитория пользователя."""
     pass
 
@@ -14,7 +18,7 @@ class UserNotFoundError(UserRepositoryError):
     """Ошибка: пользователь не найден."""
     pass
 
-class ProjectRepositoryError(Exception):
+class ProjectRepositoryError(RepositoryError):
     """Raised when there is an error in the project repository."""
     pass
 
@@ -34,7 +38,7 @@ class UserAlreadyProjectMemberError(ProjectRepositoryError):
     """Raised when a user is already a member of the project."""
     pass
 
-class StageRepositoryError(Exception):
+class StageRepositoryError(RepositoryError):
     """Raised when there is an error in the stage repository."""
     pass
 
@@ -50,7 +54,7 @@ class ParentStageAlreadyHasMainSubStageError(StageRepositoryError):
     """Raised when a parent stage already has sub-stages."""
     pass
 
-class DailyLogRepositoryError(Exception):
+class DailyLogRepositoryError(RepositoryError):
     """Raised when there is an error in the daily log repository."""
     pass
 
@@ -63,7 +67,7 @@ class DailyLogNotFoundError(DailyLogRepositoryError):
     pass
 
 
-class TaskRepositoryError(Exception):
+class TaskRepositoryError(RepositoryError):
     """Raised when there is an error in the task repository."""
     pass
 
@@ -71,11 +75,19 @@ class TaskNotFoundError(TaskRepositoryError):
     """Raised when a task is not found."""
     pass
 
+class TaskDateError(TaskRepositoryError):
+    """Raised when there is an error with the task date."""
+    pass
+
+class TaskAlreadyExistsError(TaskRepositoryError):
+    """Raised when a task already exists."""
+    pass
+
 class InvalidDate(Exception):
     """Raised when a provided date is invalid."""
     pass
 
-class PaymentRepositoryError(Exception):
+class PaymentRepositoryError(RepositoryError):
     """Raised when there is an error in the payment repository."""
     pass
 
@@ -83,7 +95,7 @@ class PaymentNotFoundError(PaymentRepositoryError):
     """Raised when a payment is not found."""
     pass
 
-class SubscriptionRepositoryError(Exception):
+class SubscriptionRepositoryError(RepositoryError):
     """Raised when there is an error in the subscription repository."""
     pass
 
@@ -113,4 +125,16 @@ class PaymentNotExistsError(PaymentGatewayError):
 
 class PaymentRefundFailedError(PaymentGatewayError):
     """Raised when a payment refund fails."""
-    pass 
+    pass
+
+class FileRepositoryError(RepositoryError):
+    """Raised when there is an error in the file repository."""
+    pass
+
+class FileAlreadyExistsError(FileRepositoryError):
+    """Raised when a file already exists."""
+    pass
+
+class FileNotFoundError(FileRepositoryError):
+    """Raised when a file is not found."""
+    pass
