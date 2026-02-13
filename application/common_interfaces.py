@@ -45,7 +45,7 @@ class UserRepository(Protocol):
         pass
     
     @abstractmethod
-    async def update(self, user_uuid: UUID, data: dict[str, Any], release_record: bool = False) -> entities.User | common_exceptions.EmailAlreadyExistsError | common_exceptions.UserNotFoundError | common_exceptions.RepositoryError:
+    async def update(self, user_uuid: UUID, data: dict[str, Any]) -> entities.User | common_exceptions.EmailAlreadyExistsError | common_exceptions.UserNotFoundError | common_exceptions.RepositoryError:
         pass
     
     @abstractmethod
@@ -71,7 +71,7 @@ class ProjectRepository(Protocol):
         pass
     
     @abstractmethod
-    async def update(self, project_uuid: UUID, data: dict[str, Any], release_record: bool = False) -> entities.Project | common_exceptions.ProjectNotFoundError | common_exceptions.UserAlreadyHasProjectError | common_exceptions.RepositoryError:
+    async def update(self, project_uuid: UUID, data: dict[str, Any]) -> entities.Project | common_exceptions.ProjectNotFoundError | common_exceptions.UserAlreadyHasProjectError | common_exceptions.RepositoryError:
         pass
     
     @abstractmethod
@@ -79,7 +79,7 @@ class ProjectRepository(Protocol):
         pass
     
     @abstractmethod
-    async def get_by_name(self, user_uuid: UUID, project_name: str, ) -> entities.Project | common_exceptions.ProjectNotFoundError | common_exceptions.RepositoryError:
+    async def get_by_name(self, user_uuid: UUID, project_name: str) -> entities.Project | common_exceptions.ProjectNotFoundError | common_exceptions.RepositoryError:
         pass
     
     @abstractmethod
@@ -88,14 +88,18 @@ class ProjectRepository(Protocol):
     
     @abstractmethod
     async def remove_members(self, project_uuid: UUID, members_uuids: list[
-        UUID]) -> entities.Project | common_exceptions.ProjectNotFoundError | common_exceptions.UserNotFoundError | common_exceptions.UserNotProjectMemberError | common_exceptions.RepositoryError:
+        UUID]) -> None | common_exceptions.MemberNotFound | common_exceptions.ProjectNotFoundError | common_exceptions.RepositoryError:
         pass
     
     @abstractmethod
-    async def get_members(self, projects_uuid: list[UUID], is_active: bool = True) -> list[entities.User] | common_exceptions.ProjectNotFoundError | common_exceptions.RepositoryError:
+    async def get_members(self, projects_uuid: list[UUID], is_active: bool = True) -> list[entities.User] | common_exceptions.ProjectNotFoundError |common_exceptions.RepositoryError:
         pass
     
-    
+    @abstractmethod
+    async def get_current_subscription(self, project_uuid: UUID) -> entities.Subscription | common_exceptions.SubscriptionNotFoundError | common_exceptions.ProjectNotFoundError | common_exceptions.RepositoryError:
+
+        pass
+
     
 class StageRepository(Protocol):
     @abstractmethod
@@ -107,7 +111,7 @@ class StageRepository(Protocol):
         pass
     
     @abstractmethod
-    async def update(self, stage_uuid: UUID, data: dict[str, Any], release_record: bool = False) -> entities.Stage | common_exceptions.StageNotFoundError | common_exceptions.RepositoryError:
+    async def update(self, stage_uuid: UUID, data: dict[str, Any]) -> entities.Stage | common_exceptions.StageNotFoundError | common_exceptions.RepositoryError:
         pass
     
     @abstractmethod
@@ -119,7 +123,7 @@ class StageRepository(Protocol):
         pass
     
     @abstractmethod
-    async def delete(self, stage_uuid: UUID, release_record: bool = False) -> None | common_exceptions.StageNotFoundError | common_exceptions.RepositoryError:
+    async def delete(self, stage_uuid: UUID) -> None | common_exceptions.StageNotFoundError | common_exceptions.RepositoryError:
         pass
     
 class DailyLogRepository(Protocol):
@@ -132,11 +136,11 @@ class DailyLogRepository(Protocol):
         pass
 
     @abstractmethod
-    async def update(self, day_uuid: UUID, data: dict[str, Any], release_record: bool = False) -> entities.DailyLog | common_exceptions.DailyLogNotFoundError | common_exceptions.RepositoryError:
+    async def update(self, day_uuid: UUID, data: dict[str, Any]) -> entities.DailyLog | common_exceptions.DailyLogNotFoundError | common_exceptions.RepositoryError:
         pass
 
     @abstractmethod
-    async def get_list(self, project_uuid: UUID, date: str, draft: bool = False) -> list[entities.DailyLog] | common_exceptions.ProjectNotFoundError | common_exceptions.RepositoryError:
+    async def get_list(self, project_uuid: UUID, date: date, draft: bool = False) -> list[entities.DailyLog] | common_exceptions.ProjectNotFoundError | common_exceptions.RepositoryError:
         pass
     
     
@@ -148,11 +152,11 @@ class FileRepository(Protocol):
         pass
 
     @abstractmethod
-    async def get(self, daily_log_uuid: UUID, file_uuid: UUID) -> entities.File | common_exceptions.FileNotFoundError | common_exceptions.RepositoryError:
+    async def get(self, file_uuid: UUID) -> entities.File | common_exceptions.FileNotFoundError | common_exceptions.RepositoryError:
         pass
 
     @abstractmethod
-    async def remove(self, daily_log_uuid: UUID, file_uuid: UUID) -> entities.File | common_exceptions.FileNotFoundError | common_exceptions.RepositoryError:
+    async def remove(self, file_uuid: UUID) -> entities.File | common_exceptions.FileNotFoundError | common_exceptions.RepositoryError:
         pass
 
     @abstractmethod
@@ -162,24 +166,25 @@ class FileRepository(Protocol):
 
 class TaskRepository(Protocol):
     @abstractmethod
-    async def create(self, data: entities.Task) -> entities.Task | common_exceptions.TaskAlreadyExistsError | common_exceptions.RepositoryError:
+    async def create(self, data: entities.Task) -> entities.Task | common_exceptions.TaskAlreadyExistsError | common_exceptions.RepositoryError | common_exceptions.StageNotFoundError | common_exceptions.UserNotFoundError:
         pass
 
     @abstractmethod
-    async def get_by_uuid(self, task_uuid: UUID, lock_record: bool = False) -> entities.Task | common_exceptions.TaskAlreadyExistsError | common_exceptions.TaskDateError | common_exceptions.TaskNotFoundError | common_exceptions.RepositoryError:
+    async def get_by_uuid(self, task_uuid: UUID, lock_record: bool = False) -> entities.Task | common_exceptions.TaskAlreadyExistsError | common_exceptions.TaskNotFoundError | common_exceptions.RepositoryError:
         pass
 
     @abstractmethod
-    async def update(self, task_uuid: UUID, data: dict[str, Any], release_record: bool = False) -> entities.Task | common_exceptions.TaskNotFoundError | common_exceptions.TaskAlreadyExistsError | common_exceptions.RepositoryError:
+    async def update(self, task_uuid: UUID, data: dict[str, Any]) -> entities.Task | common_exceptions.TaskNotFoundError | common_exceptions.TaskAlreadyExistsError | common_exceptions.RepositoryError:
         pass
 
     @abstractmethod
-    async def delete(self, task_uuid: UUID, release_record: bool = False) -> None | common_exceptions.TaskNotFoundError | common_exceptions.RepositoryError:
+    async def delete(self, task_uuid: UUID) -> None | common_exceptions.TaskNotFoundError | common_exceptions.RepositoryError:
         pass
 
     @abstractmethod
     async def get_list(self, substage_uuid: UUID) -> list[entities.Task] | common_exceptions.StageNotFoundError | common_exceptions.RepositoryError:
         pass
+
 
 class PaymentRepository(Protocol):
     @abstractmethod
@@ -191,18 +196,14 @@ class PaymentRepository(Protocol):
         pass
     
     @abstractmethod
-    async def update(self, payment_uuid: UUID, data: dict[str, Any], release_record: bool = False) -> entities.Payment | common_exceptions.PaymentNotFoundError | common_exceptions.RepositoryError:
+    async def update(self, payment_uuid: UUID, data: dict[str, Any]) -> entities.Payment | common_exceptions.PaymentNotFoundError | common_exceptions.RepositoryError:
         pass
+
 
 class SubscriptionRepository(Protocol):
     
     @abstractmethod
     async def create(self, subscription: entities.Subscription) -> entities.Subscription | common_exceptions.SubscriptionAlreadyExistsError | common_exceptions.ProjectNotFoundError | common_exceptions.RepositoryError:
-        pass
-
-    @abstractmethod
-    async def has_active_subscription(self, project_uuid: UUID) -> bool | common_exceptions.ProjectNotFoundError | common_exceptions.RepositoryError:
-
         pass
     
     @abstractmethod
@@ -211,13 +212,10 @@ class SubscriptionRepository(Protocol):
         pass
 
     @abstractmethod
-    async def update(self, subscription_uuid: UUID, data: dict[str, Any], release_record: bool = False) -> entities.Subscription | common_exceptions.SubscriptionNotFoundError | common_exceptions.RepositoryError:
+    async def update(self, subscription_uuid: UUID, data: dict[str, Any]) -> entities.Subscription | common_exceptions.SubscriptionNotFoundError | common_exceptions.RepositoryError:
         pass
 
-    @abstractmethod
-    async def get_active_subscription(self, project_uuid: UUID) -> entities.Subscription | common_exceptions.SubscriptionNotFoundError | common_exceptions.ProjectNotFoundError | common_exceptions.RepositoryError:
 
-        pass
     
     
 class PaymentGateway(Protocol):

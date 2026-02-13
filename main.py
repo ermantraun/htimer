@@ -14,7 +14,7 @@ async def main():
         
         session = await request_scope.get(AsyncSession)
         
-        user_repository = UserRepository(session)
+        _ = UserRepository(session, Config())
 
 
 if __name__ == '__main__':

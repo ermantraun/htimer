@@ -30,7 +30,7 @@ class ProjectNotFoundError(ProjectRepositoryError):
     """Raised when a project is not found."""
     pass
 
-class UserNotProjectMemberError(ProjectRepositoryError):
+class MemberNotFound(ProjectRepositoryError):
     """Raised when a user is not in the project members."""
     pass
 
@@ -75,9 +75,6 @@ class TaskNotFoundError(TaskRepositoryError):
     """Raised when a task is not found."""
     pass
 
-class TaskDateError(TaskRepositoryError):
-    """Raised when there is an error with the task date."""
-    pass
 
 class TaskAlreadyExistsError(TaskRepositoryError):
     """Raised when a task already exists."""

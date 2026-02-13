@@ -645,7 +645,7 @@ class Task:
     substage: Stage
     status: TaskStatus = TaskStatus.PENDING
     working_dates: frozenset[date] = field(default_factory=frozenset) #type: ignore
-    completion_dates: frozenset[date] = field(default_factory=frozenset) #type: ignore
+    completion_date: date | None = None
     
     # def add_working_date(self, date: date) -> None:
     #     if date not in self.working_dates.dates:

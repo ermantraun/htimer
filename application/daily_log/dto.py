@@ -1,3 +1,4 @@
+from datetime import date
 from dataclasses import dataclass
 from uuid import UUID
 from domain import entities
@@ -82,7 +83,7 @@ class GetDailyLogFileListOutDTO:
 @dataclass
 class GetDailyLogListInDTO:
     project_uuid: UUID
-    date: str
+    date: date
     user_uuid: UUID | None = None
 
 

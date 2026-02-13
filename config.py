@@ -13,6 +13,7 @@ class PostgresConfig(BaseSettings):
     user: str = "admin"
     password: str = "899595"
     db: str = "htimer"
+    debug: bool = False
 
 
 # -------------------- FastAPI --------------------

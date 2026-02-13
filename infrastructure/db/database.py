@@ -1,7 +1,7 @@
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession, AsyncEngine, async_sessionmaker, create_async_engine
 from config import Config
 
-async def new_session_maker(config: Config) -> async_sessionmaker[AsyncSession]:
+async def new_engine(config: Config) -> AsyncEngine:
     psql_config = config.postgres
     
     database_uri = "{driver}://{login}:{password}@{host}:{port}/{database}".format(
@@ -23,6 +23,8 @@ async def new_session_maker(config: Config) -> async_sessionmaker[AsyncSession]:
         isolation_level="READ COMMITTED",  # уровень изоляции транзакций по умолчанию
         echo=False,                    # логирование SQL (True — только для отладки)
     )
-
     
-    return async_sessionmaker(engine, class_=AsyncSession, autoflush=False, expire_on_commit=False)
+    return engine
+
+async def new_session_maker(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:
+    return async_sessionmaker(engine, class_=AsyncSession, autoflush=False, expire_on_commit=False) 
