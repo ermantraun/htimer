@@ -4,11 +4,14 @@ from dishka import Provider, Scope, provide_all, AnyOf, provide # type: ignore
 from application.daily_log import interactors, interfaces
 from infrastructure.policy.daily_log import policy
 
+class PolicyProvider(Provider):
+    daily_log_authorization_policy = provide(
+        policy.DailyLogAuthorizationPolicy,
+        scope=Scope.REQUEST,
+        provides=interfaces.DailyLogAuthorizationPolicy
+    )
 
-class DailyLogProvider(Provider):
-    
-    policy = provide(policy.DailyLogAuthorizationPolicy, scope=Scope.REQUEST, provides=interfaces.DailyLogAuthorizationPolicy)
-    
+class InteractorProvider(Provider):
     interactors = provide_all(
         interactors.CreateDailyLogInteractor,
         interactors.UpdateDailyLogInteractor,
@@ -20,5 +23,6 @@ class DailyLogProvider(Provider):
         interactors.GetDailyLogFileListInteractor,
         scope=Scope.REQUEST,
     )
-    
-    
+
+class DailyLogProvider(PolicyProvider, InteractorProvider):
+    pass

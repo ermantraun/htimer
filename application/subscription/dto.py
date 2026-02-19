@@ -1,7 +1,6 @@
 
 from dataclasses import dataclass
 from uuid import UUID
-from datetime import date
 from domain import entities
 
 @dataclass
@@ -26,8 +25,7 @@ class CreatePaymentOutDTO:
 @dataclass
 class CompletePaymentInDTO:
     payment_uuid: UUID
-    method: str
-    date: date
+
 
 
 @dataclass
@@ -46,6 +44,14 @@ class ActivateSubscriptionInDTO:
     project_uuid: UUID
     payment_uuid: UUID
     
+@dataclass
+class CompletePaymentAndUpdateSubscriptionInDTO:
+    project_uuid: UUID
+    payment_uuid: UUID
+
+@dataclass
+class CompletePaymentAndUpdateSubscriptionOutDTO:
+    subscription: entities.Subscription
     
 
 

@@ -1,5 +1,5 @@
-import dto
-from . import exceptions
+ 
+from . import exceptions, dto
 
 
 class CreateDailyLogValidator:

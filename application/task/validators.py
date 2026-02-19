@@ -1,4 +1,4 @@
-import dto
+from . import dto
 from dataclasses import asdict
 from . import exceptions
 

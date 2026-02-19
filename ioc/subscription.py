@@ -3,16 +3,14 @@ from dishka import Provider, Scope, provide, provide_all # type: ignore
 from application.subscription import interactors, interfaces
 from infrastructure.policy.subscription import policy
 
-
-class SubscriptionProvider(Provider):
-
-    authorization_policy = provide(
+class PolicyProvider(Provider):
+    subscription_authorization_policy = provide(
         policy.SubscriptionAuthorizationPolicyImpl,
         scope=Scope.REQUEST,
         provides=interfaces.SubscriptionAuthorizationPolicy
     )
 
-    
+class InteractorProvider(Provider):
     interactors = provide_all(
         interactors.CreateSubscriptionInteractor,
         interactors.UpdateSubscriptionInteractor,
@@ -22,3 +20,6 @@ class SubscriptionProvider(Provider):
         interactors.ActivateSubscriptionInteractor,
         scope=Scope.REQUEST
     )
+
+class SubscriptionProvider(PolicyProvider, InteractorProvider):
+    pass

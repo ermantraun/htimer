@@ -3,16 +3,16 @@ from uuid import uuid4
 
 import pytest
 
-from application import common_exceptions, common_interfaces
+from infrastructure.repositories import exceptions as repo_exceptions, interfaces as repository_interfaces
 from domain import entities
 from tests.integration import factories
 
 
 @pytest.mark.asyncio
 async def test_create_daily_log_success(
-    user_repository: common_interfaces.UserRepository,
-    project_repository: common_interfaces.ProjectRepository,
-    daily_log_repository: common_interfaces.DailyLogRepository,
+    user_repository: repository_interfaces.DBUserRepository,
+    project_repository: repository_interfaces.DBProjectRepository,
+    daily_log_repository: repository_interfaces.DBDailyLogRepository,
 ):
     owner = await user_repository.create(
         factories.make_user_entity(role=entities.UserRole.ADMIN)
@@ -32,8 +32,8 @@ async def test_create_daily_log_success(
 
 @pytest.mark.asyncio
 async def test_create_daily_log_project_not_found(
-    user_repository: common_interfaces.UserRepository,
-    daily_log_repository: common_interfaces.DailyLogRepository,
+    user_repository: repository_interfaces.DBUserRepository,
+    daily_log_repository: repository_interfaces.DBDailyLogRepository,
 ):
     owner = await user_repository.create(
         factories.make_user_entity(role=entities.UserRole.ADMIN)
@@ -44,14 +44,14 @@ async def test_create_daily_log_project_not_found(
 
     result = await daily_log_repository.create(daily_log)
 
-    assert isinstance(result, common_exceptions.ProjectNotFoundError)
+    assert isinstance(result, repo_exceptions.ProjectNotFoundError)
 
 
 @pytest.mark.asyncio
 async def test_create_daily_log_user_not_found(
-    user_repository: common_interfaces.UserRepository,
-    project_repository: common_interfaces.ProjectRepository,
-    daily_log_repository: common_interfaces.DailyLogRepository,
+    user_repository: repository_interfaces.DBUserRepository,
+    project_repository: repository_interfaces.DBProjectRepository,
+    daily_log_repository: repository_interfaces.DBDailyLogRepository,
 ):
     owner = factories.make_user_entity(role=entities.UserRole.ADMIN)
     project_owner = await user_repository.create(
@@ -67,14 +67,14 @@ async def test_create_daily_log_user_not_found(
 
     result = await daily_log_repository.create(daily_log)
 
-    assert isinstance(result, common_exceptions.UserNotFoundError)
+    assert isinstance(result, repo_exceptions.UserNotFoundError)
 
 
 @pytest.mark.asyncio
 async def test_create_daily_log_stage_not_found(
-    user_repository: common_interfaces.UserRepository,
-    project_repository: common_interfaces.ProjectRepository,
-    daily_log_repository: common_interfaces.DailyLogRepository,
+    user_repository: repository_interfaces.DBUserRepository,
+    project_repository: repository_interfaces.DBProjectRepository,
+    daily_log_repository: repository_interfaces.DBDailyLogRepository,
 ):
     owner = await user_repository.create(
         factories.make_user_entity(role=entities.UserRole.ADMIN)
@@ -92,14 +92,14 @@ async def test_create_daily_log_stage_not_found(
 
     result = await daily_log_repository.create(daily_log)
 
-    assert isinstance(result, common_exceptions.StageNotFoundError)
+    assert isinstance(result, repo_exceptions.StageNotFoundError)
 
 
 @pytest.mark.asyncio
 async def test_create_daily_log_already_exists(
-    user_repository: common_interfaces.UserRepository,
-    project_repository: common_interfaces.ProjectRepository,
-    daily_log_repository: common_interfaces.DailyLogRepository,
+    user_repository: repository_interfaces.DBUserRepository,
+    project_repository: repository_interfaces.DBProjectRepository,
+    daily_log_repository: repository_interfaces.DBDailyLogRepository,
 ):
     owner = await user_repository.create(
         factories.make_user_entity(role=entities.UserRole.ADMIN)
@@ -118,14 +118,14 @@ async def test_create_daily_log_already_exists(
     )
     result = await daily_log_repository.create(duplicate)
 
-    assert isinstance(result, common_exceptions.DailyLogAlreadyExistsError)
+    assert isinstance(result, repo_exceptions.DailyLogAlreadyExistsError)
 
 
 @pytest.mark.asyncio
 async def test_update_daily_log_success(
-    user_repository: common_interfaces.UserRepository,
-    project_repository: common_interfaces.ProjectRepository,
-    daily_log_repository: common_interfaces.DailyLogRepository,
+    user_repository: repository_interfaces.DBUserRepository,
+    project_repository: repository_interfaces.DBProjectRepository,
+    daily_log_repository: repository_interfaces.DBDailyLogRepository,
 ):
     owner = await user_repository.create(
         factories.make_user_entity(role=entities.UserRole.ADMIN)
@@ -149,18 +149,18 @@ async def test_update_daily_log_success(
 
 @pytest.mark.asyncio
 async def test_update_daily_log_not_found(
-    daily_log_repository: common_interfaces.DailyLogRepository,
+    daily_log_repository: repository_interfaces.DBDailyLogRepository,
 ):
     result = await daily_log_repository.update(uuid4(), {"description": "Updated"})
 
-    assert isinstance(result, common_exceptions.DailyLogNotFoundError)
+    assert isinstance(result, repo_exceptions.DailyLogNotFoundError)
 
 
 @pytest.mark.asyncio
 async def test_get_by_uuid_success(
-    user_repository: common_interfaces.UserRepository,
-    project_repository: common_interfaces.ProjectRepository,
-    daily_log_repository: common_interfaces.DailyLogRepository,
+    user_repository: repository_interfaces.DBUserRepository,
+    project_repository: repository_interfaces.DBProjectRepository,
+    daily_log_repository: repository_interfaces.DBDailyLogRepository,
 ):
     owner = await user_repository.create(
         factories.make_user_entity(role=entities.UserRole.ADMIN)
@@ -183,18 +183,18 @@ async def test_get_by_uuid_success(
 
 @pytest.mark.asyncio
 async def test_get_by_uuid_not_found(
-    daily_log_repository: common_interfaces.DailyLogRepository,
+    daily_log_repository: repository_interfaces.DBDailyLogRepository,
 ):
     result = await daily_log_repository.get_by_uuid(uuid4())
 
-    assert isinstance(result, common_exceptions.DailyLogNotFoundError)
+    assert isinstance(result, repo_exceptions.DailyLogNotFoundError)
 
 
 @pytest.mark.asyncio
 async def test_get_list_success(
-    user_repository: common_interfaces.UserRepository,
-    project_repository: common_interfaces.ProjectRepository,
-    daily_log_repository: common_interfaces.DailyLogRepository,
+    user_repository: repository_interfaces.DBUserRepository,
+    project_repository: repository_interfaces.DBProjectRepository,
+    daily_log_repository: repository_interfaces.DBDailyLogRepository,
 ):
     owner = await user_repository.create(
         factories.make_user_entity(role=entities.UserRole.ADMIN)
@@ -232,8 +232,8 @@ async def test_get_list_success(
 
 @pytest.mark.asyncio
 async def test_get_list_project_not_found(
-    daily_log_repository: common_interfaces.DailyLogRepository,
+    daily_log_repository: repository_interfaces.DBDailyLogRepository,
 ):
     result = await daily_log_repository.get_list(uuid4(), date.today())
 
-    assert isinstance(result, common_exceptions.ProjectNotFoundError)
+    assert isinstance(result, repo_exceptions.ProjectNotFoundError)

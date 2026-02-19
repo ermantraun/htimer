@@ -534,8 +534,7 @@ class Payment:
     amount: value_objects.MoneyAmount
     created_at: date
     status: PaymentStatus = PaymentStatus.PENDING
-    payment_date: date | None = None
-    payment_method: PaymentMethod | None = None
+    complete_date: date | None = None
     
 
     def ensure_complete(self) -> str:

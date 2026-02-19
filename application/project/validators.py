@@ -1,5 +1,5 @@
 from dataclasses import asdict
-import dto
+from . import dto
 from . import exceptions
 
 

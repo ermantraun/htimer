@@ -2,6 +2,7 @@ from datetime import date
 from dataclasses import dataclass
 from uuid import UUID
 from domain import entities
+from application.common_interfaces import ActionLink 
 
 @dataclass
 class CreateDailyLogInDTO:
@@ -51,6 +52,7 @@ class CreateDailyLogFileInDTO:
 @dataclass
 class CreateDailyLogFileOutDTO:
     file: entities.File
+    action_link: ActionLink
 
 
 @dataclass
@@ -62,6 +64,7 @@ class GetDailyLogFileInDTO:
 @dataclass
 class GetDailyLogFileOutDTO:
     file: entities.File
+    action_link: ActionLink
 
 
 @dataclass
@@ -77,7 +80,7 @@ class GetDailyLogFileListInDTO:
 
 @dataclass
 class GetDailyLogFileListOutDTO:
-    files: list[entities.File]
+    files: list[tuple[entities.File, ActionLink]]
 
 
 @dataclass

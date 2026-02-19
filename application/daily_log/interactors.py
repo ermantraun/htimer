@@ -1,7 +1,7 @@
 from uuid import uuid4
 from application import common_exceptions, common_interfaces
 from domain import entities
-import dto, interfaces, exceptions, validators
+from . import dto, interfaces, exceptions, validators
 
 
 class CreateDailyLogInteractor:
@@ -12,7 +12,7 @@ class CreateDailyLogInteractor:
         user_repository: common_interfaces.UserRepository,
         authorization_policy: interfaces.DailyLogAuthorizationPolicy,
         db_session: common_interfaces.DBSession,
-        context: common_interfaces.UserContext,
+        context: common_interfaces.Context,
         clock: common_interfaces.Clock,
         text_normalizer: common_interfaces.TextNormalizer,
         validator: validators.CreateDailyLogValidator,
@@ -32,7 +32,7 @@ class CreateDailyLogInteractor:
         
         validation_error = self.validator.validate(data)
         
-        clock_error = self.clock.verify_date()
+        clock_error = self.clock.verify_date(data.date)
         
         if isinstance(clock_error, common_exceptions.InvalidDate):
             raise clock_error
@@ -67,7 +67,7 @@ class CreateDailyLogInteractor:
                 creator=actor,
                 project=project,
                 draft = data.draft,
-                created_at=self.clock.now_date(),
+                created_at=await self.clock.now_date(),
                 description=self.text_normalizer.normalize(data.description) if data.description else data.description,
                 hours_spent=data.hours_spent,
             )
@@ -91,7 +91,7 @@ class UpdateDailyLogInteractor:
         user_repository: common_interfaces.UserRepository,
         authorization_policy: interfaces.DailyLogAuthorizationPolicy,
         db_session: common_interfaces.DBSession,
-        context: common_interfaces.UserContext,
+        context: common_interfaces.Context,
         clock: common_interfaces.Clock,
         text_normalizer: common_interfaces.TextNormalizer,
         validator: validators.UpdateDailyLogValidator,
@@ -161,7 +161,7 @@ class GetDailyLogInteractor:
         user_repository: common_interfaces.UserRepository,
         authorization_policy: interfaces.DailyLogAuthorizationPolicy,
         project_repository: common_interfaces.ProjectRepository,
-        context: common_interfaces.UserContext,
+        context: common_interfaces.Context,
     ):
         self.daily_log_repository = daily_log_repository
         self.user_repository = user_repository
@@ -205,7 +205,7 @@ class CreateDailyLogFileInteractor:
         file_repository: common_interfaces.FileRepository,
         db_session: common_interfaces.DBSession,
         clock: common_interfaces.Clock,
-        context: common_interfaces.UserContext,
+        context: common_interfaces.Context,
     ):
         self.daily_log_repository = daily_log_repository
         self.user_repository = user_repository
@@ -237,7 +237,7 @@ class CreateDailyLogFileInteractor:
             uuid=uuid4(),
             filename=data.filename,
             daily_log=daily_log,
-            uploaded_at=self.clock.now_date(),
+            uploaded_at=await self.clock.now_date(),
             uri=daily_log.uuid.hex + '/' + data.filename,
             
         )
@@ -248,7 +248,7 @@ class CreateDailyLogFileInteractor:
 
         await self.db_session.commit()
 
-        return dto.CreateDailyLogFileOutDTO(file=stored)
+        return dto.CreateDailyLogFileOutDTO(file=stored[0], action_link=stored[1])
 
 
 class GetDailyLogFileInteractor:
@@ -259,7 +259,7 @@ class GetDailyLogFileInteractor:
         authorization_policy: interfaces.DailyLogAuthorizationPolicy,
         project_repository: common_interfaces.ProjectRepository,
         file_repository: common_interfaces.FileRepository,
-        context: common_interfaces.UserContext,
+        context: common_interfaces.Context,
     ):
         self.daily_log_repository = daily_log_repository
         self.user_repository = user_repository
@@ -293,7 +293,7 @@ class GetDailyLogFileInteractor:
         found = await self.file_repository.get(data.file_uuid)
         if isinstance(found, (common_exceptions.FileNotFoundError, common_exceptions.RepositoryError)):
             raise found
-        return dto.GetDailyLogFileOutDTO(file=found)
+        return dto.GetDailyLogFileOutDTO(file=found[0], action_link=found[1])
 
 
 class RemoveDailyLogFileInteractor:
@@ -304,7 +304,7 @@ class RemoveDailyLogFileInteractor:
         authorization_policy: interfaces.DailyLogAuthorizationPolicy,
         file_repository: common_interfaces.FileRepository,
         db_session: common_interfaces.DBSession,
-        context: common_interfaces.UserContext,
+        context: common_interfaces.Context,
     ):
         self.daily_log_repository = daily_log_repository
         self.user_repository = user_repository
@@ -312,7 +312,7 @@ class RemoveDailyLogFileInteractor:
         self.file_repository = file_repository
         self.db_session = db_session
         self.context = context
-    async def execute(self, data: dto.RemoveDailyLogFileInDTO) -> entities.File | common_exceptions.DailyLogNotFoundError | common_exceptions.UserNotFoundError | common_exceptions.InvalidToken | exceptions.DayliLogAuthorizationError | common_exceptions.FileNotFoundError | common_exceptions.RepositoryError:
+    async def execute(self, data: dto.RemoveDailyLogFileInDTO) -> dto.GetDailyLogFileOutDTO | common_exceptions.DailyLogNotFoundError | common_exceptions.UserNotFoundError | common_exceptions.InvalidToken | exceptions.DayliLogAuthorizationError | common_exceptions.FileNotFoundError | common_exceptions.RepositoryError:
         actor_uuid = self.context.get_current_user_uuid()
 
         if isinstance(actor_uuid, common_exceptions.InvalidToken):
@@ -336,7 +336,7 @@ class RemoveDailyLogFileInteractor:
 
         await self.db_session.commit()
 
-        return removed
+        return dto.GetDailyLogFileOutDTO(file=removed[0], action_link=removed[1])
 
 
 class GetDailyLogFileListInteractor:
@@ -347,7 +347,7 @@ class GetDailyLogFileListInteractor:
         authorization_policy: interfaces.DailyLogAuthorizationPolicy,
         project_repository: common_interfaces.ProjectRepository,
         file_repository: common_interfaces.FileRepository,
-        context: common_interfaces.UserContext,
+        context: common_interfaces.Context,
     ):
         self.daily_log_repository = daily_log_repository
         self.user_repository = user_repository
@@ -392,7 +392,7 @@ class GetDailyLogListInteractor:
         project_repository: common_interfaces.ProjectRepository,
         user_repository: common_interfaces.UserRepository,
         authorization_policy: interfaces.DailyLogAuthorizationPolicy,
-        context: common_interfaces.UserContext,
+        context: common_interfaces.Context,
     ):
         self.daily_log_repository = daily_log_repository
         self.project_repository = project_repository

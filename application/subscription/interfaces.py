@@ -1,7 +1,7 @@
 from typing import Protocol
 from abc import abstractmethod
 from domain import entities
-import exceptions
+from . import exceptions
 
 class SubscriptionAuthorizationPolicy(Protocol):
     @abstractmethod

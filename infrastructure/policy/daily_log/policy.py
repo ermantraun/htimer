@@ -1,7 +1,7 @@
 from application.daily_log import interfaces
 from application.daily_log.exceptions import DayliLogAuthorizationError
 from domain import entities
-import exceptions
+from . import exceptions
 
 
 class DailyLogAuthorizationPolicy(interfaces.DailyLogAuthorizationPolicy):

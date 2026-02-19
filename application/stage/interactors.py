@@ -1,6 +1,6 @@
 from uuid import uuid4
 from typing import Any
-import dto, interfaces, exceptions, validators
+from . import dto, interfaces, exceptions, validators
 from application import common_interfaces, common_exceptions
 from domain import entities
 
@@ -13,7 +13,7 @@ class CreateStageInteractor:
         subscription_repository: common_interfaces.SubscriptionRepository,
         authorization_policy: interfaces.StageAuthorizationPolicy,
         db_session: common_interfaces.DBSession,
-        context: common_interfaces.UserContext,
+        context: common_interfaces.Context,
         clock: common_interfaces.Clock,
         text_normalizer: common_interfaces.TextNormalizer,
         validator: validators.CreateStageValidator,
@@ -72,7 +72,7 @@ class CreateStageInteractor:
             description=data.description,
             creator=actor,
             project=project,
-            created_at=self.clock.now_date(),
+            created_at=await self.clock.now_date(),
             main_path=data.main_path,
             parent=parent_stage,
             status=entities.StageStatus.ACTIVE,
@@ -106,7 +106,7 @@ class UpdateStageInteractor:
         subscription_repository: common_interfaces.SubscriptionRepository,
         authorization_policy: interfaces.StageAuthorizationPolicy,
         db_session: common_interfaces.DBSession,
-        context: common_interfaces.UserContext,
+        context: common_interfaces.Context,
         clock: common_interfaces.Clock,
         validator: validators.UpdateStageValidator,
         text_normalizer: common_interfaces.TextNormalizer,
@@ -190,7 +190,7 @@ class DeleteStageInteractor:
         user_repository: common_interfaces.UserRepository,
         authorization_policy: interfaces.StageAuthorizationPolicy,
         db_session: common_interfaces.DBSession,
-        context: common_interfaces.UserContext,
+        context: common_interfaces.Context,
     ):
         self.stage_repository = stage_repository
         self.project_repository = project_repository
@@ -235,7 +235,7 @@ class GetStageListInteractor:
         stage_repository: common_interfaces.StageRepository,
         user_repository: common_interfaces.UserRepository,
         authorization_policy: interfaces.StageAuthorizationPolicy,
-        context: common_interfaces.UserContext,
+        context: common_interfaces.Context,
     ):
         self.project_repository = project_repository
         self.stage_repository = stage_repository

@@ -4,16 +4,14 @@ from dishka import Provider, Scope, provide, AnyOf, provide_all # type: ignore
 from application.project import interactors, interfaces
 from infrastructure.policy.project import policy
 
-class ProjectProvider(Provider):
-
-    authorization_policy = provide(
+class PolicyProvider(Provider):
+    project_authorization_policy = provide(
         policy.ProjectAuthorizationPolicyImpl,
         scope=Scope.REQUEST,
         provides=interfaces.ProjectAuthorizationPolicy
     )
 
-
-    
+class InteractorProvider(Provider):
     interactos = provide_all(
        interactors.CreateProjectInteractor,
        interactors.UpdateProjectInteractor,
@@ -24,3 +22,6 @@ class ProjectProvider(Provider):
        scope=Scope.REQUEST
        
     )
+
+class ProjectProvider(PolicyProvider, InteractorProvider):
+    pass

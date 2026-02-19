@@ -1,7 +1,7 @@
 from abc import abstractmethod
 from typing import Protocol
 from domain import entities
-import exceptions
+from . import exceptions
     
 class StageAuthorizationPolicy(Protocol):
     @abstractmethod

@@ -3,14 +3,14 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from application import common_exceptions, common_interfaces
+from infrastructure.repositories import exceptions as repo_exceptions, interfaces as repository_interfaces
 from domain import entities
 from infrastructure.db import models
 from tests.integration import factories
 
 
 @pytest.mark.asyncio
-async def test_create_user_success(user_repository: common_interfaces.UserRepository):
+async def test_create_user_success(user_repository: repository_interfaces.DBUserRepository):
     user = factories.make_user_entity(role=entities.UserRole.ADMIN)
 
     result = await user_repository.create(user)
@@ -20,18 +20,18 @@ async def test_create_user_success(user_repository: common_interfaces.UserReposi
 
 
 @pytest.mark.asyncio
-async def test_create_user_email_exists(user_repository: common_interfaces.UserRepository):
+async def test_create_user_email_exists(user_repository: repository_interfaces.DBUserRepository):
     user = factories.make_user_entity(role=entities.UserRole.ADMIN)
 
     await user_repository.create(user)
     duplicate = factories.make_user_entity(role=entities.UserRole.ADMIN, email=user.email)
     result = await user_repository.create(duplicate)
 
-    assert isinstance(result, common_exceptions.EmailAlreadyExistsError)
+    assert isinstance(result, repo_exceptions.EmailAlreadyExistsError)
 
 
 @pytest.mark.asyncio
-async def test_update_user_success(user_repository: common_interfaces.UserRepository):
+async def test_update_user_success(user_repository: repository_interfaces.DBUserRepository):
     user = factories.make_user_entity(role=entities.UserRole.ADMIN)
     created = await user_repository.create(user)
     assert isinstance(created, entities.User)
@@ -43,14 +43,14 @@ async def test_update_user_success(user_repository: common_interfaces.UserReposi
 
 
 @pytest.mark.asyncio
-async def test_update_user_not_found(user_repository: common_interfaces.UserRepository):
+async def test_update_user_not_found(user_repository: repository_interfaces.DBUserRepository):
     result = await user_repository.update(uuid4(), {"name": "Updated"})
 
-    assert isinstance(result, common_exceptions.UserNotFoundError)
+    assert isinstance(result, repo_exceptions.UserNotFoundError)
 
 
 @pytest.mark.asyncio
-async def test_update_user_email_exists(user_repository: common_interfaces.UserRepository):
+async def test_update_user_email_exists(user_repository: repository_interfaces.DBUserRepository):
     user1 = factories.make_user_entity(role=entities.UserRole.ADMIN)
     user2 = factories.make_user_entity(role=entities.UserRole.ADMIN)
 
@@ -61,11 +61,11 @@ async def test_update_user_email_exists(user_repository: common_interfaces.UserR
 
     result = await user_repository.update(created2.uuid, {"email": created1.email})
 
-    assert isinstance(result, common_exceptions.EmailAlreadyExistsError)
+    assert isinstance(result, repo_exceptions.EmailAlreadyExistsError)
 
 
 @pytest.mark.asyncio
-async def test_get_by_email_success(user_repository: common_interfaces.UserRepository):
+async def test_get_by_email_success(user_repository: repository_interfaces.DBUserRepository):
     user = factories.make_user_entity(role=entities.UserRole.ADMIN)
     created = await user_repository.create(user)
     assert isinstance(created, entities.User)
@@ -77,14 +77,14 @@ async def test_get_by_email_success(user_repository: common_interfaces.UserRepos
 
 
 @pytest.mark.asyncio
-async def test_get_by_email_not_found(user_repository: common_interfaces.UserRepository):
+async def test_get_by_email_not_found(user_repository: repository_interfaces.DBUserRepository):
     result = await user_repository.get_by_email("missing@example.com")
 
-    assert isinstance(result, common_exceptions.UserNotFoundError)
+    assert isinstance(result, repo_exceptions.UserNotFoundError)
 
 
 @pytest.mark.asyncio
-async def test_get_by_uuid_success(user_repository: common_interfaces.UserRepository):
+async def test_get_by_uuid_success(user_repository: repository_interfaces.DBUserRepository):
     user = factories.make_user_entity(role=entities.UserRole.ADMIN)
     created = await user_repository.create(user)
     assert isinstance(created, entities.User)
@@ -96,14 +96,14 @@ async def test_get_by_uuid_success(user_repository: common_interfaces.UserReposi
 
 
 @pytest.mark.asyncio
-async def test_get_by_uuid_not_found(user_repository: common_interfaces.UserRepository):
+async def test_get_by_uuid_not_found(user_repository: repository_interfaces.DBUserRepository):
     result = await user_repository.get_by_uuid(uuid4())
 
-    assert isinstance(result, common_exceptions.UserNotFoundError)
+    assert isinstance(result, repo_exceptions.UserNotFoundError)
 
 
 @pytest.mark.asyncio
-async def test_get_list_success(user_repository: common_interfaces.UserRepository):
+async def test_get_list_success(user_repository: repository_interfaces.DBUserRepository):
     user1 = factories.make_user_entity(role=entities.UserRole.ADMIN)
     user2 = factories.make_user_entity(role=entities.UserRole.ADMIN)
 
@@ -119,33 +119,33 @@ async def test_get_list_success(user_repository: common_interfaces.UserRepositor
 
 
 @pytest.mark.asyncio
-async def test_get_list_missing_user(user_repository: common_interfaces.UserRepository):
+async def test_get_list_missing_user(user_repository: repository_interfaces.DBUserRepository):
     user = factories.make_user_entity(role=entities.UserRole.ADMIN)
     created = await user_repository.create(user)
     assert isinstance(created, entities.User)
 
     result = await user_repository.get_list([created.uuid, uuid4()])
 
-    assert isinstance(result, common_exceptions.UserNotFoundError)
+    assert isinstance(result, repo_exceptions.UserNotFoundError)
 
 
 @pytest.mark.asyncio
-async def test_get_projects_none_user(user_repository: common_interfaces.UserRepository):
+async def test_get_projects_none_user(user_repository: repository_interfaces.DBUserRepository):
     result = await user_repository.get_projects(None)
 
     assert result == []
 
 
 @pytest.mark.asyncio
-async def test_get_projects_user_not_found(user_repository: common_interfaces.UserRepository):
+async def test_get_projects_user_not_found(user_repository: repository_interfaces.DBUserRepository):
     result = await user_repository.get_projects(uuid4())
 
-    assert isinstance(result, common_exceptions.UserNotFoundError)
+    assert isinstance(result, repo_exceptions.UserNotFoundError)
 
 
 @pytest.mark.asyncio
 async def test_get_projects_owned_and_member(
-    db_session: AsyncSession, user_repository: common_interfaces.UserRepository
+    db_session: AsyncSession, user_repository: repository_interfaces.DBUserRepository
 ):
     owner_model = await factories.persist(
         db_session, factories.build_user_model(role=models.UserRole.ADMIN)

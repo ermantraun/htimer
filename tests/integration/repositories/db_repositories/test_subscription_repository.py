@@ -2,16 +2,16 @@ from uuid import uuid4
 
 import pytest
 
-from application import common_exceptions, common_interfaces
+from infrastructure.repositories import exceptions as repo_exceptions, interfaces as repository_interfaces
 from domain import entities
 from tests.integration import factories
 
 
 @pytest.mark.asyncio
 async def test_create_subscription_success(
-    user_repository: common_interfaces.UserRepository,
-    project_repository: common_interfaces.ProjectRepository,
-    subscription_repository: common_interfaces.SubscriptionRepository,
+    user_repository: repository_interfaces.DBUserRepository,
+    project_repository: repository_interfaces.DBProjectRepository,
+    subscription_repository: repository_interfaces.DBSubscriptionRepository,
 ):
     owner = await user_repository.create(
         factories.make_user_entity(role=entities.UserRole.ADMIN)
@@ -31,8 +31,8 @@ async def test_create_subscription_success(
 
 @pytest.mark.asyncio
 async def test_create_subscription_project_not_found(
-    user_repository: common_interfaces.UserRepository,
-    subscription_repository: common_interfaces.SubscriptionRepository,
+    user_repository: repository_interfaces.DBUserRepository,
+    subscription_repository: repository_interfaces.DBSubscriptionRepository,
 ):
     owner = await user_repository.create(
         factories.make_user_entity(role=entities.UserRole.ADMIN)
@@ -43,14 +43,14 @@ async def test_create_subscription_project_not_found(
     subscription = factories.make_subscription_entity(project=project)
     result = await subscription_repository.create(subscription)
 
-    assert isinstance(result, common_exceptions.ProjectNotFoundError)
+    assert isinstance(result, repo_exceptions.ProjectNotFoundError)
 
 
 @pytest.mark.asyncio
 async def test_create_subscription_already_exists(
-    user_repository: common_interfaces.UserRepository,
-    project_repository: common_interfaces.ProjectRepository,
-    subscription_repository: common_interfaces.SubscriptionRepository,
+    user_repository: repository_interfaces.DBUserRepository,
+    project_repository: repository_interfaces.DBProjectRepository,
+    subscription_repository: repository_interfaces.DBSubscriptionRepository,
 ):
     owner = await user_repository.create(
         factories.make_user_entity(role=entities.UserRole.ADMIN)
@@ -68,14 +68,14 @@ async def test_create_subscription_already_exists(
     duplicate = factories.make_subscription_entity(project=project, uuid=uuid4())
     result = await subscription_repository.create(duplicate)
 
-    assert isinstance(result, common_exceptions.SubscriptionAlreadyExistsError)
+    assert isinstance(result, repo_exceptions.SubscriptionAlreadyExistsError)
 
 
 @pytest.mark.asyncio
 async def test_get_by_project_uuid_success(
-    user_repository: common_interfaces.UserRepository,
-    project_repository: common_interfaces.ProjectRepository,
-    subscription_repository: common_interfaces.SubscriptionRepository,
+    user_repository: repository_interfaces.DBUserRepository,
+    project_repository: repository_interfaces.DBProjectRepository,
+    subscription_repository: repository_interfaces.DBSubscriptionRepository,
 ):
     owner = await user_repository.create(
         factories.make_user_entity(role=entities.UserRole.ADMIN)
@@ -99,18 +99,18 @@ async def test_get_by_project_uuid_success(
 
 @pytest.mark.asyncio
 async def test_get_by_project_uuid_not_found(
-    subscription_repository: common_interfaces.SubscriptionRepository,
+    subscription_repository: repository_interfaces.DBSubscriptionRepository,
 ):
     result = await subscription_repository.get_by_project_uuid(uuid4())
 
-    assert isinstance(result, common_exceptions.SubscriptionNotFoundError)
+    assert isinstance(result, repo_exceptions.SubscriptionNotFoundError)
 
 
 @pytest.mark.asyncio
 async def test_update_subscription_success(
-    user_repository: common_interfaces.UserRepository,
-    project_repository: common_interfaces.ProjectRepository,
-    subscription_repository: common_interfaces.SubscriptionRepository,
+    user_repository: repository_interfaces.DBUserRepository,
+    project_repository: repository_interfaces.DBProjectRepository,
+    subscription_repository: repository_interfaces.DBSubscriptionRepository,
 ):
     owner = await user_repository.create(
         factories.make_user_entity(role=entities.UserRole.ADMIN)
@@ -134,8 +134,8 @@ async def test_update_subscription_success(
 
 @pytest.mark.asyncio
 async def test_update_subscription_not_found(
-    subscription_repository: common_interfaces.SubscriptionRepository,
+    subscription_repository: repository_interfaces.DBSubscriptionRepository,
 ):
     result = await subscription_repository.update(uuid4(), {"auto_renew": False})
 
-    assert isinstance(result, common_exceptions.SubscriptionNotFoundError)
+    assert isinstance(result, repo_exceptions.SubscriptionNotFoundError)

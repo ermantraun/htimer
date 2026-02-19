@@ -147,8 +147,7 @@ def make_payment_entity(
         amount=value_objects.MoneyAmount(amount=100.0),
         created_at=_today(),
         status=entities.PaymentStatus.PENDING,
-        payment_method=entities.PaymentMethod.CREDIT_CARD,
-        payment_date=None,
+        complete_date=None,
     )
 
 
@@ -165,6 +164,22 @@ def make_membership_entity(
         project=project,
         joined_at=_today(),
         assigned_by=assigned_by,
+    )
+
+
+def make_file_entity(
+    *,
+    daily_log: entities.DailyLog,
+    filename: str | None = None,
+    uri: str | None = None,
+    uuid: UUID | None = None,
+) -> entities.File:
+    return entities.File(
+        uuid=uuid or uuid4(),
+        filename=filename or _unique_str("file"),
+        uri=uri or f"s3://bucket/{_unique_str('file')}",
+        daily_log=daily_log,
+        uploaded_at=_today(),
     )
 
 
@@ -332,6 +347,23 @@ def build_payment_model(
         payment_method=models.PaymentMethod.CREDIT_CARD,
         payment_date=None,
         created_at=_today(),
+    )
+
+
+def build_file_model(
+    *,
+    daily_log: models.DailyLog,
+    name: str | None = None,
+    uri: str | None = None,
+    uuid: UUID | None = None,
+) -> models.File:
+    return models.File(
+        uuid=uuid or uuid4(),
+        name=name or _unique_str("file"),
+        uri=uri or f"s3://bucket/{_unique_str('file')}",
+        uploaded_at=_today(),
+        daily_log=daily_log,
+        daily_log_uuid=daily_log.uuid,
     )
 
 

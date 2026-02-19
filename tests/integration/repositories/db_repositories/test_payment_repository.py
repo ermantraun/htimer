@@ -2,7 +2,7 @@ from uuid import uuid4
 
 import pytest
 
-from application import common_exceptions, common_interfaces
+from infrastructure.repositories import exceptions as repo_exceptions, interfaces as repository_interfaces
 from domain import entities
 from infrastructure.db import models
 from tests.integration import factories
@@ -10,10 +10,10 @@ from tests.integration import factories
 
 @pytest.mark.asyncio
 async def test_create_payment_success(
-    user_repository: common_interfaces.UserRepository,
-    project_repository: common_interfaces.ProjectRepository,
-    subscription_repository: common_interfaces.SubscriptionRepository,
-    payment_repository: common_interfaces.PaymentRepository,
+    user_repository: repository_interfaces.DBUserRepository,
+    project_repository: repository_interfaces.DBProjectRepository,
+    subscription_repository: repository_interfaces.DBSubscriptionRepository,
+    payment_repository: repository_interfaces.DBPaymentRepository,
 ):
     owner = await user_repository.create(
         factories.make_user_entity(role=entities.UserRole.ADMIN)
@@ -37,9 +37,9 @@ async def test_create_payment_success(
 
 @pytest.mark.asyncio
 async def test_create_payment_subscription_not_found(
-    user_repository: common_interfaces.UserRepository,
-    project_repository: common_interfaces.ProjectRepository,
-    payment_repository: common_interfaces.PaymentRepository,
+    user_repository: repository_interfaces.DBUserRepository,
+    project_repository: repository_interfaces.DBProjectRepository,
+    payment_repository: repository_interfaces.DBPaymentRepository,
 ):
     owner = await user_repository.create(
         factories.make_user_entity(role=entities.UserRole.ADMIN)
@@ -54,15 +54,15 @@ async def test_create_payment_subscription_not_found(
     payment = factories.make_payment_entity(subscription=subscription)
     result = await payment_repository.create(payment)
 
-    assert isinstance(result, common_exceptions.SubscriptionNotFoundError)
+    assert isinstance(result, repo_exceptions.SubscriptionNotFoundError)
 
 
 @pytest.mark.asyncio
 async def test_get_by_uuid_success(
-    user_repository: common_interfaces.UserRepository,
-    project_repository: common_interfaces.ProjectRepository,
-    subscription_repository: common_interfaces.SubscriptionRepository,
-    payment_repository: common_interfaces.PaymentRepository,
+    user_repository: repository_interfaces.DBUserRepository,
+    project_repository: repository_interfaces.DBProjectRepository,
+    subscription_repository: repository_interfaces.DBSubscriptionRepository,
+    payment_repository: repository_interfaces.DBPaymentRepository,
 ):
     owner = await user_repository.create(
         factories.make_user_entity(role=entities.UserRole.ADMIN)
@@ -90,19 +90,19 @@ async def test_get_by_uuid_success(
 
 @pytest.mark.asyncio
 async def test_get_by_uuid_not_found(
-    payment_repository: common_interfaces.PaymentRepository,
+    payment_repository: repository_interfaces.DBPaymentRepository,
 ):
     result = await payment_repository.get_by_uuid(uuid4())
 
-    assert isinstance(result, common_exceptions.PaymentNotFoundError)
+    assert isinstance(result, repo_exceptions.PaymentNotFoundError)
 
 
 @pytest.mark.asyncio
 async def test_update_payment_success(
-    user_repository: common_interfaces.UserRepository,
-    project_repository: common_interfaces.ProjectRepository,
-    subscription_repository: common_interfaces.SubscriptionRepository,
-    payment_repository: common_interfaces.PaymentRepository,
+    user_repository: repository_interfaces.DBUserRepository,
+    project_repository: repository_interfaces.DBProjectRepository,
+    subscription_repository: repository_interfaces.DBSubscriptionRepository,
+    payment_repository: repository_interfaces.DBPaymentRepository,
 ):
     owner = await user_repository.create(
         factories.make_user_entity(role=entities.UserRole.ADMIN)
@@ -132,8 +132,8 @@ async def test_update_payment_success(
 
 @pytest.mark.asyncio
 async def test_update_payment_not_found(
-    payment_repository: common_interfaces.PaymentRepository,
+    payment_repository: repository_interfaces.DBPaymentRepository,
 ):
     result = await payment_repository.update(uuid4(), {"status": models.PaymentStatus.COMPLETED})
 
-    assert isinstance(result, common_exceptions.PaymentNotFoundError)
+    assert isinstance(result, repo_exceptions.PaymentNotFoundError)

@@ -2,16 +2,16 @@ from uuid import uuid4
 
 import pytest
 
-from application import common_exceptions, common_interfaces
+from infrastructure.repositories import exceptions as repo_exceptions, interfaces as repository_interfaces
 from domain import entities
 from tests.integration import factories
 
 
 @pytest.mark.asyncio
 async def test_create_stage_success(
-    user_repository: common_interfaces.UserRepository,
-    project_repository: common_interfaces.ProjectRepository,
-    stage_repository: common_interfaces.StageRepository,
+    user_repository: repository_interfaces.DBUserRepository,
+    project_repository: repository_interfaces.DBProjectRepository,
+    stage_repository: repository_interfaces.DBStageRepository,
 ):
     owner = await user_repository.create(
         factories.make_user_entity(role=entities.UserRole.ADMIN)
@@ -34,8 +34,8 @@ async def test_create_stage_success(
 
 @pytest.mark.asyncio
 async def test_create_stage_project_not_found(
-    user_repository: common_interfaces.UserRepository,
-    stage_repository: common_interfaces.StageRepository,
+    user_repository: repository_interfaces.DBUserRepository,
+    stage_repository: repository_interfaces.DBStageRepository,
 ):
     user = await user_repository.create(
         factories.make_user_entity(role=entities.UserRole.ADMIN)
@@ -48,14 +48,14 @@ async def test_create_stage_project_not_found(
 
     result = await stage_repository.create(stage)
 
-    assert isinstance(result, common_exceptions.ProjectNotFoundError)
+    assert isinstance(result, repo_exceptions.ProjectNotFoundError)
 
 
 @pytest.mark.asyncio
 async def test_create_stage_user_not_found(
-    user_repository: common_interfaces.UserRepository,
-    project_repository: common_interfaces.ProjectRepository,
-    stage_repository: common_interfaces.StageRepository,
+    user_repository: repository_interfaces.DBUserRepository,
+    project_repository: repository_interfaces.DBProjectRepository,
+    stage_repository: repository_interfaces.DBStageRepository,
 ):
     owner = factories.make_user_entity(role=entities.UserRole.ADMIN)
     project_owner = await user_repository.create(
@@ -73,14 +73,14 @@ async def test_create_stage_user_not_found(
 
     result = await stage_repository.create(stage)
 
-    assert isinstance(result, common_exceptions.UserNotFoundError)
+    assert isinstance(result, repo_exceptions.UserNotFoundError)
 
 
 @pytest.mark.asyncio
 async def test_create_stage_duplicate_name_in_parent(
-    user_repository: common_interfaces.UserRepository,
-    project_repository: common_interfaces.ProjectRepository,
-    stage_repository: common_interfaces.StageRepository,
+    user_repository: repository_interfaces.DBUserRepository,
+    project_repository: repository_interfaces.DBProjectRepository,
+    stage_repository: repository_interfaces.DBStageRepository,
 ):
     owner = await user_repository.create(
         factories.make_user_entity(role=entities.UserRole.ADMIN)
@@ -106,14 +106,14 @@ async def test_create_stage_duplicate_name_in_parent(
     )
     result = await stage_repository.create(stage2)
 
-    assert isinstance(result, common_exceptions.StageAlreadyExistsError)
+    assert isinstance(result, repo_exceptions.StageAlreadyExistsError)
 
 
 @pytest.mark.asyncio
 async def test_update_stage_success(
-    user_repository: common_interfaces.UserRepository,
-    project_repository: common_interfaces.ProjectRepository,
-    stage_repository: common_interfaces.StageRepository,
+    user_repository: repository_interfaces.DBUserRepository,
+    project_repository: repository_interfaces.DBProjectRepository,
+    stage_repository: repository_interfaces.DBStageRepository,
 ):
     owner = await user_repository.create(
         factories.make_user_entity(role=entities.UserRole.ADMIN)
@@ -136,18 +136,18 @@ async def test_update_stage_success(
 
 @pytest.mark.asyncio
 async def test_update_stage_not_found(
-    stage_repository: common_interfaces.StageRepository,
+    stage_repository: repository_interfaces.DBStageRepository,
 ):
     result = await stage_repository.update(uuid4(), {"name": "Updated"})
 
-    assert isinstance(result, common_exceptions.StageNotFoundError)
+    assert isinstance(result, repo_exceptions.StageNotFoundError)
 
 
 @pytest.mark.asyncio
 async def test_delete_stage_success(
-    user_repository: common_interfaces.UserRepository,
-    project_repository: common_interfaces.ProjectRepository,
-    stage_repository: common_interfaces.StageRepository,
+    user_repository: repository_interfaces.DBUserRepository,
+    project_repository: repository_interfaces.DBProjectRepository,
+    stage_repository: repository_interfaces.DBStageRepository,
 ):
     owner = await user_repository.create(
         factories.make_user_entity(role=entities.UserRole.ADMIN)
@@ -169,18 +169,18 @@ async def test_delete_stage_success(
 
 @pytest.mark.asyncio
 async def test_delete_stage_not_found(
-    stage_repository: common_interfaces.StageRepository,
+    stage_repository: repository_interfaces.DBStageRepository,
 ):
     result = await stage_repository.delete(uuid4())
 
-    assert isinstance(result, common_exceptions.StageNotFoundError)
+    assert isinstance(result, repo_exceptions.StageNotFoundError)
 
 
 @pytest.mark.asyncio
 async def test_get_by_name_success(
-    user_repository: common_interfaces.UserRepository,
-    project_repository: common_interfaces.ProjectRepository,
-    stage_repository: common_interfaces.StageRepository,
+    user_repository: repository_interfaces.DBUserRepository,
+    project_repository: repository_interfaces.DBProjectRepository,
+    stage_repository: repository_interfaces.DBStageRepository,
 ):
     owner = await user_repository.create(
         factories.make_user_entity(role=entities.UserRole.ADMIN)
@@ -203,9 +203,9 @@ async def test_get_by_name_success(
 
 @pytest.mark.asyncio
 async def test_get_by_name_not_found(
-    user_repository: common_interfaces.UserRepository,
-    project_repository: common_interfaces.ProjectRepository,
-    stage_repository: common_interfaces.StageRepository,
+    user_repository: repository_interfaces.DBUserRepository,
+    project_repository: repository_interfaces.DBProjectRepository,
+    stage_repository: repository_interfaces.DBStageRepository,
 ):
     owner = await user_repository.create(
         factories.make_user_entity(role=entities.UserRole.ADMIN)
@@ -218,14 +218,14 @@ async def test_get_by_name_not_found(
 
     result = await stage_repository.get_by_name(project.uuid, "Missing")
 
-    assert isinstance(result, common_exceptions.StageNotFoundError)
+    assert isinstance(result, repo_exceptions.StageNotFoundError)
 
 
 @pytest.mark.asyncio
 async def test_get_by_uuid_success(
-    user_repository: common_interfaces.UserRepository,
-    project_repository: common_interfaces.ProjectRepository,
-    stage_repository: common_interfaces.StageRepository,
+    user_repository: repository_interfaces.DBUserRepository,
+    project_repository: repository_interfaces.DBProjectRepository,
+    stage_repository: repository_interfaces.DBStageRepository,
 ):
     owner = await user_repository.create(
         factories.make_user_entity(role=entities.UserRole.ADMIN)
@@ -248,18 +248,18 @@ async def test_get_by_uuid_success(
 
 @pytest.mark.asyncio
 async def test_get_by_uuid_not_found(
-    stage_repository: common_interfaces.StageRepository,
+    stage_repository: repository_interfaces.DBStageRepository,
 ):
     result = await stage_repository.get_by_uuid(uuid4())
 
-    assert isinstance(result, common_exceptions.StageNotFoundError)
+    assert isinstance(result, repo_exceptions.StageNotFoundError)
 
 
 @pytest.mark.asyncio
 async def test_get_list_success(
-    user_repository: common_interfaces.UserRepository,
-    project_repository: common_interfaces.ProjectRepository,
-    stage_repository: common_interfaces.StageRepository,
+    user_repository: repository_interfaces.DBUserRepository,
+    project_repository: repository_interfaces.DBProjectRepository,
+    stage_repository: repository_interfaces.DBStageRepository,
 ):
     owner = await user_repository.create(
         factories.make_user_entity(role=entities.UserRole.ADMIN)
@@ -282,8 +282,8 @@ async def test_get_list_success(
 
 @pytest.mark.asyncio
 async def test_get_list_project_not_found(
-    stage_repository: common_interfaces.StageRepository,
+    stage_repository: repository_interfaces.DBStageRepository,
 ):
     result = await stage_repository.get_list(uuid4())
 
-    assert isinstance(result, common_exceptions.ProjectNotFoundError)
+    assert isinstance(result, repo_exceptions.ProjectNotFoundError)

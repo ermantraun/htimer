@@ -1,15 +1,14 @@
 
 from __future__ import annotations
 
-from dishka import AsyncContainer, Provider, make_async_container
-
-from .common import DBProvider
+from .daily_log import DailyLogProvider
+from .project import ProjectProvider
 from .user import UserProvider
+from .common import CommonProvider
+from .stage import StageProvider
+from .subscription import SubscriptionProvider
+from .task import TaskProvider
 
 
-def get_providers() -> list[Provider]:
-    return [DBProvider(), UserProvider()]
-
-
-def build_container(*extra_providers: Provider) -> AsyncContainer:
-    return make_async_container(*extra_providers, *get_providers())
+class AppProvider(CommonProvider, UserProvider, ProjectProvider, StageProvider, DailyLogProvider, TaskProvider, SubscriptionProvider):
+    pass

@@ -2,7 +2,7 @@ from uuid import uuid4
 from dataclasses import asdict
 from application import common_exceptions, common_interfaces
 from domain import entities
-import exceptions, interfaces, validators, dto
+from . import exceptions, interfaces, validators, dto
 
 
 def normalize_description(description: str | None) -> str | None:
@@ -19,7 +19,7 @@ class CreateProjectInteractor:
         create_project_validator: validators.CreateProjectValidator,
         authorization_policy: interfaces.ProjectAuthorizationPolicy,
         db_session: common_interfaces.DBSession,
-        user_context: common_interfaces.UserContext,
+        user_context: common_interfaces.Context,
         user_repository : common_interfaces.UserRepository,
         clock: common_interfaces.Clock,
         text_normalizer: common_interfaces.TextNormalizer,
@@ -64,7 +64,7 @@ class CreateProjectInteractor:
             name=data.name,
             creator=actor,
             description=data.description,
-            created_at=self.clock.now_date(),
+            created_at=await self.clock.now_date(),
         )
 
         created_project = await self.project_repository.create(new_project)
@@ -87,7 +87,7 @@ class UpdateProjectInteractor:
         update_project_validator: validators.UpdateProjectValidator,
         authorization_policy: interfaces.ProjectAuthorizationPolicy,
         db_session: common_interfaces.DBSession,
-        user_context: common_interfaces.UserContext,
+        user_context: common_interfaces.Context,
         user_repository: common_interfaces.UserRepository,
         text_normalizer: common_interfaces.TextNormalizer,
     ):
@@ -168,7 +168,7 @@ class GetProjectInteractor:
         authorization_policy: interfaces.ProjectAuthorizationPolicy,
         db_session: common_interfaces.DBSession,
         user_repository: common_interfaces.UserRepository,
-        context: common_interfaces.UserContext,
+        context: common_interfaces.Context,
         
     ):
         self.project_repository = project_repository
@@ -217,7 +217,7 @@ class GetProjectListInteractor:
     def __init__(
         self,
         user_repository: common_interfaces.UserRepository,
-        user_context: common_interfaces.UserContext,
+        user_context: common_interfaces.Context,
         validator: validators.GetProjectListValidator,
     ):
         self.user_repository = user_repository
@@ -246,7 +246,7 @@ class AddMembersToProjectInteractor:
         project_repository: common_interfaces.ProjectRepository,
         user_repository: common_interfaces.UserRepository,
         db_session: common_interfaces.DBSession,
-        context: common_interfaces.UserContext,
+        context: common_interfaces.Context,
         authorization_policy: interfaces.ProjectAuthorizationPolicy,
         clock: common_interfaces.Clock,
     ):
@@ -305,7 +305,7 @@ class AddMembersToProjectInteractor:
             project=project,
             user=added_user,
             assigned_by=assigned_by,
-            joined_at=self.clock.now_date()
+            joined_at=await self.clock.now_date()
             ) for added_user in added_users]
         
         added_members = await self.project_repository.add_members(members)
@@ -325,7 +325,7 @@ class RemoveMembersFromProjectInteractor:
         project_repository: common_interfaces.ProjectRepository,
         user_repository: common_interfaces.UserRepository,
         db_session: common_interfaces.DBSession,
-        context: common_interfaces.UserContext,
+        context: common_interfaces.Context,
         authorization_policy: interfaces.ProjectAuthorizationPolicy,
     ):
         self.project_repository = project_repository

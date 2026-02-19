@@ -3,7 +3,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from application import common_exceptions, common_interfaces
+from infrastructure.repositories import exceptions as repo_exceptions, interfaces as repository_interfaces
 from domain import entities
 from infrastructure.db import models
 from tests.integration import factories
@@ -11,8 +11,8 @@ from tests.integration import factories
 
 @pytest.mark.asyncio
 async def test_create_project_success(
-    user_repository: common_interfaces.UserRepository,
-    project_repository: common_interfaces.ProjectRepository,
+    user_repository: repository_interfaces.DBUserRepository,
+    project_repository: repository_interfaces.DBProjectRepository,
 ):
     user = factories.make_user_entity(role=entities.UserRole.ADMIN)
     created_user = await user_repository.create(user)
@@ -27,20 +27,20 @@ async def test_create_project_success(
 
 @pytest.mark.asyncio
 async def test_create_project_user_not_found(
-    project_repository: common_interfaces.ProjectRepository,
+    project_repository: repository_interfaces.DBProjectRepository,
 ):
     user = factories.make_user_entity(role=entities.UserRole.ADMIN)
     project = factories.make_project_entity(creator=user)
 
     result = await project_repository.create(project)
 
-    assert isinstance(result, common_exceptions.UserNotFoundError)
+    assert isinstance(result, repo_exceptions.UserNotFoundError)
 
 
 @pytest.mark.asyncio
 async def test_create_project_duplicate_name(
-    user_repository: common_interfaces.UserRepository,
-    project_repository: common_interfaces.ProjectRepository,
+    user_repository: repository_interfaces.DBUserRepository,
+    project_repository: repository_interfaces.DBProjectRepository,
 ):
     creator = await user_repository.create(factories.make_user_entity(role=entities.UserRole.ADMIN))
     assert isinstance(creator, entities.User)
@@ -50,13 +50,13 @@ async def test_create_project_duplicate_name(
     duplicate = factories.make_project_entity(creator=creator, name="Same")
     result = await project_repository.create(duplicate)
 
-    assert isinstance(result, common_exceptions.UserAlreadyHasProjectError)
+    assert isinstance(result, repo_exceptions.UserAlreadyHasProjectError)
 
 
 @pytest.mark.asyncio
 async def test_update_project_success(
-    user_repository: common_interfaces.UserRepository,
-    project_repository: common_interfaces.ProjectRepository,
+    user_repository: repository_interfaces.DBUserRepository,
+    project_repository: repository_interfaces.DBProjectRepository,
 ):
     creator = await user_repository.create(factories.make_user_entity(role=entities.UserRole.ADMIN))
     assert isinstance(creator, entities.User)
@@ -72,17 +72,17 @@ async def test_update_project_success(
 
 @pytest.mark.asyncio
 async def test_update_project_not_found(
-    project_repository: common_interfaces.ProjectRepository,
+    project_repository: repository_interfaces.DBProjectRepository,
 ):
     result = await project_repository.update(uuid4(), {"name": "Updated"})
 
-    assert isinstance(result, common_exceptions.ProjectNotFoundError)
+    assert isinstance(result, repo_exceptions.ProjectNotFoundError)
 
 
 @pytest.mark.asyncio
 async def test_update_project_duplicate_name(
-    user_repository: common_interfaces.UserRepository,
-    project_repository: common_interfaces.ProjectRepository,
+    user_repository: repository_interfaces.DBUserRepository,
+    project_repository: repository_interfaces.DBProjectRepository,
 ):
     creator = await user_repository.create(factories.make_user_entity(role=entities.UserRole.ADMIN))
     assert isinstance(creator, entities.User)
@@ -94,13 +94,13 @@ async def test_update_project_duplicate_name(
 
     result = await project_repository.update(project2.uuid, {"name": project1.name})
 
-    assert isinstance(result, common_exceptions.UserAlreadyHasProjectError)
+    assert isinstance(result, repo_exceptions.UserAlreadyHasProjectError)
 
 
 @pytest.mark.asyncio
 async def test_get_by_uuid_success(
-    user_repository: common_interfaces.UserRepository,
-    project_repository: common_interfaces.ProjectRepository,
+    user_repository: repository_interfaces.DBUserRepository,
+    project_repository: repository_interfaces.DBProjectRepository,
 ):
     creator = await user_repository.create(
         factories.make_user_entity(role=entities.UserRole.ADMIN)
@@ -117,17 +117,17 @@ async def test_get_by_uuid_success(
 
 @pytest.mark.asyncio
 async def test_get_by_uuid_not_found(
-    project_repository: common_interfaces.ProjectRepository,
+    project_repository: repository_interfaces.DBProjectRepository,
 ):
     result = await project_repository.get_by_uuid(uuid4())
 
-    assert isinstance(result, common_exceptions.ProjectNotFoundError)
+    assert isinstance(result, repo_exceptions.ProjectNotFoundError)
 
 
 @pytest.mark.asyncio
 async def test_get_by_name_success(
-    user_repository: common_interfaces.UserRepository,
-    project_repository: common_interfaces.ProjectRepository,
+    user_repository: repository_interfaces.DBUserRepository,
+    project_repository: repository_interfaces.DBProjectRepository,
 ):
     creator = await user_repository.create(
         factories.make_user_entity(role=entities.UserRole.ADMIN)
@@ -146,8 +146,8 @@ async def test_get_by_name_success(
 
 @pytest.mark.asyncio
 async def test_get_by_name_not_found(
-    user_repository: common_interfaces.UserRepository,
-    project_repository: common_interfaces.ProjectRepository,
+    user_repository: repository_interfaces.DBUserRepository,
+    project_repository: repository_interfaces.DBProjectRepository,
 ):
     creator = await user_repository.create(
         factories.make_user_entity(role=entities.UserRole.ADMIN)
@@ -156,13 +156,13 @@ async def test_get_by_name_not_found(
 
     result = await project_repository.get_by_name(creator.uuid, "Missing")
 
-    assert isinstance(result, common_exceptions.ProjectNotFoundError)
+    assert isinstance(result, repo_exceptions.ProjectNotFoundError)
 
 
 @pytest.mark.asyncio
 async def test_add_members_success(
-    user_repository: common_interfaces.UserRepository,
-    project_repository: common_interfaces.ProjectRepository,
+    user_repository: repository_interfaces.DBUserRepository,
+    project_repository: repository_interfaces.DBProjectRepository,
 ):
     owner = await user_repository.create(
         factories.make_user_entity(role=entities.UserRole.ADMIN)
@@ -189,8 +189,8 @@ async def test_add_members_success(
 
 @pytest.mark.asyncio
 async def test_add_members_project_not_found(
-    user_repository: common_interfaces.UserRepository,
-    project_repository: common_interfaces.ProjectRepository,
+    user_repository: repository_interfaces.DBUserRepository,
+    project_repository: repository_interfaces.DBProjectRepository,
 ):
     owner = await user_repository.create(
         factories.make_user_entity(role=entities.UserRole.ADMIN)
@@ -208,13 +208,13 @@ async def test_add_members_project_not_found(
 
     result = await project_repository.add_members([membership])
 
-    assert isinstance(result, common_exceptions.ProjectNotFoundError)
+    assert isinstance(result, repo_exceptions.ProjectNotFoundError)
 
 
 @pytest.mark.asyncio
 async def test_add_members_user_not_found(
-    user_repository: common_interfaces.UserRepository,
-    project_repository: common_interfaces.ProjectRepository,
+    user_repository: repository_interfaces.DBUserRepository,
+    project_repository: repository_interfaces.DBProjectRepository,
 ):
     owner = await user_repository.create(
         factories.make_user_entity(role=entities.UserRole.ADMIN)
@@ -232,13 +232,13 @@ async def test_add_members_user_not_found(
 
     result = await project_repository.add_members([membership])
 
-    assert isinstance(result, common_exceptions.UserNotFoundError)
+    assert isinstance(result, repo_exceptions.UserNotFoundError)
 
 
 @pytest.mark.asyncio
 async def test_add_members_user_already_member(
-    user_repository: common_interfaces.UserRepository,
-    project_repository: common_interfaces.ProjectRepository,
+    user_repository: repository_interfaces.DBUserRepository,
+    project_repository: repository_interfaces.DBProjectRepository,
 ):
     owner = await user_repository.create(
         factories.make_user_entity(role=entities.UserRole.ADMIN)
@@ -263,13 +263,13 @@ async def test_add_members_user_already_member(
     )
     result = await project_repository.add_members([duplicate])
 
-    assert isinstance(result, common_exceptions.UserAlreadyProjectMemberError)
+    assert isinstance(result, repo_exceptions.UserAlreadyProjectMemberError)
 
 
 @pytest.mark.asyncio
 async def test_remove_members_success(
     db_session: AsyncSession,
-    project_repository: common_interfaces.ProjectRepository,
+    project_repository: repository_interfaces.DBProjectRepository,
 ):
     owner_model = await factories.persist(
         db_session, factories.build_user_model(role=models.UserRole.ADMIN)
@@ -293,7 +293,7 @@ async def test_remove_members_success(
 @pytest.mark.asyncio
 async def test_remove_members_not_found(
     db_session: AsyncSession,
-    project_repository: common_interfaces.ProjectRepository,
+    project_repository: repository_interfaces.DBProjectRepository,
 ):
     owner_model = await factories.persist(
         db_session, factories.build_user_model(role=models.UserRole.ADMIN)
@@ -304,13 +304,13 @@ async def test_remove_members_not_found(
 
     result = await project_repository.remove_members(project_model.uuid, [uuid4()])
 
-    assert isinstance(result, common_exceptions.MemberNotFound)
+    assert isinstance(result, repo_exceptions.MemberNotFound)
 
 
 @pytest.mark.asyncio
 async def test_get_members_success(
     db_session: AsyncSession,
-    project_repository: common_interfaces.ProjectRepository,
+    project_repository: repository_interfaces.DBProjectRepository,
 ):
     owner_model = await factories.persist(
         db_session, factories.build_user_model(role=models.UserRole.ADMIN)
@@ -334,18 +334,18 @@ async def test_get_members_success(
 
 @pytest.mark.asyncio
 async def test_get_members_project_not_found(
-    project_repository: common_interfaces.ProjectRepository,
+    project_repository: repository_interfaces.DBProjectRepository,
 ):
     result = await project_repository.get_members([uuid4()])
 
-    assert isinstance(result, common_exceptions.ProjectNotFoundError)
+    assert isinstance(result, repo_exceptions.ProjectNotFoundError)
 
 
 @pytest.mark.asyncio
 async def test_get_current_subscription_success(
-    user_repository: common_interfaces.UserRepository,
-    project_repository: common_interfaces.ProjectRepository,
-    subscription_repository: common_interfaces.SubscriptionRepository,
+    user_repository: repository_interfaces.DBUserRepository,
+    project_repository: repository_interfaces.DBProjectRepository,
+    subscription_repository: repository_interfaces.DBSubscriptionRepository,
 ):
     owner = await user_repository.create(
         factories.make_user_entity(role=entities.UserRole.ADMIN)
@@ -369,17 +369,17 @@ async def test_get_current_subscription_success(
 
 @pytest.mark.asyncio
 async def test_get_current_subscription_project_not_found(
-    project_repository: common_interfaces.ProjectRepository,
+    project_repository: repository_interfaces.DBProjectRepository,
 ):
     result = await project_repository.get_current_subscription(uuid4())
 
-    assert isinstance(result, common_exceptions.ProjectNotFoundError)
+    assert isinstance(result, repo_exceptions.ProjectNotFoundError)
 
 
 @pytest.mark.asyncio
 async def test_get_current_subscription_not_found(
-    user_repository: common_interfaces.UserRepository,
-    project_repository: common_interfaces.ProjectRepository,
+    user_repository: repository_interfaces.DBUserRepository,
+    project_repository: repository_interfaces.DBProjectRepository,
 ):
     owner = await user_repository.create(
         factories.make_user_entity(role=entities.UserRole.ADMIN)
@@ -392,4 +392,4 @@ async def test_get_current_subscription_not_found(
 
     result = await project_repository.get_current_subscription(project.uuid)
 
-    assert isinstance(result, common_exceptions.SubscriptionNotFoundError)
+    assert isinstance(result, repo_exceptions.SubscriptionNotFoundError)

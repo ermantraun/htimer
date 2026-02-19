@@ -180,9 +180,10 @@ class Payment(Base):
     amount: Mapped[float] = mapped_column(sq.Float, nullable=False)
     currency: Mapped[CurrencyEnum] = mapped_column(sq.Enum(CurrencyEnum, values_callable=get_enum_values), nullable=False, default=CurrencyEnum.RUB)
     status: Mapped[PaymentStatus] = mapped_column(sq.Enum(PaymentStatus, values_callable=get_enum_values), nullable=False, default=PaymentStatus.PENDING)
-    payment_method: Mapped[PaymentMethod | None] = mapped_column(sq.Enum(PaymentMethod, values_callable=get_enum_values))
-    payment_date: Mapped[date | None] = mapped_column(sq.Date)
     created_at: Mapped[date] = mapped_column(sq.Date, nullable=False)
+    complete_date: Mapped[date | None] = mapped_column(sq.Date)
+    applied_to_subscription: Mapped[bool] = mapped_column(sq.Boolean, default=False)
+    gateway_payment_id: Mapped[str | None] = mapped_column(sq.String(255))
 
     __table_args__ = (
         sq.CheckConstraint("amount > 0", name="ck_payment_amount_positive"),

@@ -11,7 +11,7 @@ class CreateUserInteractor:
     def __init__(
         self,
         session: common_interfaces.DBSession,
-        context: common_interfaces.UserContext,
+        context: common_interfaces.Context,
         user_repository: common_interfaces.UserRepository,
         hash_generator: interfaces.HashGenerator,
         validator: validators.CreateUserValidator,
@@ -58,7 +58,7 @@ class CreateUserInteractor:
             email=data.email,
             password_hash=password_hash,
             creator=current_user,
-            created_at=self.clock.now_date(),
+            created_at=await self.clock.now_date(),
             role=data.role,
         )
         created_user = await self.user_repository.create(new_user)
@@ -68,7 +68,7 @@ class CreateUserInteractor:
 
         await self.session.commit()
 
-        self.logger.info(operation='CreateUser', message=f'User {created_user.uuid} created by {current_user.uuid}')
+        await self.logger.info(operation='CreateUser', message=f'User {created_user.uuid} created by {current_user.uuid}')
         
         return dto.CreateUserOutDTO(
             user_uuid=created_user.uuid)
@@ -79,7 +79,7 @@ class GetUsersListInteractor:
     def __init__(
         self,
         user_repository: common_interfaces.UserRepository,
-        context: common_interfaces.UserContext,
+        context: common_interfaces.Context,
         project_repository: common_interfaces.ProjectRepository,
         validator: validators.GetUsersListValidator,
         user_policy: interfaces.UserAuthorizationPolicy,
@@ -142,7 +142,7 @@ class LoginUserInteractor:
         session: common_interfaces.DBSession,
         user_repository: common_interfaces.UserRepository,
         hash_generator: interfaces.HashVerifier,
-        context: common_interfaces.UserContext,
+        context: common_interfaces.Context,
         validator: validators.LoginUserValidator,
         token_generator: interfaces.TokenGenerator,
         clock: common_interfaces.Clock,
@@ -179,10 +179,10 @@ class LoginUserInteractor:
         
         await self.session.commit()
         
-        self.logger.info(operation='LoginUser', message=f'User {user.uuid} logged in')
+        await self.logger.info(operation='LoginUser', message=f'User {user.uuid} logged in')
         
         return dto.LoginUserOutDTO(
-            token=self.token_generator.generate(user.uuid),
+            token=await self.token_generator.generate(user.uuid),
             user_uuid=user.uuid,
         )
 
@@ -191,7 +191,7 @@ class ResetUserPasswordInteractor:
         self,
         session: common_interfaces.DBSession,
         user_repository: common_interfaces.UserRepository,
-        context: common_interfaces.UserContext,
+        context: common_interfaces.Context,
         hash_generator: interfaces.HashGenerator,
         validator: validators.ResetUserPasswordValidator,
         user_policy: interfaces.UserAuthorizationPolicy,
@@ -261,7 +261,7 @@ class UpdateUserInteractor:
         self,
         session: common_interfaces.DBSession,
         user_repository: common_interfaces.UserRepository,
-        context: common_interfaces.UserContext,
+        context: common_interfaces.Context,
         validator: validators.UpdateUserValidator,
         user_policy: interfaces.UserAuthorizationPolicy,
         logger: common_interfaces.Logger,
@@ -338,7 +338,7 @@ class UpdateUserInteractor:
 
         await self.session.commit()
 
-        self.logger.info(operation='UpdateUser', message=f'User {updated_user.uuid} updated by {current_user.uuid}')    
+        await self.logger.info(operation='UpdateUser', message=f'User {updated_user.uuid} updated by {current_user.uuid}')    
         
         return dto.UpdateUserOutDTO(user=updated_user)
 

@@ -1,9 +1,16 @@
 from abc import abstractmethod
 from typing import Protocol, Any
 from uuid import UUID
+from dataclasses import dataclass
 from datetime import date 
 from domain import entities
 from . import common_exceptions
+
+
+
+@dataclass
+class ActionLink:
+    link: str | None = None
 
 
 class DBSession(Protocol):
@@ -11,31 +18,29 @@ class DBSession(Protocol):
     async def commit(self) -> None:
         pass
 
-
-
 class TextNormalizer(Protocol):
     @abstractmethod
     def normalize(self, text: str) -> str:
         pass
 
-class UserContext(Protocol):
+class Context(Protocol):
     @abstractmethod
     def get_current_user_uuid(self) -> UUID | common_exceptions.InvalidToken:
         pass
 
 class Logger(Protocol):
     @abstractmethod
-    def info(self, operation: str,  message: str) -> None:
+    async def info(self, operation: str,  message: str) -> None:
         pass
 
 
 class Clock(Protocol):
     @abstractmethod
-    def now_date(self) -> date:
+    async def now_date(self) -> date:
         pass
     
     @abstractmethod
-    def verify_date(self) -> str | common_exceptions.InvalidDate:
+    def verify_date(self, date: str) -> str | common_exceptions.InvalidDate:
         pass
 
 
@@ -143,24 +148,24 @@ class DailyLogRepository(Protocol):
     async def get_list(self, project_uuid: UUID, date: date, draft: bool = False) -> list[entities.DailyLog] | common_exceptions.ProjectNotFoundError | common_exceptions.RepositoryError:
         pass
     
-    
+
     
 class FileRepository(Protocol):
     @abstractmethod
-    async def create(self, file: entities.File) -> entities.File | common_exceptions.FileAlreadyExistsError | common_exceptions.RepositoryError:
+    async def create(self, file: entities.File) -> tuple[entities.File, ActionLink] | common_exceptions.FileAlreadyExistsError | common_exceptions.RepositoryError:
 
         pass
 
     @abstractmethod
-    async def get(self, file_uuid: UUID) -> entities.File | common_exceptions.FileNotFoundError | common_exceptions.RepositoryError:
+    async def get(self, file_uuid: UUID) -> tuple[entities.File, ActionLink] | common_exceptions.FileNotFoundError | common_exceptions.RepositoryError:
         pass
 
     @abstractmethod
-    async def remove(self, file_uuid: UUID) -> entities.File | common_exceptions.FileNotFoundError | common_exceptions.RepositoryError:
+    async def remove(self, file_uuid: UUID) -> tuple[entities.File, ActionLink] | common_exceptions.FileNotFoundError | common_exceptions.RepositoryError:
         pass
 
     @abstractmethod
-    async def get_list(self, daily_log_uuid: UUID) -> list[entities.File] | common_exceptions.FileNotFoundError | common_exceptions.RepositoryError:
+    async def get_list(self, daily_log_uuid: UUID) -> list[tuple[entities.File, ActionLink]] | common_exceptions.FileNotFoundError | common_exceptions.RepositoryError:
         pass
 
 
@@ -199,6 +204,14 @@ class PaymentRepository(Protocol):
     async def update(self, payment_uuid: UUID, data: dict[str, Any]) -> entities.Payment | common_exceptions.PaymentNotFoundError | common_exceptions.RepositoryError:
         pass
 
+    @abstractmethod
+    async def get_gateway_payment_id(self, payment_uuid: UUID) -> str | common_exceptions.PaymentNotFoundError | common_exceptions.RepositoryError:
+        pass
+    
+    @abstractmethod
+    async def payment_applied_to_subscription(self, payment_uuid: UUID) -> bool | common_exceptions.PaymentNotFoundError | common_exceptions.RepositoryError:
+        pass
+
 
 class SubscriptionRepository(Protocol):
     
@@ -207,7 +220,7 @@ class SubscriptionRepository(Protocol):
         pass
     
     @abstractmethod
-    async def get_by_project_uuid(self, project_uuid: UUID) -> entities.Subscription | common_exceptions.SubscriptionNotFoundError | common_exceptions.ProjectNotFoundError | common_exceptions.RepositoryError:
+    async def get_by_project_uuid(self, project_uuid: UUID, lock_record: bool = False) -> entities.Subscription | common_exceptions.SubscriptionNotFoundError | common_exceptions.ProjectNotFoundError | common_exceptions.RepositoryError:
 
         pass
 
@@ -215,18 +228,16 @@ class SubscriptionRepository(Protocol):
     async def update(self, subscription_uuid: UUID, data: dict[str, Any]) -> entities.Subscription | common_exceptions.SubscriptionNotFoundError | common_exceptions.RepositoryError:
         pass
 
-
-    
     
 class PaymentGateway(Protocol):
     @abstractmethod
-    async def get_process_payment_link(self, amount: float, payment: entities.Payment) -> str | common_exceptions.PaymentFailedError:
+    async def create_payment(self, actor: entities.User, project: entities.Project, amount: float, payment: entities.Payment) -> tuple[str, UUID] | common_exceptions.PaymentFailedError:
         pass
     
     @abstractmethod
-    async def verify_payment(self, payment_uuid: UUID) -> bool | common_exceptions.PaymentNotComplete | common_exceptions.PaymentNotExistsError:
+    async def verify_payment_complete(self, id_: str) -> bool | common_exceptions.PaymentNotComplete | common_exceptions.PaymentNotExistsError:
         pass
     
     @abstractmethod
-    async def refund_payment(self, payment_uuid: UUID) -> bool | common_exceptions.PaymentRefundFailedError | common_exceptions.PaymentNotExistsError:
+    async def refund_payment(self, payment: entities.Payment, gateway_payment_id: str) -> bool | common_exceptions.PaymentRefundFailedError | common_exceptions.PaymentNotExistsError:
         pass

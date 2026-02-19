@@ -47,7 +47,7 @@ class HashGenerator(Protocol):
 class TokenGenerator(Protocol):
 
     @abstractmethod
-    def generate(self, user_uuid: UUID) -> str:
+    async def generate(self, user_uuid: UUID) -> str:
         pass
 
 

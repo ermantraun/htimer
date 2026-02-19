@@ -2,7 +2,7 @@ from uuid import uuid4
 from application import common_exceptions, common_interfaces
 from domain import entities
 from typing import Any
-import dto, interfaces, exceptions, validators
+from . import dto, interfaces, exceptions, validators
 
 
 class CreateTaskInteractor:
@@ -15,7 +15,7 @@ class CreateTaskInteractor:
         user_repository: common_interfaces.UserRepository,
         authorization_policy: interfaces.TaskAuthorizationPolicy,
         db_session: common_interfaces.DBSession,
-        context: common_interfaces.UserContext,
+        context: common_interfaces.Context,
         clock: common_interfaces.Clock,
         validator: validators.CreateTaskValidator,
     ):
@@ -73,7 +73,7 @@ class CreateTaskInteractor:
             name=data.name,
             description=data.description,
             creator=actor,
-            created_at=self.clock.now_date(),
+            created_at=await self.clock.now_date(),
             substage=substage,
         )
 
@@ -93,7 +93,7 @@ class GetTaskInteractor:
         user_repository: common_interfaces.UserRepository,
         project_repository: common_interfaces.ProjectRepository,
         authorization_policy: interfaces.TaskAuthorizationPolicy,
-        context: common_interfaces.UserContext,
+        context: common_interfaces.Context,
     ):
         self.task_repository = task_repository
         self.user_repository = user_repository
@@ -139,7 +139,7 @@ class UpdateTaskInteractor:
         subscription_repository: common_interfaces.SubscriptionRepository,
         authorization_policy: interfaces.TaskAuthorizationPolicy,
         db_session: common_interfaces.DBSession,
-        context: common_interfaces.UserContext,
+        context: common_interfaces.Context,
         text_normalizer: common_interfaces.TextNormalizer,
         validator: validators.UpdateTaskValidator,
     ):
@@ -220,7 +220,7 @@ class DeleteTaskInteractor:
         authorization_policy: interfaces.TaskAuthorizationPolicy,
         project_repository: common_interfaces.ProjectRepository,
         db_session: common_interfaces.DBSession,
-        context: common_interfaces.UserContext,
+        context: common_interfaces.Context,
     ):
         self.task_repository = task_repository
         self.user_repository = user_repository
@@ -264,7 +264,7 @@ class GetTaskListInteractor:
         project_repository: common_interfaces.ProjectRepository,
         stage_repository: common_interfaces.StageRepository,
         authorization_policy: interfaces.TaskAuthorizationPolicy,
-        context: common_interfaces.UserContext,
+        context: common_interfaces.Context,
     ):
         self.task_repository = task_repository
         self.user_repository = user_repository
