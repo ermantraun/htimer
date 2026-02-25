@@ -29,7 +29,7 @@ class UserAuthorizationPolicy(Protocol):
         pass
     
     @abstractmethod
-    def decide_reset_password(self, actor: entities.User, target: entities.User) -> exceptions.UserAuthorizationError | None:
+    def decide_reset_user_password(self, actor: entities.User, target: entities.User) -> exceptions.UserAuthorizationError | None:
         pass
 
 

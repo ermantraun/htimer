@@ -1,5 +1,5 @@
 from application import common_interfaces
-from application.common_exceptions import InvalidToken
+from application.common_exceptions import InvalidTokenError
 from application.user import interfaces
 from . import interfaces as auth_interfaces
 from config import Config
@@ -28,12 +28,12 @@ class Auth(common_interfaces.Context, interfaces.TokenGenerator):
         return token
 
 
-    def get_current_user_uuid(self) -> UUID | InvalidToken:
+    def get_current_user_uuid(self) -> UUID | InvalidTokenError:
         if hasattr(self.context, "get_current_user_uuid") and callable(getattr(self.context, "get_current_user_uuid")):
             value = getattr(self.context, "get_current_user_uuid")()
             if isinstance(value, UUID):
                 return value
-            if isinstance(value, InvalidToken):
+            if isinstance(value, InvalidTokenError):
                 return value
 
         value: object | None = None
@@ -52,6 +52,6 @@ class Auth(common_interfaces.Context, interfaces.TokenGenerator):
             try:
                 return UUID(value)
             except ValueError:
-                return InvalidToken("Invalid user uuid in context")
+                return InvalidTokenError("Invalid user uuid in context")
 
-        return InvalidToken("User uuid not found in context")
+        return InvalidTokenError("User uuid not found in context")

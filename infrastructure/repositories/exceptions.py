@@ -132,3 +132,9 @@ class FileAlreadyExistsError(FileRepositoryError):
 
 class FileNotFoundError(FileRepositoryError):
 	"""Raised when a file is not found."""
+
+class ReportRepositoryError(RepositoryError):
+	"""Raised when there is an error in the report repository."""
+
+class ReportNotFoundError(ReportRepositoryError):
+	"""Raised when a report is not found."""

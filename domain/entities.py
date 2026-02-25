@@ -202,6 +202,13 @@ class UserDecisions:
     class DeleteTaskDecision(Enum):
         ALLOWED = "allowed"
         FORBIDDEN_FOR_NON_MEMBER = "forbidden_for_non_member"
+
+    class CreateReportDecision(Enum):
+        ALLOWED = "allowed"
+        FORBIDDEN_FOR_NON_PROJECT_ADMIN_AND_NON_TARGET = "forbidden_for_non_project_admin_and_non_target"
+        FORBIDDEN_GET_NON_PROJECT_USERS = "forbidden_get_non_project_users"
+
+
 # ==================== USER ====================
 
 @dataclass
@@ -407,6 +414,21 @@ class User:
             return UserDecisions.DeleteTaskDecision.FORBIDDEN_FOR_NON_MEMBER
         else:
             return UserDecisions.DeleteTaskDecision.ALLOWED
+
+    def decide_create_report(
+        self,
+        project: Project,
+        project_members: list[User],
+        target_users: list[User],
+    ) -> UserDecisions.CreateReportDecision:
+        if not ((self in project_members and self.role == UserRole.ADMIN) or (len(target_users) == 1 and target_users[0].uuid == self.uuid)):
+            return UserDecisions.CreateReportDecision.FORBIDDEN_FOR_NON_PROJECT_ADMIN_AND_NON_TARGET
+        
+        if not set(project_members).intersection(target_users):
+            return UserDecisions.CreateReportDecision.FORBIDDEN_GET_NON_PROJECT_USERS
+
+
+        return UserDecisions.CreateReportDecision.ALLOWED
     
     def decide_update_stage(
         self,
@@ -783,19 +805,19 @@ class VoiceRecord:
 class Report:
     uuid: UUID
     project: Project
-    generated_by: User
-    generated_at: str
-    target_user: User | None = None
-    start_date: str = ""
-    end_date: str = ""
+    creator: User
+    generated_at: date
+    target_users: list[User] | None = None
+    start_date: date | None = None
+    end_date: date | None = None   
     file_path: str | None = None
     status: ReportStatus = ReportStatus.PENDING
 
     def is_user_report(self) -> bool:
-        return self.target_user is not None
+        return self.target_users is not None
 
     def is_summary_report(self) -> bool:
-        return self.target_user is None
+        return self.target_users is None
 
     def mark_completed(self, file_path: str) -> None:
         self.status = ReportStatus.COMPLETED

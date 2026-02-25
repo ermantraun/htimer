@@ -68,6 +68,26 @@ class MinioConfig(BaseSettings):
     host: str = "127.0.0.1"
     port: int = 9000
 
+
+class RabbitMQConfig(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="RABBITMQ_")
+
+    host: str = "localhost"
+    port: int = 5672
+    username: str = "guest"
+    password: str = "guest"
+    exchange_name: str = "htimer_exchange"
+    report_queue_name: str = "report_queue"
+    heartbeat: int = 60
+    blocked_connection_timeout: int = 30
+    connection_attempts: int = 3
+    retry_delay: int = 5
+    socket_timeout: int = 30
+    prefetch_count: int = 1
+    retry_count: int = 3
+    
+
+
 class YooKassaConfig(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="YOOKASSA_")
 
@@ -86,3 +106,4 @@ class Config(BaseSettings):
     logger_config: LoggerConfig = LoggerConfig()
     host_info: HostInfoConfig = HostInfoConfig()
     secure_config: SecureConfig = SecureConfig()
+    rabbitmq: RabbitMQConfig = RabbitMQConfig()

@@ -25,7 +25,7 @@ class TextNormalizer(Protocol):
 
 class Context(Protocol):
     @abstractmethod
-    def get_current_user_uuid(self) -> UUID | common_exceptions.InvalidToken:
+    def get_current_user_uuid(self) -> UUID | common_exceptions.InvalidTokenError:
         pass
 
 class Logger(Protocol):
@@ -41,6 +41,10 @@ class Clock(Protocol):
     
     @abstractmethod
     def verify_date(self, date: str) -> str | common_exceptions.InvalidDate:
+        pass
+    
+    @abstractmethod
+    def verify_period(self, start_date: date | None, end_date: date | None) -> None | common_exceptions.InvalidDate:
         pass
 
 
@@ -240,4 +244,22 @@ class PaymentGateway(Protocol):
     
     @abstractmethod
     async def refund_payment(self, payment: entities.Payment, gateway_payment_id: str) -> bool | common_exceptions.PaymentRefundFailedError | common_exceptions.PaymentNotExistsError:
+        pass
+
+class ReportRepository(Protocol):
+    @abstractmethod
+    async def create(self, report: entities.Report) -> None | common_exceptions.RepositoryError | common_exceptions.ProjectNotFoundError | common_exceptions.UserNotFoundError:
+        pass
+    
+    @abstractmethod
+    async def get_by_uuid(self, report_uuid: UUID) -> entities.Report | common_exceptions.ReportNotFoundError | common_exceptions.RepositoryError:
+        pass
+    
+    @abstractmethod
+    async def update(self, report_uuid: UUID, data: dict[str, Any]) -> entities.Report | common_exceptions.ReportNotFoundError | common_exceptions.RepositoryError:
+        pass
+
+class JobGateway(Protocol):
+    @abstractmethod
+    async def enqueue_report_generation(self, report: entities.Report) -> None | common_exceptions.RepositoryError | common_exceptions.JobGatewayError:
         pass

@@ -24,9 +24,9 @@ class CreateSubscriptionInteractor:
         self.authorization_policy = authorization_policy
         self.project_repository = project_repository
         self.session = session
-    async def execute(self, data: dto.CreateSubscriptionInDTO) -> dto.CreateSubscriptionOutDTO | common_exceptions.SubscriptionAlreadyExistsError | common_exceptions.ProjectNotFoundError | common_exceptions.InvalidToken | common_exceptions.UserNotFoundError | exceptions.SubscriptionAuthorizationError | exceptions.CantCreateSubscription | common_exceptions.RepositoryError:
+    async def execute(self, data: dto.CreateSubscriptionInDTO) -> dto.CreateSubscriptionOutDTO | common_exceptions.SubscriptionAlreadyExistsError | common_exceptions.ProjectNotFoundError | common_exceptions.InvalidTokenError | common_exceptions.UserNotFoundError | exceptions.SubscriptionAuthorizationError | exceptions.CantCreateSubscription | common_exceptions.RepositoryError:
         actor_uuid = self.context.get_current_user_uuid()
-        if isinstance(actor_uuid, common_exceptions.InvalidToken):
+        if isinstance(actor_uuid, common_exceptions.InvalidTokenError):
             raise actor_uuid
 
         actor = await self.user_repository.get_by_uuid(actor_uuid)
@@ -81,10 +81,10 @@ class UpdateSubscriptionInteractor:
         self.authorization_policy = authorization_policy
         self.session = session
 
-    async def execute(self, data: dto.UpdateSubscriptionInDTO) -> None | common_exceptions.SubscriptionNotFoundError | common_exceptions.ProjectNotFoundError | common_exceptions.InvalidToken | common_exceptions.UserNotFoundError | exceptions.SubscriptionAuthorizationError | exceptions.CantUpdateSubscription | common_exceptions.RepositoryError:
+    async def execute(self, data: dto.UpdateSubscriptionInDTO) -> None | common_exceptions.SubscriptionNotFoundError | common_exceptions.ProjectNotFoundError | common_exceptions.InvalidTokenError | common_exceptions.UserNotFoundError | exceptions.SubscriptionAuthorizationError | exceptions.CantUpdateSubscription | common_exceptions.RepositoryError:
 
         actor_uuid = self.context.get_current_user_uuid()
-        if isinstance(actor_uuid, common_exceptions.InvalidToken):
+        if isinstance(actor_uuid, common_exceptions.InvalidTokenError):
             raise actor_uuid
 
         actor = await self.user_repository.get_by_uuid(actor_uuid)
@@ -296,9 +296,9 @@ class CreatePaymentInteractor:
         self.payment_repository = payment_repository
         self.payment_gateway = payment_gateway
         self.session = session
-    async def execute(self, data: dto.CreatePaymentInDTO) -> dto.CreatePaymentOutDTO | common_exceptions.SubscriptionNotFoundError | common_exceptions.ProjectNotFoundError | common_exceptions.InvalidToken | common_exceptions.UserNotFoundError | exceptions.SubscriptionAuthorizationError | exceptions.CantCreateSubscription | common_exceptions.PaymentFailedError | exceptions.CantCreatePayment | common_exceptions.RepositoryError:
+    async def execute(self, data: dto.CreatePaymentInDTO) -> dto.CreatePaymentOutDTO | common_exceptions.SubscriptionNotFoundError | common_exceptions.ProjectNotFoundError | common_exceptions.InvalidTokenError | common_exceptions.UserNotFoundError | exceptions.SubscriptionAuthorizationError | exceptions.CantCreateSubscription | common_exceptions.PaymentFailedError | exceptions.CantCreatePayment | common_exceptions.RepositoryError:
         actor_uuid = self.context.get_current_user_uuid()
-        if isinstance(actor_uuid, common_exceptions.InvalidToken):
+        if isinstance(actor_uuid, common_exceptions.InvalidTokenError):
             raise actor_uuid
 
         actor = await self.user_repository.get_by_uuid(actor_uuid)

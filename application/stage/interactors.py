@@ -30,7 +30,7 @@ class CreateStageInteractor:
         self.validator = validator
         self.text_normalizer = text_normalizer
         
-    async def execute(self, data: dto.CreateStageInDTO) -> dto.CreateStageOutDTO | common_exceptions.StageAlreadyExistsError | common_exceptions.ParentStageAlreadyHasMainSubStageError | exceptions.StageAuthorizationError | common_exceptions.ProjectNotFoundError | common_exceptions.UserNotFoundError | exceptions.InvalidStageDescriptionError | exceptions.InvalidStageNameError | common_exceptions.InvalidToken | common_exceptions.RepositoryError:
+    async def execute(self, data: dto.CreateStageInDTO) -> dto.CreateStageOutDTO | common_exceptions.StageAlreadyExistsError | common_exceptions.ParentStageAlreadyHasMainSubStageError | exceptions.StageAuthorizationError | common_exceptions.ProjectNotFoundError | common_exceptions.UserNotFoundError | exceptions.InvalidStageDescriptionError | exceptions.InvalidStageNameError | common_exceptions.InvalidTokenError | common_exceptions.RepositoryError:
         
         data.description = self.text_normalizer.normalize(data.description) if data.description else data.description
         
@@ -41,7 +41,7 @@ class CreateStageInteractor:
         
         actor_uuid = self.context.get_current_user_uuid()
         
-        if isinstance(actor_uuid, common_exceptions.InvalidToken):
+        if isinstance(actor_uuid, common_exceptions.InvalidTokenError):
             raise actor_uuid
         
         actor = await self.user_repository.get_by_uuid(actor_uuid)
@@ -122,7 +122,7 @@ class UpdateStageInteractor:
         self.validator = validator
         self.text_normalizer = text_normalizer
         
-    async def execute(self, data: dto.UpdateStageInDTO) -> dto.UpdateStageOutDTO | common_exceptions.StageNotFoundError | exceptions.StageAuthorizationError | common_exceptions.UserNotFoundError | exceptions.InvalidStageNameError | exceptions.InvalidStageDescriptionError | exceptions.AllFieldsNoneError | common_exceptions.InvalidToken | common_exceptions.ProjectNotFoundError | common_exceptions.RepositoryError:
+    async def execute(self, data: dto.UpdateStageInDTO) -> dto.UpdateStageOutDTO | common_exceptions.StageNotFoundError | exceptions.StageAuthorizationError | common_exceptions.UserNotFoundError | exceptions.InvalidStageNameError | exceptions.InvalidStageDescriptionError | exceptions.AllFieldsNoneError | common_exceptions.InvalidTokenError | common_exceptions.ProjectNotFoundError | common_exceptions.RepositoryError:
         
         if data.description is not None:
             data.description = self.text_normalizer.normalize(data.description)
@@ -134,7 +134,7 @@ class UpdateStageInteractor:
         
         actor_uuid = self.context.get_current_user_uuid()
         
-        if isinstance(actor_uuid, common_exceptions.InvalidToken):
+        if isinstance(actor_uuid, common_exceptions.InvalidTokenError):
             raise actor_uuid
         
         actor = await self.user_repository.get_by_uuid(actor_uuid)
@@ -199,10 +199,10 @@ class DeleteStageInteractor:
         self.db_session = db_session
         self.context = context
 
-    async def execute(self, data: dto.DeleteStageInDTO) -> None | common_exceptions.StageNotFoundError | exceptions.StageAuthorizationError | common_exceptions.UserNotFoundError | common_exceptions.ProjectNotFoundError | common_exceptions.InvalidToken | common_exceptions.RepositoryError:
+    async def execute(self, data: dto.DeleteStageInDTO) -> None | common_exceptions.StageNotFoundError | exceptions.StageAuthorizationError | common_exceptions.UserNotFoundError | common_exceptions.ProjectNotFoundError | common_exceptions.InvalidTokenError | common_exceptions.RepositoryError:
         actor_uuid = self.context.get_current_user_uuid()
 
-        if isinstance(actor_uuid, common_exceptions.InvalidToken):
+        if isinstance(actor_uuid, common_exceptions.InvalidTokenError):
             raise actor_uuid
 
         actor = await self.user_repository.get_by_uuid(actor_uuid)
@@ -246,7 +246,7 @@ class GetStageListInteractor:
     async def execute(self, data: dto.GetStageListInDTO) -> dto.GetStageListOutDTO | common_exceptions.UserNotFoundError | common_exceptions.ProjectNotFoundError | exceptions.StageAuthorizationError | common_exceptions.RepositoryError:
         actor_uuid = self.context.get_current_user_uuid()
 
-        if isinstance(actor_uuid, common_exceptions.InvalidToken):
+        if isinstance(actor_uuid, common_exceptions.InvalidTokenError):
             raise actor_uuid
 
         actor = await self.user_repository.get_by_uuid(actor_uuid)

@@ -2246,3 +2246,188 @@ class FileRepository(_RepositoryDebugMixin, repository_interfaces.DBFileReposito
             daily_log=DailyLogRepository.map_daily_log_to_entity(file_model.daily_log),
             uploaded_at=file_model.uploaded_at,
         )
+    
+class ReportRepository(_RepositoryDebugMixin, repository_interfaces.DBReportRepository):
+    def __init__(self, session: AsyncSession, config: Config):
+        self.session = session
+        self._idempotent_retries = 2
+        self._base_backoff = 0.1
+        self._init_debug(config)
+
+    async def create(self, report: entities.Report) -> entities.Report | repo_exceptions.RepositoryError | repo_exceptions.ProjectNotFoundError | repo_exceptions.UserNotFoundError:
+        try:
+            report_model = self.map_entity_to_report(report)
+
+            self.session.add(report_model)
+
+            async def _op():
+                await self.session.flush()
+
+            await _execute_idempotent(
+                self.session,
+                self._idempotent_retries,
+                self._base_backoff,
+                _op,
+                error_message="Не удалось создать отчет",
+                exception=repo_exceptions.RepositoryError,
+            )
+
+            loaded_report_stmt = self._build_report_stmt(models.Report.uuid == report.uuid)
+            loaded_report_result = await _execute_statement_idempotent(
+                self.session,
+                self._idempotent_retries,
+                self._base_backoff,
+                loaded_report_stmt,
+                error_message="Не удалось создать отчет",
+                exception=repo_exceptions.RepositoryError,
+            )
+            loaded_report = loaded_report_result.scalar_one_or_none()
+            if loaded_report is None:
+                return self._build_error(repo_exceptions.RepositoryError, "Не удалось создать отчет")
+
+            return self.map_report_to_entity(loaded_report)
+
+        except IntegrityError as e:
+            await self.session.rollback()
+            if isinstance(e.orig, psycopg.errors.ForeignKeyViolation):
+                constraint_name = getattr(getattr(e.orig, "diag", None), "constraint_name", None)
+                if constraint_name and "reports_project_uuid_fkey" in constraint_name:
+                    return repo_exceptions.ProjectNotFoundError("Проект не найден")
+                if constraint_name and "reports_creator_uuid_fkey" in constraint_name:
+                    return repo_exceptions.UserNotFoundError("Пользователь не найден")
+            return self._build_error(repo_exceptions.RepositoryError, "Не удалось создать отчет", e)
+        except repo_exceptions.RepositoryError as e:
+            await self.session.rollback()
+            return self._enrich_error(e)
+        except (DBAPIError, TimeoutError) as e:
+            await self.session.rollback()
+            return self._build_error(repo_exceptions.RepositoryError, "Не удалось создать отчет", e)
+    
+    
+    
+    async def get_by_uuid(self, report_uuid: UUID, lock_record: bool = False) -> entities.Report | repo_exceptions.ReportNotFoundError | repo_exceptions.RepositoryError:
+        try:
+            report_stmt = await self._build_report_stmt(models.Report.uuid == report_uuid)
+            if lock_record:
+                report_stmt = report_stmt.with_for_update()
+            report_result = await _execute_statement_idempotent(
+                self.session,
+                self._idempotent_retries,
+                self._base_backoff,
+                lambda: self.session.execute(report_stmt),
+                error_message="Не удалось получить отчет",
+                exception=repo_exceptions.RepositoryError,
+            )
+            report_model = report_result.scalar_one_or_none()
+            if report_model is None:
+                return repo_exceptions.ReportNotFoundError("Отчет не найден")
+
+            return self.map_report_to_entity(report_model)
+        except repo_exceptions.RepositoryError as e:
+            return self._enrich_error(e)
+        except (DBAPIError, TimeoutError) as e:
+            return self._build_error(repo_exceptions.RepositoryError, "Не удалось получить отчет", e)
+
+    async def update(self, report_uuid: UUID, data: dict[str, Any]) -> entities.Report | repo_exceptions.ReportNotFoundError | repo_exceptions.RepositoryError:
+        try:
+            report_stmt = await self._build_report_stmt(models.Report.uuid == report_uuid)
+            report_result = await _execute_statement_idempotent(
+                self.session,
+                self._idempotent_retries,
+                self._base_backoff,
+                lambda: self.session.execute(report_stmt),
+                error_message="Не удалось получить отчет",
+                exception=repo_exceptions.RepositoryError,
+            )
+            report_model = report_result.scalar_one_or_none()
+            if report_model is None:
+                return repo_exceptions.ReportNotFoundError("Отчет не найден")
+            for key, value in data.items():
+                setattr(report_model, key, value)
+            
+            async def _op():
+                await self.session.flush()
+            
+            await _execute_idempotent(self.session, self._idempotent_retries, self._base_backoff, _op, error_message='Не удалось обновить отчет', exception=repo_exceptions.RepositoryError )
+
+            loaded_report_stmt = await self._build_report_stmt(models.Report.uuid == report_uuid)
+            loaded_report_result = await _execute_statement_idempotent(
+                self.session,
+                self._idempotent_retries,
+                self._base_backoff,
+                lambda: self.session.execute(loaded_report_stmt),
+                error_message="Не удалось обновить отчет",
+                exception=repo_exceptions.RepositoryError,
+            )
+            loaded_report = loaded_report_result.scalar_one_or_none()
+            if loaded_report is None:
+                return repo_exceptions.ReportNotFoundError("Отчет не найден")
+
+            return self.map_report_to_entity(loaded_report)
+        
+        except repo_exceptions.RepositoryError as e:
+            await self.session.rollback()
+            return self._enrich_error(e)
+        
+        except (DBAPIError, TimeoutError) as e:
+            await self.session.rollback()
+            return self._build_error(repo_exceptions.RepositoryError, "Не удалось обновить отчет", e)
+
+    @classmethod
+    async def _build_report_stmt(cls, condition: Any) -> sq.sql.Select[models.Report]:
+        return (
+            select(models.Report)
+            .options(
+                selectinload(models.Report.project).selectinload(models.Project.creator),
+                selectinload(models.Report.creator),
+                selectinload(models.Report.target_users)
+            )
+            .where(condition)
+        )
+
+    @classmethod
+    def map_entity_to_report(cls, report_entity: entities.Report) -> models.Report:
+        target_user_uuids = [user.uuid for user in report_entity.target_users] if report_entity.target_users else []
+        return models.Report(
+            uuid=report_entity.uuid,
+            project_uuid=report_entity.project.uuid,
+            creator_uuid=report_entity.creator.uuid,
+            generated_at=report_entity.generated_at,
+            start_date=report_entity.start_date,
+            end_date=report_entity.end_date,
+            status=cls.map_status_to_model(report_entity.status),
+            target_user_uuids=target_user_uuids
+
+        )
+
+    @classmethod
+    def map_report_to_entity(cls, report_model: models.Report) -> entities.Report:
+        return entities.Report(
+            uuid=report_model.uuid,
+            project=ProjectRepository.map_project_to_entity(report_model.project),
+            creator=UserRepository.map_user_to_entity(report_model.creator),
+            generated_at=report_model.generated_at,
+            start_date=report_model.start_date,
+            end_date=report_model.end_date,
+            status=cls.map_status_to_domain(report_model.status),
+            target_users=[UserRepository.map_user_to_entity(user) for user in report_model.target_users] if report_model.target_users else []
+        )
+
+    @classmethod
+    def map_status_to_domain(cls, status: models.ReportStatus) -> entities.ReportStatus:
+        mapping = {
+            models.ReportStatus.PENDING: entities.ReportStatus.PENDING,
+            models.ReportStatus.COMPLETED: entities.ReportStatus.COMPLETED,
+            models.ReportStatus.FAILED: entities.ReportStatus.FAILED,
+        }
+        return mapping[status]
+
+    @classmethod
+    def map_status_to_model(cls, status: entities.ReportStatus) -> models.ReportStatus:
+        mapping = {
+            entities.ReportStatus.PENDING: models.ReportStatus.PENDING,
+            entities.ReportStatus.COMPLETED: models.ReportStatus.COMPLETED,
+            entities.ReportStatus.FAILED: models.ReportStatus.FAILED,
+        }
+        return mapping[status]
+

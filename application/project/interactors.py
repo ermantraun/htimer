@@ -33,7 +33,7 @@ class CreateProjectInteractor:
         self.text_normalizer = text_normalizer
         self.project_repository = project_repository
         
-    async def execute(self, data: dto.CreateProjectInDTO) -> dto.CreateProjectOutDTO | common_exceptions.UserAlreadyHasProjectError | common_exceptions.InvalidToken | exceptions.ProjectAuthorizationError | exceptions.InvalidProjectDescriptionError | exceptions.InvalidProjectNameError | common_exceptions.UserNotFoundError | common_exceptions.RepositoryError:
+    async def execute(self, data: dto.CreateProjectInDTO) -> dto.CreateProjectOutDTO | common_exceptions.UserAlreadyHasProjectError | common_exceptions.InvalidTokenError | exceptions.ProjectAuthorizationError | exceptions.InvalidProjectDescriptionError | exceptions.InvalidProjectNameError | common_exceptions.UserNotFoundError | common_exceptions.RepositoryError:
         
 
         if data.description is not None:
@@ -44,13 +44,13 @@ class CreateProjectInteractor:
             raise validation_error
         
         current_user_uuid = self.user_context.get_current_user_uuid()
-        if isinstance(current_user_uuid, common_exceptions.InvalidToken):
+        if isinstance(current_user_uuid, common_exceptions.InvalidTokenError):
             raise current_user_uuid
 
         actor = await self.user_repository.get_by_uuid(current_user_uuid)
         
         if isinstance(actor, common_exceptions.UserNotFoundError):
-            raise common_exceptions.InvalidToken("Current user not found")
+            raise common_exceptions.InvalidTokenError("Current user not found")
         if isinstance(actor, common_exceptions.RepositoryError):
             raise actor
         
@@ -100,7 +100,7 @@ class UpdateProjectInteractor:
         self.subscription_repository = subscription_repository
         self.text_normalizer = text_normalizer
         
-    async def execute(self, data: dto.UpdateProjectInDTO) -> dto.UpdateProjectOutDTO | common_exceptions.SubscriptionNotFoundError | common_exceptions.UserNotFoundError | common_exceptions.ProjectNotFoundError | common_exceptions.UserAlreadyHasProjectError | common_exceptions.InvalidToken | exceptions.ProjectAuthorizationError | exceptions.InvalidProjectDescriptionError | exceptions.InvalidProjectNameError | common_exceptions.RepositoryError:
+    async def execute(self, data: dto.UpdateProjectInDTO) -> dto.UpdateProjectOutDTO | common_exceptions.SubscriptionNotFoundError | common_exceptions.UserNotFoundError | common_exceptions.ProjectNotFoundError | common_exceptions.UserAlreadyHasProjectError | common_exceptions.InvalidTokenError | exceptions.ProjectAuthorizationError | exceptions.InvalidProjectDescriptionError | exceptions.InvalidProjectNameError | common_exceptions.RepositoryError:
         
 
         if data.description is not None:
@@ -111,7 +111,7 @@ class UpdateProjectInteractor:
             raise validation_error
         
         current_user_uuid = self.user_context.get_current_user_uuid()
-        if isinstance(current_user_uuid, common_exceptions.InvalidToken):
+        if isinstance(current_user_uuid, common_exceptions.InvalidTokenError):
             raise current_user_uuid
 
         actor = await self.user_repository.get_by_uuid(current_user_uuid)
@@ -180,7 +180,7 @@ class GetProjectInteractor:
     async def execute(self, data: dto.GetProjectInDTO) -> dto.GetProjectsOutDTO | common_exceptions.UserNotFoundError | common_exceptions.ProjectNotFoundError | common_exceptions.RepositoryError:
         actor_uuid = self.context.get_current_user_uuid()
         
-        if isinstance(actor_uuid, common_exceptions.InvalidToken):
+        if isinstance(actor_uuid, common_exceptions.InvalidTokenError):
             raise actor_uuid
         
         actor = await self.user_repository.get_by_uuid(actor_uuid)
@@ -224,14 +224,14 @@ class GetProjectListInteractor:
         self.user_context = user_context
         self.validator = validator
 
-    async def execute(self, data: dto.GetProjectListInDTO) -> dto.GetProjectListOutDTO | exceptions.ProjectValidationError | common_exceptions.UserNotFoundError | common_exceptions.ProjectNotFoundError | common_exceptions.InvalidToken | common_exceptions.RepositoryError:
+    async def execute(self, data: dto.GetProjectListInDTO) -> dto.GetProjectListOutDTO | exceptions.ProjectValidationError | common_exceptions.UserNotFoundError | common_exceptions.ProjectNotFoundError | common_exceptions.InvalidTokenError | common_exceptions.RepositoryError:
 
         validation_error = self.validator.validate(data)
         if validation_error is not None:
             raise validation_error
 
         current_user_uuid = self.user_context.get_current_user_uuid()
-        if isinstance(current_user_uuid, common_exceptions.InvalidToken):
+        if isinstance(current_user_uuid, common_exceptions.InvalidTokenError):
             raise current_user_uuid
 
         projects = await self.user_repository.get_projects(current_user_uuid)
@@ -260,7 +260,7 @@ class AddMembersToProjectInteractor:
     async def execute(self, data: dto.AddMembersInDTO) -> dto.AddMembersOutDTO | common_exceptions.ProjectNotFoundError | common_exceptions.UserNotFoundError | common_exceptions.UserAlreadyProjectMemberError | exceptions.ProjectAuthorizationError | common_exceptions.RepositoryError:
         actor_uuid = self.context.get_current_user_uuid()
         
-        if isinstance(actor_uuid, common_exceptions.InvalidToken):
+        if isinstance(actor_uuid, common_exceptions.InvalidTokenError):
             raise actor_uuid
         
         actor = await self.user_repository.get_by_uuid(actor_uuid)
@@ -337,7 +337,7 @@ class RemoveMembersFromProjectInteractor:
     async def execute(self, data: dto.RemoveMembersInDTO) ->  None | common_exceptions.ProjectNotFoundError | common_exceptions.MemberNotFound | exceptions.ProjectAuthorizationError | common_exceptions.RepositoryError:
         actor_uuid = self.context.get_current_user_uuid()
         
-        if isinstance(actor_uuid, common_exceptions.InvalidToken):
+        if isinstance(actor_uuid, common_exceptions.InvalidTokenError):
             raise actor_uuid
         
         actor = await self.user_repository.get_by_uuid(actor_uuid)

@@ -1,0 +1,221 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="2480" viewBox="0 0 1800 2480">
+  <defs>
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f8fbff"/>
+      <stop offset="100%" stop-color="#eef2f7"/>
+    </linearGradient>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L9,3 L0,6 Z" fill="#64748b"/>
+    </marker>
+    <style>
+      .title { font: 700 34px Inter, Arial, sans-serif; fill: #0f172a; }
+      .subtitle { font: 500 17px Inter, Arial, sans-serif; fill: #334155; }
+      .section { font: 700 24px Inter, Arial, sans-serif; fill: #0f172a; }
+      .flowTitle { font: 700 20px Inter, Arial, sans-serif; fill: #0f172a; }
+      .label { font: 600 15px Inter, Arial, sans-serif; fill: #0f172a; }
+      .text { font: 14px Inter, Arial, sans-serif; fill: #1e293b; }
+      .small { font: 13px Inter, Arial, sans-serif; fill: #334155; }
+      .warn { font: 14px Inter, Arial, sans-serif; fill: #7f1d1d; }
+      .panel { fill: #ffffff; stroke: #cbd5e1; stroke-width: 1.4; rx: 14; }
+      .header { fill: #e0f2fe; stroke: #7dd3fc; stroke-width: 1.5; rx: 14; }
+      .actor { fill: #f5f3ff; stroke: #c4b5fd; stroke-width: 1.2; rx: 10; }
+      .flow { fill: #ffffff; stroke: #dbeafe; stroke-width: 1.5; rx: 14; }
+      .step { fill: #f8fafc; stroke: #cbd5e1; stroke-width: 1.1; rx: 10; }
+      .decision { fill: #fff7ed; stroke: #fdba74; stroke-width: 1.2; }
+      .resultOk { fill: #ecfdf5; stroke: #86efac; stroke-width: 1.1; rx: 10; }
+      .resultErr { fill: #fef2f2; stroke: #fca5a5; stroke-width: 1.1; rx: 10; }
+      .line { stroke: #64748b; stroke-width: 1.4; marker-end: url(#arrow); fill: none; }
+      .muted { fill: #f8fafc; stroke: #e2e8f0; stroke-width: 1; rx: 10; }
+      .risk { fill: #fff1f2; stroke: #fecdd3; stroke-width: 1.3; rx: 12; }
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="1800" height="2480" fill="url(#bgGrad)"/>
+
+  <rect x="36" y="24" width="1728" height="128" class="header"/>
+  <text x="64" y="72" class="title">HTimer — Бизнес-логика в виде понятных потоков</text>
+  <text x="64" y="104" class="subtitle">Поток = предусловия → авторизация/policy → доменные проверки ensure/decide → commit/ошибка</text>
+  <text x="64" y="128" class="subtitle">Источник: interactors + policy + domain/entities (срез 19.02.2026)</text>
+
+  <rect x="36" y="170" width="1728" height="126" class="panel"/>
+  <text x="58" y="205" class="section">Акторы и легенда</text>
+  <rect x="58" y="220" width="320" height="58" class="actor"/>
+  <text x="74" y="255" class="label">A1 Администратор</text>
+  <rect x="394" y="220" width="320" height="58" class="actor"/>
+  <text x="410" y="255" class="label">A2 Создатель проекта</text>
+  <rect x="730" y="220" width="320" height="58" class="actor"/>
+  <text x="746" y="255" class="label">A3 Участник проекта</text>
+  <rect x="1066" y="220" width="320" height="58" class="actor"/>
+  <text x="1082" y="255" class="label">A4 Внешние сервисы (gateway/storage)</text>
+  <rect x="1402" y="220" width="158" height="24" class="step"/>
+  <text x="1570" y="237" class="small">Шаг процесса</text>
+  <polygon points="1402,254 1482,254 1522,272 1482,290 1402,290 1362,272" class="decision"/>
+  <text x="1570" y="277" class="small">Проверка/ветвление</text>
+
+  <text x="40" y="334" class="section">Потоки use case (каждый блок читается слева направо)</text>
+
+  <rect x="36" y="354" width="846" height="330" class="flow"/>
+  <text x="58" y="388" class="flowTitle">F1 Пользователи и доступ (A1/A3)</text>
+  <rect x="58" y="412" width="150" height="64" class="step"/>
+  <text x="72" y="438" class="label">1. Входные данные</text>
+  <text x="72" y="458" class="text">валидатор DTO</text>
+  <path d="M208 444 L246 444" class="line"/>
+  <polygon points="246,414 336,414 378,444 336,474 246,474 204,444" class="decision"/>
+  <text x="260" y="440" class="label">2. Токен/actor</text>
+  <text x="260" y="459" class="text">валидны?</text>
+  <path d="M378 444 L434 444" class="line"/>
+  <rect x="434" y="412" width="180" height="64" class="step"/>
+  <text x="448" y="438" class="label">3. Policy decide_*</text>
+  <text x="448" y="458" class="text">роль/creator/scope</text>
+  <path d="M614 444 L670 444" class="line"/>
+  <rect x="670" y="412" width="190" height="64" class="resultOk"/>
+  <text x="684" y="438" class="label">4. Успех</text>
+  <text x="684" y="458" class="text">hash/token/update + commit</text>
+  <rect x="434" y="502" width="426" height="64" class="resultErr"/>
+  <text x="448" y="528" class="label">Ветка отказа</text>
+  <text x="448" y="548" class="text">InvalidToken / UserNotFound / AuthorizationError / ValidationError</text>
+  <text x="58" y="604" class="small">UC: CreateUser, LoginUser, UpdateUser, ResetUserPassword, GetUsersList</text>
+  <text x="58" y="626" class="small">Инварианты: нельзя менять свою роль/статус; нельзя сбрасывать пароль самому себе.</text>
+
+  <rect x="918" y="354" width="846" height="330" class="flow"/>
+  <text x="940" y="388" class="flowTitle">F2 Проекты и команда (A1/A2)</text>
+  <rect x="940" y="412" width="170" height="64" class="step"/>
+  <text x="954" y="438" class="label">1. Create/Update</text>
+  <text x="954" y="458" class="text">project DTO</text>
+  <path d="M1110 444 L1160 444" class="line"/>
+  <polygon points="1160,414 1250,414 1292,444 1250,474 1160,474 1118,444" class="decision"/>
+  <text x="1176" y="440" class="label">2. Policy</text>
+  <text x="1176" y="459" class="text">admin/member?</text>
+  <path d="M1292 444 L1350 444" class="line"/>
+  <rect x="1350" y="412" width="186" height="64" class="step"/>
+  <text x="1364" y="438" class="label">3. ensure_update()</text>
+  <text x="1364" y="458" class="text">status + subscription</text>
+  <path d="M1536 444 L1592 444" class="line"/>
+  <rect x="1592" y="412" width="150" height="64" class="resultOk"/>
+  <text x="1606" y="438" class="label">4. Commit</text>
+  <text x="1606" y="458" class="text">save members</text>
+  <rect x="1160" y="502" width="582" height="64" class="resultErr"/>
+  <text x="1174" y="528" class="label">Ветка отказа</text>
+  <text x="1174" y="548" class="text">UserNotAdmin / ProjectNotFound / UserAlreadyProjectMember / blocked project state</text>
+  <text x="940" y="604" class="small">UC: CreateProject, UpdateProject, GetProject, GetProjectList, AddMembers, RemoveMembers</text>
+  <text x="940" y="626" class="small">Зависимость: большинство изменений требуют ACTIVE проект/валидную подписку.</text>
+
+  <rect x="36" y="708" width="846" height="330" class="flow"/>
+  <text x="58" y="742" class="flowTitle">F3 Этапы и задачи (A2/A3)</text>
+  <rect x="58" y="766" width="164" height="64" class="step"/>
+  <text x="72" y="792" class="label">1. Stage/Task запрос</text>
+  <text x="72" y="812" class="text">target project/substage</text>
+  <path d="M222 798 L276 798" class="line"/>
+  <polygon points="276,768 366,768 408,798 366,828 276,828 234,798" class="decision"/>
+  <text x="292" y="794" class="label">2. Membership</text>
+  <text x="292" y="813" class="text">и creator?</text>
+  <path d="M408 798 L466 798" class="line"/>
+  <rect x="466" y="766" width="178" height="64" class="step"/>
+  <text x="480" y="792" class="label">3. ensure_create/</text>
+  <text x="480" y="812" class="text">ensure_update</text>
+  <path d="M644 798 L702 798" class="line"/>
+  <rect x="702" y="766" width="158" height="64" class="resultOk"/>
+  <text x="716" y="792" class="label">4. Commit</text>
+  <text x="716" y="812" class="text">CRUD ok</text>
+  <rect x="466" y="856" width="394" height="64" class="resultErr"/>
+  <text x="480" y="882" class="label">Ветка отказа</text>
+  <text x="480" y="902" class="text">Task только в подэтапе; нельзя менять COMPLETED task / archived stage</text>
+  <text x="58" y="958" class="small">UC: Create/Update/Delete/Get/List Stage + Create/Update/Delete/Get/List Task</text>
+  <text x="58" y="980" class="small">Ключевая логика: parent/substage структура и проектные ограничения состояния.</text>
+
+  <rect x="918" y="708" width="846" height="330" class="flow"/>
+  <text x="940" y="742" class="flowTitle">F4 Daily Log и файлы (A2/A3/A4)</text>
+  <rect x="940" y="766" width="160" height="64" class="step"/>
+  <text x="954" y="792" class="label">1. Валидация</text>
+  <text x="954" y="812" class="text">date + DTO</text>
+  <path d="M1100 798 L1152 798" class="line"/>
+  <polygon points="1152,768 1242,768 1284,798 1242,828 1152,828 1110,798" class="decision"/>
+  <text x="1168" y="794" class="label">2. Policy</text>
+  <text x="1168" y="813" class="text">creator/admin?</text>
+  <path d="M1284 798 L1342 798" class="line"/>
+  <rect x="1342" y="766" width="190" height="64" class="step"/>
+  <text x="1356" y="792" class="label">3. Repo + Storage</text>
+  <text x="1356" y="812" class="text">file uri/action_link</text>
+  <path d="M1532 798 L1590 798" class="line"/>
+  <rect x="1590" y="766" width="152" height="64" class="resultOk"/>
+  <text x="1604" y="792" class="label">4. Commit</text>
+  <text x="1604" y="812" class="text">return DTO</text>
+  <rect x="1152" y="856" width="590" height="64" class="resultErr"/>
+  <text x="1166" y="882" class="label">Ветка отказа</text>
+  <text x="1166" y="902" class="text">InvalidDate / UserNotProjectMember / UserNotDailyLogCreator / FileNotFound</text>
+  <text x="940" y="958" class="small">UC: Create/Update/Get/List DailyLog + Create/Get/List/Remove DailyLogFile</text>
+  <text x="940" y="980" class="small">Поток чтения и редактирования разделён: update только creator, чтение шире по policy.</text>
+
+  <rect x="36" y="1062" width="846" height="356" class="flow"/>
+  <text x="58" y="1096" class="flowTitle">F5 Подписка и платежи (A2/A4)</text>
+  <rect x="58" y="1120" width="152" height="64" class="step"/>
+  <text x="72" y="1146" class="label">1. CreatePayment</text>
+  <text x="72" y="1166" class="text">creator only</text>
+  <path d="M210 1152 L258 1152" class="line"/>
+  <rect x="258" y="1120" width="166" height="64" class="step"/>
+  <text x="272" y="1146" class="label">2. Gateway create</text>
+  <text x="272" y="1166" class="text">save gateway id</text>
+  <path d="M424 1152 L474 1152" class="line"/>
+  <polygon points="474,1122 564,1122 606,1152 564,1182 474,1182 432,1152" class="decision"/>
+  <text x="490" y="1148" class="label">3. Verify</text>
+  <text x="490" y="1167" class="text">payment complete?</text>
+  <path d="M606 1152 L660 1152" class="line"/>
+  <rect x="660" y="1120" width="200" height="64" class="resultOk"/>
+  <text x="674" y="1146" class="label">4. Complete/Extend/Activate</text>
+  <text x="674" y="1166" class="text">идемпотентно + commit</text>
+  <rect x="258" y="1210" width="602" height="72" class="resultErr"/>
+  <text x="272" y="1238" class="label">Ветка отказа</text>
+  <text x="272" y="1258" class="text">PaymentNotComplete / PaymentNotExists / SubscriptionCancelled / project not ACTIVE</text>
+  <text x="58" y="1320" class="small">UC: CreateSubscription, UpdateSubscription(cancel), CreatePayment, CompletePayment, Extend, Activate</text>
+  <text x="58" y="1342" class="small">Защита от повторного применения: payment_applied_to_subscription.</text>
+
+  <rect x="918" y="1062" width="846" height="356" class="flow"/>
+  <text x="940" y="1096" class="flowTitle">F6 Оркестрация: CompletePaymentAndUpdateSubscription</text>
+  <rect x="940" y="1120" width="172" height="64" class="step"/>
+  <text x="954" y="1146" class="label">1. CompletePayment</text>
+  <text x="954" y="1166" class="text">проверка шлюза</text>
+  <path d="M1112 1152 L1162 1152" class="line"/>
+  <polygon points="1162,1122 1252,1122 1294,1152 1252,1182 1162,1182 1120,1152" class="decision"/>
+  <text x="1178" y="1148" class="label">2. ensure_extend</text>
+  <text x="1178" y="1167" class="text">можно продлить?</text>
+  <path d="M1294 1152 L1348 1152" class="line"/>
+  <polygon points="1348,1122 1438,1122 1480,1152 1438,1182 1348,1182 1306,1152" class="decision"/>
+  <text x="1362" y="1148" class="label">3. ensure_activate</text>
+  <text x="1362" y="1167" class="text">можно активировать?</text>
+  <path d="M1480 1152 L1536 1152" class="line"/>
+  <rect x="1536" y="1120" width="206" height="64" class="resultOk"/>
+  <text x="1550" y="1146" class="label">4. Готовая подписка</text>
+  <text x="1550" y="1166" class="text">ACTIVE + end_date</text>
+  <rect x="1162" y="1210" width="580" height="72" class="resultErr"/>
+  <text x="1176" y="1238" class="label">Ветка отказа</text>
+  <text x="1176" y="1258" class="text">CantCompletePayment / CantExtendSubscription / CantActivateSubscription</text>
+  <text x="940" y="1320" class="small">Этот поток связывает платёж и жизненный цикл подписки в одном orchestration use case.</text>
+  <text x="940" y="1342" class="small">В коде есть последовательные проверки, поэтому причины отказа прозрачно локализуются по шагам.</text>
+
+  <rect x="36" y="1442" width="1728" height="230" class="panel"/>
+  <text x="58" y="1476" class="section">Сквозные инварианты (что действует почти во всех потоках)</text>
+  <text x="58" y="1506" class="text">I1. Практически любой сценарий начинается с Context.get_current_user_uuid() и загрузки actor из репозитория.</text>
+  <text x="58" y="1532" class="text">I2. Авторизация проходит через policy (решение делегируется методам User.decide_* в доменной модели).</text>
+  <text x="58" y="1558" class="text">I3. Мутации защищены транзакционно: lock_record в критических точках + DBSession.commit().</text>
+  <text x="58" y="1584" class="text">I4. Проверки ensure_* блокируют нелегальные переходы статусов и изменения в невалидных состояниях.</text>
+  <text x="58" y="1610" class="text">I5. Подписка и платёж завязаны на ACTIVE проект и корректный статус подписки.</text>
+
+  <rect x="36" y="1692" width="1728" height="710" class="risk"/>
+  <text x="58" y="1726" class="section">Наблюдения по качеству потоков (что мешает полной прозрачности)</text>
+  <text x="58" y="1760" class="warn">X1. API слой неполный: обнаружен только users handler, поэтому часть use case есть в application, но не экспонирована HTTP.</text>
+  <text x="58" y="1788" class="warn">X2. В user handler используются symbols без явных импортов (schemas, user_responses) — поток старта API может ломаться.</text>
+  <text x="58" y="1816" class="warn">X3. Несовпадение имени policy-метода сброса пароля: interactor вызывает decide_reset_password, policy содержит decide_reset_user_password.</text>
+  <text x="58" y="1844" class="warn">X4. В ряде decide_* условий используется логика OR, которая может чрезмерно сужать доступ (например project/daily log/stage).</text>
+  <text x="58" y="1872" class="warn">X5. В LoginUserInteractor поле last_login обновляется значением now_date() без await — риск сохранения coroutine вместо даты.</text>
+  <text x="58" y="1900" class="warn">X6. В UpdateSubscriptionInteractor data.status не влияет на запись: статус фиксированно проставляется CANCELLED.</text>
+  <text x="58" y="1928" class="warn">X7. CreateUserInteractor требует текущего пользователя (токен), хотя endpoint визуально похож на публичную регистрацию.</text>
+
+  <rect x="58" y="1968" width="1684" height="414" class="muted"/>
+  <text x="78" y="2002" class="label">Читаемость потоков в этом отчёте</text>
+  <text x="78" y="2030" class="text">• Каждый блок F1–F6 показывает последовательность шагов, точку принятия решения и ветку отказа.</text>
+  <text x="78" y="2058" class="text">• Если нужно детализировать конкретный поток (например только платежи), можно вынести его в отдельный SVG со swimlane по слоям:</text>
+  <text x="78" y="2086" class="text">  API Handler → Interactor → Policy → Domain ensure/decide → Repository/Gateway → Commit.</text>
+  <text x="78" y="2114" class="text">• Текущий файл удобен как обзор архитектуры сценариев и точек отказа для ревью и планирования тестов.</text>
+
+  <text x="40" y="2452" class="subtitle">Итог: 35 интеракторов сведены в 6 визуально понятных потоков с явными шагами и ветвлениями.</text>
+</svg>

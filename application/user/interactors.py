@@ -28,9 +28,9 @@ class CreateUserInteractor:
         self.clock = clock
         self.logger = logger
         
-    async def execute(self, data: dto.CreateUserInDTO) -> dto.CreateUserOutDTO | common_exceptions.EmailAlreadyExistsError | common_exceptions.UserNotFoundError | common_exceptions.InvalidToken | common_exceptions.RepositoryError:
+    async def execute(self, data: dto.CreateUserInDTO) -> dto.CreateUserOutDTO | common_exceptions.EmailAlreadyExistsError | common_exceptions.UserNotFoundError | common_exceptions.InvalidTokenError | common_exceptions.RepositoryError:
         current_user_uuid = self.context.get_current_user_uuid()
-        if isinstance(current_user_uuid, common_exceptions.InvalidToken):
+        if isinstance(current_user_uuid, common_exceptions.InvalidTokenError):
             raise current_user_uuid
 
         current_user = await self.user_repository.get_by_uuid(current_user_uuid)
@@ -91,9 +91,9 @@ class GetUsersListInteractor:
         self.validator = validator
         self.policy = user_policy
 
-    async def execute(self, data: dto.GetUserListInDTO) -> dto.GetUserListOutDTO | common_exceptions.UserNotFoundError | common_exceptions.ProjectNotFoundError | common_exceptions.InvalidToken | exceptions.UserAuthorizationError | common_exceptions.RepositoryError:
+    async def execute(self, data: dto.GetUserListInDTO) -> dto.GetUserListOutDTO | common_exceptions.UserNotFoundError | common_exceptions.ProjectNotFoundError | common_exceptions.InvalidTokenError | exceptions.UserAuthorizationError | common_exceptions.RepositoryError:
         current_user_uuid = self.user_context.get_current_user_uuid()
-        if isinstance(current_user_uuid, common_exceptions.InvalidToken):
+        if isinstance(current_user_uuid, common_exceptions.InvalidTokenError):
             raise current_user_uuid
 
         current_user = await self.user_repository.get_by_uuid(current_user_uuid)
@@ -204,12 +204,12 @@ class ResetUserPasswordInteractor:
         self.validator = validator
         self.policy = user_policy
         
-    async def execute(self, data: dto.ResetUserPasswordInDTO) -> None | common_exceptions.UserNotFoundError | common_exceptions.InvalidToken | common_exceptions.RepositoryError:
+    async def execute(self, data: dto.ResetUserPasswordInDTO) -> None | common_exceptions.UserNotFoundError | common_exceptions.InvalidTokenError | common_exceptions.RepositoryError:
         target_user = None
         current_user = None
         
         current_user_uuid = self.user_context.get_current_user_uuid()
-        if isinstance(current_user_uuid, common_exceptions.InvalidToken):
+        if isinstance(current_user_uuid, common_exceptions.InvalidTokenError):
             raise current_user_uuid
         
         if data.user_uuid is None:
@@ -230,7 +230,7 @@ class ResetUserPasswordInteractor:
             if isinstance(target_user, common_exceptions.RepositoryError):
                 raise target_user
 
-        auth_error = self.policy.decide_reset_password(
+        auth_error = self.policy.decide_reset_user_password(
             actor=current_user, # type: ignore
             target=target_user,)
         
@@ -273,12 +273,12 @@ class UpdateUserInteractor:
         self.policy = user_policy
         self.logger = logger
         
-    async def execute(self, data: dto.UpdateUserInDTO) -> dto.UpdateUserOutDTO | common_exceptions.UserNotFoundError | common_exceptions.EmailAlreadyExistsError | common_exceptions.InvalidToken | common_exceptions.RepositoryError:
+    async def execute(self, data: dto.UpdateUserInDTO) -> dto.UpdateUserOutDTO | common_exceptions.UserNotFoundError | common_exceptions.EmailAlreadyExistsError | common_exceptions.InvalidTokenError | common_exceptions.RepositoryError:
         target_user = None
         current_user = None
         
         current_user_uuid = self.user_context.get_current_user_uuid()
-        if isinstance(current_user_uuid, common_exceptions.InvalidToken):
+        if isinstance(current_user_uuid, common_exceptions.InvalidTokenError):
             raise current_user_uuid
         
         if data.uuid is None:

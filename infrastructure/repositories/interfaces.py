@@ -187,6 +187,14 @@ class DBFileRepository(Protocol):
     async def get_list(self, daily_log_uuid: UUID) -> list[entities.File] | exceptions.FileNotFoundError | exceptions.RepositoryError:
         pass
 
+class DBReportRepository(Protocol):
+    @abstractmethod
+    async def create(self, report: entities.Report) -> entities.Report | exceptions.RepositoryError | exceptions.ProjectNotFoundError | exceptions.UserNotFoundError:
+        pass
+
+    @abstractmethod
+    async def get_by_uuid(self, report_uuid: UUID, lock_record: bool = False) -> entities.Report | exceptions.ReportNotFoundError | exceptions.RepositoryError:
+        pass
 class StorageFileRepository(Protocol):
     @abstractmethod
     async def get_upload_link(self, file: entities.File) -> str | exceptions.FileRepositoryError:

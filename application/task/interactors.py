@@ -30,13 +30,13 @@ class CreateTaskInteractor:
         self.clock = clock
         self.validator = validator
 
-    async def execute(self, data: dto.CreateTaskInDTO) -> dto.CreateTaskOutDTO | common_exceptions.StageNotFoundError | common_exceptions.UserNotFoundError | exceptions.TaskAuthorizationError | common_exceptions.ProjectNotFoundError | common_exceptions.InvalidToken | common_exceptions.TaskAlreadyExistsError | common_exceptions.RepositoryError:
+    async def execute(self, data: dto.CreateTaskInDTO) -> dto.CreateTaskOutDTO | common_exceptions.StageNotFoundError | common_exceptions.UserNotFoundError | exceptions.TaskAuthorizationError | common_exceptions.ProjectNotFoundError | common_exceptions.InvalidTokenError | common_exceptions.TaskAlreadyExistsError | common_exceptions.RepositoryError:
         validation_error = self.validator.validate(data)
         if validation_error is not None:
             raise validation_error
 
         actor_uuid = self.context.get_current_user_uuid()
-        if isinstance(actor_uuid, common_exceptions.InvalidToken):
+        if isinstance(actor_uuid, common_exceptions.InvalidTokenError):
             raise actor_uuid
 
         actor = await self.user_repository.get_by_uuid(actor_uuid)
@@ -101,9 +101,9 @@ class GetTaskInteractor:
         self.authorization_policy = authorization_policy
         self.context = context
 
-    async def execute(self, data: dto.GetTaskInDTO) -> dto.GetTaskOutDTO | common_exceptions.TaskNotFoundError | common_exceptions.UserNotFoundError | exceptions.TaskAuthorizationError | common_exceptions.InvalidToken | common_exceptions.TaskAlreadyExistsError |   common_exceptions.RepositoryError:
+    async def execute(self, data: dto.GetTaskInDTO) -> dto.GetTaskOutDTO | common_exceptions.TaskNotFoundError | common_exceptions.UserNotFoundError | exceptions.TaskAuthorizationError | common_exceptions.InvalidTokenError | common_exceptions.TaskAlreadyExistsError |   common_exceptions.RepositoryError:
         actor_uuid = self.context.get_current_user_uuid()
-        if isinstance(actor_uuid, common_exceptions.InvalidToken):
+        if isinstance(actor_uuid, common_exceptions.InvalidTokenError):
             raise actor_uuid
 
         actor = await self.user_repository.get_by_uuid(actor_uuid)
@@ -154,13 +154,13 @@ class UpdateTaskInteractor:
         self.text_normalizer = text_normalizer
         self.validator = validator
 
-    async def execute(self, data: dto.UpdateTaskInDTO) -> dto.UpdateTaskOutDTO | common_exceptions.TaskNotFoundError | common_exceptions.UserNotFoundError | exceptions.TaskAuthorizationError | common_exceptions.InvalidToken | common_exceptions.TaskAlreadyExistsError |  common_exceptions.RepositoryError:
+    async def execute(self, data: dto.UpdateTaskInDTO) -> dto.UpdateTaskOutDTO | common_exceptions.TaskNotFoundError | common_exceptions.UserNotFoundError | exceptions.TaskAuthorizationError | common_exceptions.InvalidTokenError | common_exceptions.TaskAlreadyExistsError |  common_exceptions.RepositoryError:
         validation_error = self.validator.validate(data)
         if validation_error is not None:
             raise validation_error
 
         actor_uuid = self.context.get_current_user_uuid()
-        if isinstance(actor_uuid, common_exceptions.InvalidToken):
+        if isinstance(actor_uuid, common_exceptions.InvalidTokenError):
             raise actor_uuid
 
         actor = await self.user_repository.get_by_uuid(actor_uuid)
@@ -229,9 +229,9 @@ class DeleteTaskInteractor:
         self.db_session = db_session
         self.context = context
 
-    async def execute(self, data: dto.DeleteTaskInDTO) -> None | common_exceptions.TaskNotFoundError | common_exceptions.UserNotFoundError | exceptions.TaskAuthorizationError | common_exceptions.InvalidToken | common_exceptions.TaskAlreadyExistsError |  common_exceptions.RepositoryError:
+    async def execute(self, data: dto.DeleteTaskInDTO) -> None | common_exceptions.TaskNotFoundError | common_exceptions.UserNotFoundError | exceptions.TaskAuthorizationError | common_exceptions.InvalidTokenError | common_exceptions.TaskAlreadyExistsError |  common_exceptions.RepositoryError:
         actor_uuid = self.context.get_current_user_uuid()
-        if isinstance(actor_uuid, common_exceptions.InvalidToken):
+        if isinstance(actor_uuid, common_exceptions.InvalidTokenError):
             raise actor_uuid
 
         actor = await self.user_repository.get_by_uuid(actor_uuid)
@@ -273,9 +273,9 @@ class GetTaskListInteractor:
         self.authorization_policy = authorization_policy
         self.context = context
 
-    async def execute(self, data: dto.ListTasksInDTO) -> dto.ListTasksOutDTO | common_exceptions.StageNotFoundError | common_exceptions.UserNotFoundError | exceptions.TaskAuthorizationError | common_exceptions.InvalidToken | common_exceptions.RepositoryError:
+    async def execute(self, data: dto.ListTasksInDTO) -> dto.ListTasksOutDTO | common_exceptions.StageNotFoundError | common_exceptions.UserNotFoundError | exceptions.TaskAuthorizationError | common_exceptions.InvalidTokenError | common_exceptions.RepositoryError:
         actor_uuid = self.context.get_current_user_uuid()
-        if isinstance(actor_uuid, common_exceptions.InvalidToken):
+        if isinstance(actor_uuid, common_exceptions.InvalidTokenError):
             raise actor_uuid
 
         actor = await self.user_repository.get_by_uuid(actor_uuid)

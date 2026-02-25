@@ -1,0 +1,2262 @@
+openapi: 3.0.3
+info:
+  title: HTimer API
+  version: 1.0.0
+  description: |
+    REST API contract from application, domain and policy layers.
+
+    Domain-driven constraints covered in this spec:
+    - Authorization is policy-based and may reject valid payloads with 403.
+    - Business state transitions are validated in domain entities and return 422 (for example task/stage/project/subscription lifecycle restrictions).
+    - Repository and external gateway failures are modeled separately (500 for repository, 502 for payment gateway).
+
+    Key business rules:
+    - User creation is restricted to admin actors.
+    - Project creation is restricted to admin actors.
+    - Subscription/payment creation and subscription update are restricted to project creator.
+    - Task creation is allowed only in substage (not root stage).
+    - Stage/task/project updates may be blocked by inactive/cancelled subscription or archived/completed statuses.
+
+servers:
+  - url: /api/v1
+
+tags:
+  - name: Auth
+  - name: User
+  - name: Project
+  - name: Stage
+  - name: Task
+  - name: DailyLog
+  - name: DailyLogFile
+  - name: Subscription
+  - name: Payment
+
+security:
+  - bearerAuth: []
+
+x-error-codes-by-endpoint:
+  POST /users/login: [INVALID_CREDENTIALS, VALIDATION_ERROR, REPOSITORY_ERROR]
+  POST /users: [INVALID_TOKEN, FORBIDDEN, EMAIL_ALREADY_EXISTS, VALIDATION_ERROR, REPOSITORY_ERROR]
+  GET /users: [INVALID_TOKEN, FORBIDDEN, USER_NOT_FOUND, PROJECT_NOT_FOUND, REPOSITORY_ERROR]
+  PATCH /users/me: [INVALID_TOKEN, FORBIDDEN, USER_NOT_FOUND, EMAIL_ALREADY_EXISTS, VALIDATION_ERROR, CANT_UPDATE_USER, REPOSITORY_ERROR]
+  PATCH /users/{user_uuid}: [INVALID_TOKEN, FORBIDDEN, USER_NOT_FOUND, EMAIL_ALREADY_EXISTS, VALIDATION_ERROR, CANT_UPDATE_USER, REPOSITORY_ERROR]
+  POST /users/password/reset: [INVALID_TOKEN, FORBIDDEN, USER_NOT_FOUND, VALIDATION_ERROR, CANT_RESET_PASSWORD, REPOSITORY_ERROR]
+  POST /projects: [INVALID_TOKEN, FORBIDDEN, USER_ALREADY_HAS_PROJECT, USER_NOT_FOUND, VALIDATION_ERROR, REPOSITORY_ERROR]
+  GET /projects: [INVALID_TOKEN, USER_NOT_FOUND, PROJECT_NOT_FOUND, REPOSITORY_ERROR]
+  GET /projects/{project_uuid}: [INVALID_TOKEN, FORBIDDEN, USER_NOT_FOUND, PROJECT_NOT_FOUND, REPOSITORY_ERROR]
+  PATCH /projects/{project_uuid}: [INVALID_TOKEN, FORBIDDEN, PROJECT_NOT_FOUND, SUBSCRIPTION_NOT_FOUND, USER_ALREADY_HAS_PROJECT, VALIDATION_ERROR, CANT_UPDATE_PROJECT, REPOSITORY_ERROR]
+  POST /projects/{project_uuid}/members: [INVALID_TOKEN, FORBIDDEN, PROJECT_NOT_FOUND, USER_NOT_FOUND, USER_ALREADY_PROJECT_MEMBER, REPOSITORY_ERROR]
+  DELETE /projects/{project_uuid}/members: [INVALID_TOKEN, FORBIDDEN, PROJECT_NOT_FOUND, MEMBER_NOT_FOUND, REPOSITORY_ERROR]
+  POST /stages: [INVALID_TOKEN, FORBIDDEN, PROJECT_NOT_FOUND, USER_NOT_FOUND, STAGE_ALREADY_EXISTS, VALIDATION_ERROR, CANT_CREATE_STAGE, REPOSITORY_ERROR]
+  GET /projects/{project_uuid}/stages: [INVALID_TOKEN, FORBIDDEN, PROJECT_NOT_FOUND, USER_NOT_FOUND, REPOSITORY_ERROR]
+  PATCH /stages/{stage_uuid}: [INVALID_TOKEN, FORBIDDEN, STAGE_NOT_FOUND, USER_NOT_FOUND, VALIDATION_ERROR, CANT_UPDATE_STAGE, REPOSITORY_ERROR]
+  DELETE /stages/{stage_uuid}: [INVALID_TOKEN, FORBIDDEN, STAGE_NOT_FOUND, USER_NOT_FOUND, REPOSITORY_ERROR]
+  POST /tasks: [INVALID_TOKEN, FORBIDDEN, STAGE_NOT_FOUND, USER_NOT_FOUND, TASK_ALREADY_EXISTS, VALIDATION_ERROR, CANT_CREATE_TASK, REPOSITORY_ERROR]
+  GET /tasks/{task_uuid}: [INVALID_TOKEN, FORBIDDEN, TASK_NOT_FOUND, USER_NOT_FOUND, REPOSITORY_ERROR]
+  PATCH /tasks/{task_uuid}: [INVALID_TOKEN, FORBIDDEN, TASK_NOT_FOUND, STAGE_NOT_FOUND, USER_NOT_FOUND, TASK_ALREADY_EXISTS, VALIDATION_ERROR, CANT_UPDATE_TASK, REPOSITORY_ERROR]
+  DELETE /tasks/{task_uuid}: [INVALID_TOKEN, FORBIDDEN, TASK_NOT_FOUND, USER_NOT_FOUND, REPOSITORY_ERROR]
+  GET /stages/{substage_uuid}/tasks: [INVALID_TOKEN, FORBIDDEN, STAGE_NOT_FOUND, USER_NOT_FOUND, REPOSITORY_ERROR]
+  POST /daily-logs: [INVALID_TOKEN, FORBIDDEN, USER_NOT_FOUND, PROJECT_NOT_FOUND, STAGE_NOT_FOUND, INVALID_DATE, VALIDATION_ERROR, REPOSITORY_ERROR]
+  GET /daily-logs/{daily_log_uuid}: [INVALID_TOKEN, FORBIDDEN, DAILY_LOG_NOT_FOUND, USER_NOT_FOUND, REPOSITORY_ERROR]
+  PATCH /daily-logs/{daily_log_uuid}: [INVALID_TOKEN, FORBIDDEN, DAILY_LOG_NOT_FOUND, USER_NOT_FOUND, VALIDATION_ERROR, REPOSITORY_ERROR]
+  GET /projects/{project_uuid}/daily-logs: [INVALID_TOKEN, FORBIDDEN, PROJECT_NOT_FOUND, USER_NOT_FOUND, REPOSITORY_ERROR]
+  POST /daily-logs/{daily_log_uuid}/files: [INVALID_TOKEN, FORBIDDEN, DAILY_LOG_NOT_FOUND, USER_NOT_FOUND, FILE_ALREADY_EXISTS, REPOSITORY_ERROR]
+  GET /daily-logs/{daily_log_uuid}/files: [INVALID_TOKEN, FORBIDDEN, DAILY_LOG_NOT_FOUND, USER_NOT_FOUND, FILE_NOT_FOUND, REPOSITORY_ERROR]
+  GET /daily-logs/{daily_log_uuid}/files/{file_uuid}: [INVALID_TOKEN, FORBIDDEN, DAILY_LOG_NOT_FOUND, USER_NOT_FOUND, FILE_NOT_FOUND, REPOSITORY_ERROR]
+  DELETE /daily-logs/{daily_log_uuid}/files/{file_uuid}: [INVALID_TOKEN, FORBIDDEN, DAILY_LOG_NOT_FOUND, USER_NOT_FOUND, FILE_NOT_FOUND, REPOSITORY_ERROR]
+  POST /subscriptions: [INVALID_TOKEN, FORBIDDEN, USER_NOT_FOUND, PROJECT_NOT_FOUND, SUBSCRIPTION_ALREADY_EXISTS, CANT_CREATE_SUBSCRIPTION, REPOSITORY_ERROR]
+  PATCH /subscriptions: [INVALID_TOKEN, FORBIDDEN, USER_NOT_FOUND, PROJECT_NOT_FOUND, SUBSCRIPTION_NOT_FOUND, CANT_UPDATE_SUBSCRIPTION, REPOSITORY_ERROR]
+  POST /subscriptions/activate: [PROJECT_NOT_FOUND, SUBSCRIPTION_NOT_FOUND, PAYMENT_NOT_FOUND, PAYMENT_NOT_COMPLETE, PAYMENT_NOT_EXISTS, CANT_ACTIVATE_SUBSCRIPTION, REPOSITORY_ERROR]
+  POST /subscriptions/extend: [PROJECT_NOT_FOUND, SUBSCRIPTION_NOT_FOUND, PAYMENT_NOT_FOUND, PAYMENT_NOT_COMPLETE, PAYMENT_NOT_EXISTS, CANT_EXTEND_SUBSCRIPTION, REPOSITORY_ERROR]
+  POST /subscriptions/complete-and-update: [PROJECT_NOT_FOUND, SUBSCRIPTION_NOT_FOUND, PAYMENT_NOT_FOUND, PAYMENT_NOT_COMPLETE, PAYMENT_NOT_EXISTS, CANT_COMPLETE_PAYMENT, CANT_ACTIVATE_SUBSCRIPTION, CANT_EXTEND_SUBSCRIPTION, REPOSITORY_ERROR]
+  POST /payments: [INVALID_TOKEN, FORBIDDEN, USER_NOT_FOUND, PROJECT_NOT_FOUND, SUBSCRIPTION_NOT_FOUND, CANT_CREATE_PAYMENT, PAYMENT_FAILED, REPOSITORY_ERROR]
+  POST /payments/{payment_uuid}/complete: [PAYMENT_NOT_FOUND, PAYMENT_NOT_COMPLETE, PAYMENT_NOT_EXISTS, CANT_COMPLETE_PAYMENT, REPOSITORY_ERROR]
+
+x-policy-by-endpoint:
+  POST /users/login:
+    policy: none
+    rule: Public endpoint. Valid credentials required.
+  POST /users:
+    policy: UserAuthorizationPolicy.decide_create_user
+    rule: Actor must be admin.
+  GET /users:
+    policy: UserAuthorizationPolicy.decide_get_users_list
+    rule: Requested projects must be within actor accessible projects.
+  PATCH /users/me:
+    policy: UserAuthorizationPolicy.decide_update_user
+    rule: Self-update is allowed, but changing own role/status is restricted by domain rule.
+  PATCH /users/{user_uuid}:
+    policy: UserAuthorizationPolicy.decide_update_user
+    rule: Actor must be target creator.
+  POST /users/password/reset:
+    policy: UserAuthorizationPolicy.decide_reset_user_password
+    rule: Actor must be target creator and cannot reset own password.
+
+  POST /projects:
+    policy: ProjectAuthorizationPolicy.decide_create_project
+    rule: Actor must be admin.
+  GET /projects:
+    policy: none
+    rule: Returns projects available to current user.
+  GET /projects/{project_uuid}:
+    policy: ProjectAuthorizationPolicy.decide_get_project
+    rule: Actor must be project member.
+  PATCH /projects/{project_uuid}:
+    policy: ProjectAuthorizationPolicy.decide_update_project
+    rule: Actor must be project creator or project admin/member according to policy.
+  POST /projects/{project_uuid}/members:
+    policy: ProjectAuthorizationPolicy.decide_update_project
+    rule: Same access rule as project update.
+  DELETE /projects/{project_uuid}/members:
+    policy: ProjectAuthorizationPolicy.decide_update_project
+    rule: Same access rule as project update.
+
+  POST /stages:
+    policy: StageAuthorizationPolicy.decide_create_stage
+    rule: Actor must be project member and satisfy stage creation policy.
+  GET /projects/{project_uuid}/stages:
+    policy: StageAuthorizationPolicy.decide_get_stage_list
+    rule: Actor must be project member.
+  PATCH /stages/{stage_uuid}:
+    policy: StageAuthorizationPolicy.decide_update_stage
+    rule: Actor must be project member and satisfy stage update policy.
+  DELETE /stages/{stage_uuid}:
+    policy: StageAuthorizationPolicy.decide_update_stage
+    rule: Same access rule as stage update.
+
+  POST /tasks:
+    policy: TaskAuthorizationPolicy.decide_create_task
+    rule: Actor must be project member.
+  GET /tasks/{task_uuid}:
+    policy: TaskAuthorizationPolicy.decide_get_task
+    rule: Actor must be project member.
+  PATCH /tasks/{task_uuid}:
+    policy: TaskAuthorizationPolicy.decide_update_task
+    rule: Actor must be project member.
+  DELETE /tasks/{task_uuid}:
+    policy: TaskAuthorizationPolicy.decide_delete_task
+    rule: Actor must be project member.
+  GET /stages/{substage_uuid}/tasks:
+    policy: TaskAuthorizationPolicy.decide_get_task
+    rule: Actor must be project member.
+
+  POST /daily-logs:
+    policy: DailyLogAuthorizationPolicy.decide_create_daily_log
+    rule: Actor must be allowed by daily log creation policy.
+  GET /daily-logs/{daily_log_uuid}:
+    policy: DailyLogAuthorizationPolicy.decide_get_daily_log
+    rule: Actor must be log creator, project creator, admin, or project member by policy.
+  PATCH /daily-logs/{daily_log_uuid}:
+    policy: DailyLogAuthorizationPolicy.decide_update_daily_log
+    rule: Actor must be daily log creator.
+  GET /projects/{project_uuid}/daily-logs:
+    policy: DailyLogAuthorizationPolicy.decide_get_daily_log_list
+    rule: Actor must be allowed to query target user logs in project context.
+  POST /daily-logs/{daily_log_uuid}/files:
+    policy: DailyLogAuthorizationPolicy.decide_update_daily_log
+    rule: Actor must be daily log creator.
+  GET /daily-logs/{daily_log_uuid}/files:
+    policy: DailyLogAuthorizationPolicy.decide_get_daily_log
+    rule: Same access rule as getting daily log.
+  GET /daily-logs/{daily_log_uuid}/files/{file_uuid}:
+    policy: DailyLogAuthorizationPolicy.decide_get_daily_log
+    rule: Same access rule as getting daily log.
+  DELETE /daily-logs/{daily_log_uuid}/files/{file_uuid}:
+    policy: DailyLogAuthorizationPolicy.decide_update_daily_log
+    rule: Actor must be daily log creator.
+
+  POST /subscriptions:
+    policy: SubscriptionAuthorizationPolicy.decide_create_subscription
+    rule: Actor must be project creator.
+  PATCH /subscriptions:
+    policy: SubscriptionAuthorizationPolicy.decide_update_subscription
+    rule: Actor must be project creator.
+  POST /subscriptions/activate:
+    policy: none
+    rule: System/payment flow endpoint; enforce server-side trust boundary (internal call or signed webhook).
+  POST /subscriptions/extend:
+    policy: none
+    rule: System/payment flow endpoint; enforce server-side trust boundary (internal call or signed webhook).
+  POST /subscriptions/complete-and-update:
+    policy: none
+    rule: Orchestration endpoint for payment/subscription flow; prefer internal use.
+
+  POST /payments:
+    policy: SubscriptionAuthorizationPolicy.decide_create_payment
+    rule: Actor must be project creator.
+  POST /payments/{payment_uuid}/complete:
+    policy: none
+    rule: System/payment confirmation endpoint; prefer internal use or signed webhook.
+
+paths:
+  /users/login:
+    post:
+      tags: [Auth]
+      summary: Login user
+      operationId: loginUser
+      x-use-case: LoginUserInteractor
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginUserRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginUserResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalRepositoryError'
+
+  /users:
+    post:
+      tags: [User]
+      summary: Create user
+      operationId: createUser
+      x-use-case: CreateUserInteractor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+      responses:
+        '201':
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateUserResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalRepositoryError'
+
+    get:
+      tags: [User]
+      summary: Get users list
+      operationId: getUsersList
+      x-use-case: GetUsersListInteractor
+      parameters:
+        - in: query
+          name: projects_names
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+          style: form
+          explode: true
+        - in: query
+          name: is_active
+          required: false
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Users list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetUserListResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalRepositoryError'
+
+  /users/me:
+    patch:
+      tags: [User]
+      summary: Update current user
+      operationId: updateCurrentUser
+      x-use-case: UpdateUserInteractor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRequest'
+      responses:
+        '200':
+          description: User updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateUserResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalRepositoryError'
+
+  /users/{user_uuid}:
+    patch:
+      tags: [User]
+      summary: Update target user
+      operationId: updateUserById
+      x-use-case: UpdateUserInteractor
+      parameters:
+        - $ref: '#/components/parameters/UserUUID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/UpdateUserRequest'
+                - type: object
+                  properties:
+                    uuid:
+                      type: string
+                      format: uuid
+      responses:
+        '200':
+          description: User updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateUserResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalRepositoryError'
+
+  /users/password/reset:
+    post:
+      tags: [User]
+      summary: Reset password
+      operationId: resetUserPassword
+      x-use-case: ResetUserPasswordInteractor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetPasswordRequest'
+      responses:
+        '204':
+          description: Password reset
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalRepositoryError'
+
+  /projects:
+    post:
+      tags: [Project]
+      summary: Create project
+      operationId: createProject
+      x-use-case: CreateProjectInteractor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProjectRequest'
+      responses:
+        '201':
+          description: Project created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateProjectResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalRepositoryError'
+
+    get:
+      tags: [Project]
+      summary: Get current user projects
+      operationId: getProjectList
+      x-use-case: GetProjectListInteractor
+      responses:
+        '200':
+          description: Projects list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetProjectListResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalRepositoryError'
+
+  /projects/{project_uuid}:
+    get:
+      tags: [Project]
+      summary: Get project details
+      operationId: getProject
+      x-use-case: GetProjectInteractor
+      parameters:
+        - $ref: '#/components/parameters/ProjectUUID'
+      responses:
+        '200':
+          description: Project with members
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetProjectResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalRepositoryError'
+
+    patch:
+      tags: [Project]
+      summary: Update project
+      operationId: updateProject
+      x-use-case: UpdateProjectInteractor
+      parameters:
+        - $ref: '#/components/parameters/ProjectUUID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProjectRequest'
+      responses:
+        '200':
+          description: Project updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateProjectResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalRepositoryError'
+
+  /projects/{project_uuid}/members:
+    post:
+      tags: [Project]
+      summary: Add members to project
+      operationId: addMembersToProject
+      x-use-case: AddMembersToProjectInteractor
+      parameters:
+        - $ref: '#/components/parameters/ProjectUUID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddMembersRequest'
+      responses:
+        '200':
+          description: Members added
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddMembersResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+        '500':
+          $ref: '#/components/responses/InternalRepositoryError'
+
+    delete:
+      tags: [Project]
+      summary: Remove members from project
+      operationId: removeMembersFromProject
+      x-use-case: RemoveMembersFromProjectInteractor
+      parameters:
+        - $ref: '#/components/parameters/ProjectUUID'
+        - in: query
+          name: members_uuids
+          required: true
+          schema:
+            type: array
+            minItems: 1
+            items:
+              type: string
+              format: uuid
+          style: form
+          explode: true
+      responses:
+        '204':
+          description: Members removed
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalRepositoryError'
+
+  /stages:
+    post:
+      tags: [Stage]
+      summary: Create stage
+      operationId: createStage
+      x-use-case: CreateStageInteractor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateStageRequest'
+      responses:
+        '201':
+          description: Stage created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateStageResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalRepositoryError'
+
+  /projects/{project_uuid}/stages:
+    get:
+      tags: [Stage]
+      summary: Get project stages
+      operationId: getStageList
+      x-use-case: GetStageListInteractor
+      parameters:
+        - $ref: '#/components/parameters/ProjectUUID'
+      responses:
+        '200':
+          description: Stages list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetStageListResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalRepositoryError'
+
+  /stages/{stage_uuid}:
+    patch:
+      tags: [Stage]
+      summary: Update stage
+      operationId: updateStage
+      x-use-case: UpdateStageInteractor
+      parameters:
+        - $ref: '#/components/parameters/StageUUID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateStageRequest'
+      responses:
+        '200':
+          description: Stage updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateStageResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalRepositoryError'
+
+    delete:
+      tags: [Stage]
+      summary: Delete stage
+      operationId: deleteStage
+      x-use-case: DeleteStageInteractor
+      parameters:
+        - $ref: '#/components/parameters/StageUUID'
+      responses:
+        '204':
+          description: Stage deleted
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalRepositoryError'
+
+  /tasks:
+    post:
+      tags: [Task]
+      summary: Create task
+      operationId: createTask
+      x-use-case: CreateTaskInteractor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTaskRequest'
+      responses:
+        '201':
+          description: Task created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateTaskResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalRepositoryError'
+
+  /tasks/{task_uuid}:
+    get:
+      tags: [Task]
+      summary: Get task
+      operationId: getTask
+      x-use-case: GetTaskInteractor
+      parameters:
+        - $ref: '#/components/parameters/TaskUUID'
+      responses:
+        '200':
+          description: Task details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetTaskResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalRepositoryError'
+
+    patch:
+      tags: [Task]
+      summary: Update task
+      operationId: updateTask
+      x-use-case: UpdateTaskInteractor
+      parameters:
+        - $ref: '#/components/parameters/TaskUUID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTaskRequest'
+      responses:
+        '200':
+          description: Task updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateTaskResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalRepositoryError'
+
+    delete:
+      tags: [Task]
+      summary: Delete task
+      operationId: deleteTask
+      x-use-case: DeleteTaskInteractor
+      parameters:
+        - $ref: '#/components/parameters/TaskUUID'
+      responses:
+        '204':
+          description: Task deleted
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalRepositoryError'
+
+  /stages/{substage_uuid}/tasks:
+    get:
+      tags: [Task]
+      summary: Get substage tasks
+      operationId: listTasks
+      x-use-case: GetTaskListInteractor
+      parameters:
+        - in: path
+          name: substage_uuid
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Tasks list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListTasksResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalRepositoryError'
+
+  /daily-logs:
+    post:
+      tags: [DailyLog]
+      summary: Create daily log
+      operationId: createDailyLog
+      x-use-case: CreateDailyLogInteractor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDailyLogRequest'
+      responses:
+        '201':
+          description: Daily log created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateDailyLogResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalRepositoryError'
+
+  /daily-logs/{daily_log_uuid}:
+    get:
+      tags: [DailyLog]
+      summary: Get daily log
+      operationId: getDailyLog
+      x-use-case: GetDailyLogInteractor
+      parameters:
+        - $ref: '#/components/parameters/DailyLogUUID'
+      responses:
+        '200':
+          description: Daily log details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetDailyLogResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalRepositoryError'
+
+    patch:
+      tags: [DailyLog]
+      summary: Update daily log
+      operationId: updateDailyLog
+      x-use-case: UpdateDailyLogInteractor
+      parameters:
+        - $ref: '#/components/parameters/DailyLogUUID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateDailyLogRequest'
+      responses:
+        '200':
+          description: Daily log updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateDailyLogResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalRepositoryError'
+
+  /projects/{project_uuid}/daily-logs:
+    get:
+      tags: [DailyLog]
+      summary: Get daily logs by project and date
+      operationId: getDailyLogList
+      x-use-case: GetDailyLogListInteractor
+      parameters:
+        - $ref: '#/components/parameters/ProjectUUID'
+        - in: query
+          name: date
+          required: true
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: user_uuid
+          required: false
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Daily logs list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetDailyLogListResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalRepositoryError'
+
+  /daily-logs/{daily_log_uuid}/files:
+    post:
+      tags: [DailyLogFile]
+      summary: Create file for daily log
+      operationId: createDailyLogFile
+      x-use-case: CreateDailyLogFileInteractor
+      parameters:
+        - $ref: '#/components/parameters/DailyLogUUID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDailyLogFileRequest'
+      responses:
+        '201':
+          description: Upload link created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateDailyLogFileResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+        '500':
+          $ref: '#/components/responses/InternalRepositoryError'
+
+    get:
+      tags: [DailyLogFile]
+      summary: Get daily log files
+      operationId: getDailyLogFileList
+      x-use-case: GetDailyLogFileListInteractor
+      parameters:
+        - $ref: '#/components/parameters/DailyLogUUID'
+      responses:
+        '200':
+          description: Daily log files
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetDailyLogFileListResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalRepositoryError'
+
+  /daily-logs/{daily_log_uuid}/files/{file_uuid}:
+    get:
+      tags: [DailyLogFile]
+      summary: Get daily log file action link
+      operationId: getDailyLogFile
+      x-use-case: GetDailyLogFileInteractor
+      parameters:
+        - $ref: '#/components/parameters/DailyLogUUID'
+        - $ref: '#/components/parameters/FileUUID'
+      responses:
+        '200':
+          description: File action link
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetDailyLogFileResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalRepositoryError'
+
+    delete:
+      tags: [DailyLogFile]
+      summary: Remove daily log file
+      operationId: removeDailyLogFile
+      x-use-case: RemoveDailyLogFileInteractor
+      parameters:
+        - $ref: '#/components/parameters/DailyLogUUID'
+        - $ref: '#/components/parameters/FileUUID'
+      responses:
+        '200':
+          description: Removed file result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetDailyLogFileResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalRepositoryError'
+
+  /subscriptions:
+    post:
+      tags: [Subscription]
+      summary: Create subscription
+      operationId: createSubscription
+      x-use-case: CreateSubscriptionInteractor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSubscriptionRequest'
+      responses:
+        '201':
+          description: Subscription created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateSubscriptionResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalRepositoryError'
+
+    patch:
+      tags: [Subscription]
+      summary: Update subscription settings/status
+      operationId: updateSubscription
+      x-use-case: UpdateSubscriptionInteractor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSubscriptionRequest'
+      responses:
+        '204':
+          description: Subscription updated
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalRepositoryError'
+
+  /subscriptions/activate:
+    post:
+      tags: [Subscription]
+      summary: Activate subscription using payment
+      operationId: activateSubscription
+      x-use-case: ActivateSubscriptionInteractor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActivateSubscriptionRequest'
+      responses:
+        '204':
+          description: Subscription activated
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalRepositoryError'
+        '502':
+          $ref: '#/components/responses/PaymentGatewayError'
+
+  /subscriptions/extend:
+    post:
+      tags: [Subscription]
+      summary: Extend subscription using payment
+      operationId: extendSubscription
+      x-use-case: ExtendSubscriptionInteractor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExtendSubscriptionRequest'
+      responses:
+        '204':
+          description: Subscription extended
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalRepositoryError'
+        '502':
+          $ref: '#/components/responses/PaymentGatewayError'
+
+  /subscriptions/complete-and-update:
+    post:
+      tags: [Subscription]
+      summary: Complete payment and then activate/extend subscription
+      operationId: completePaymentAndUpdateSubscription
+      x-use-case: CompletePaymentAndUpdateSubscriptionInteractor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompletePaymentAndUpdateSubscriptionRequest'
+      responses:
+        '204':
+          description: Completed and updated
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalRepositoryError'
+        '502':
+          $ref: '#/components/responses/PaymentGatewayError'
+
+  /payments:
+    post:
+      tags: [Payment]
+      summary: Create payment and return process link
+      operationId: createPayment
+      x-use-case: CreatePaymentInteractor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePaymentRequest'
+      responses:
+        '201':
+          description: Payment created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreatePaymentResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalRepositoryError'
+        '502':
+          $ref: '#/components/responses/PaymentGatewayError'
+
+  /payments/{payment_uuid}/complete:
+    post:
+      tags: [Payment]
+      summary: Complete payment
+      operationId: completePayment
+      x-use-case: CompletePaymentInteractor
+      parameters:
+        - in: path
+          name: payment_uuid
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Payment completed
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalRepositoryError'
+        '502':
+          $ref: '#/components/responses/PaymentGatewayError'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    UserUUID:
+      in: path
+      name: user_uuid
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ProjectUUID:
+      in: path
+      name: project_uuid
+      required: true
+      schema:
+        type: string
+        format: uuid
+    StageUUID:
+      in: path
+      name: stage_uuid
+      required: true
+      schema:
+        type: string
+        format: uuid
+    TaskUUID:
+      in: path
+      name: task_uuid
+      required: true
+      schema:
+        type: string
+        format: uuid
+    DailyLogUUID:
+      in: path
+      name: daily_log_uuid
+      required: true
+      schema:
+        type: string
+        format: uuid
+    FileUUID:
+      in: path
+      name: file_uuid
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    UnauthorizedError:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            invalid_token:
+              value:
+                error:
+                  code: INVALID_TOKEN
+                  message: Invalid or expired token.
+            invalid_credentials:
+              value:
+                error:
+                  code: INVALID_CREDENTIALS
+                  message: Invalid email or password.
+    ForbiddenError:
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            forbidden:
+              value:
+                error:
+                  code: FORBIDDEN
+                  message: You are not allowed to perform this operation.
+            not_project_member:
+              value:
+                error:
+                  code: USER_NOT_PROJECT_MEMBER
+                  message: User is not a member of this project.
+            not_project_creator:
+              value:
+                error:
+                  code: USER_NOT_PROJECT_CREATOR
+                  message: User is not a project creator.
+    NotFoundError:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            user_not_found:
+              value:
+                error:
+                  code: USER_NOT_FOUND
+                  message: User not found.
+            project_not_found:
+              value:
+                error:
+                  code: PROJECT_NOT_FOUND
+                  message: Project not found.
+            stage_not_found:
+              value:
+                error:
+                  code: STAGE_NOT_FOUND
+                  message: Stage not found.
+            task_not_found:
+              value:
+                error:
+                  code: TASK_NOT_FOUND
+                  message: Task not found.
+    ConflictError:
+      description: Conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            email_exists:
+              value:
+                error:
+                  code: EMAIL_ALREADY_EXISTS
+                  message: Email already exists.
+            user_already_project_member:
+              value:
+                error:
+                  code: USER_ALREADY_PROJECT_MEMBER
+                  message: User is already a project member.
+            stage_exists:
+              value:
+                error:
+                  code: STAGE_ALREADY_EXISTS
+                  message: Stage already exists.
+    ValidationError:
+      description: Validation or business rule error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            invalid_payload:
+              value:
+                error:
+                  code: VALIDATION_ERROR
+                  message: Request payload validation failed.
+            cant_update_project:
+              value:
+                error:
+                  code: CANT_UPDATE_PROJECT
+                  message: Project cannot be updated in current state.
+            cant_create_task:
+              value:
+                error:
+                  code: CANT_CREATE_TASK
+                  message: Task can be created only in substage.
+            cant_update_task:
+              value:
+                error:
+                  code: CANT_UPDATE_TASK
+                  message: Task cannot be updated in current state.
+            cant_create_subscription:
+              value:
+                error:
+                  code: CANT_CREATE_SUBSCRIPTION
+                  message: Subscription cannot be created in current state.
+    InternalRepositoryError:
+      description: Internal repository error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            repository_error:
+              value:
+                error:
+                  code: REPOSITORY_ERROR
+                  message: Internal storage error.
+    PaymentGatewayError:
+      description: External payment gateway error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            payment_failed:
+              value:
+                error:
+                  code: PAYMENT_FAILED
+                  message: Payment gateway failed to create payment.
+            payment_not_complete:
+              value:
+                error:
+                  code: PAYMENT_NOT_COMPLETE
+                  message: Payment is not completed yet.
+            payment_not_exists:
+              value:
+                error:
+                  code: PAYMENT_NOT_EXISTS
+                  message: Payment does not exist in gateway.
+
+  schemas:
+    ErrorCode:
+      type: string
+      description: Machine-readable error code.
+      enum:
+        - INVALID_TOKEN
+        - INVALID_CREDENTIALS
+        - FORBIDDEN
+        - USER_NOT_PROJECT_MEMBER
+        - USER_NOT_PROJECT_CREATOR
+        - USER_NOT_FOUND
+        - PROJECT_NOT_FOUND
+        - STAGE_NOT_FOUND
+        - TASK_NOT_FOUND
+        - DAILY_LOG_NOT_FOUND
+        - FILE_NOT_FOUND
+        - SUBSCRIPTION_NOT_FOUND
+        - PAYMENT_NOT_FOUND
+        - EMAIL_ALREADY_EXISTS
+        - USER_ALREADY_HAS_PROJECT
+        - USER_ALREADY_PROJECT_MEMBER
+        - STAGE_ALREADY_EXISTS
+        - PARENT_STAGE_ALREADY_HAS_MAIN_SUBSTAGE
+        - TASK_ALREADY_EXISTS
+        - SUBSCRIPTION_ALREADY_EXISTS
+        - FILE_ALREADY_EXISTS
+        - MEMBER_NOT_FOUND
+        - VALIDATION_ERROR
+        - INVALID_DATE
+        - CANT_UPDATE_USER
+        - CANT_RESET_PASSWORD
+        - CANT_UPDATE_PROJECT
+        - CANT_CREATE_STAGE
+        - CANT_UPDATE_STAGE
+        - CANT_CREATE_TASK
+        - CANT_UPDATE_TASK
+        - CANT_CREATE_SUBSCRIPTION
+        - CANT_UPDATE_SUBSCRIPTION
+        - CANT_ACTIVATE_SUBSCRIPTION
+        - CANT_EXTEND_SUBSCRIPTION
+        - CANT_CREATE_PAYMENT
+        - CANT_COMPLETE_PAYMENT
+        - PAYMENT_FAILED
+        - PAYMENT_NOT_COMPLETE
+        - PAYMENT_NOT_EXISTS
+        - REPOSITORY_ERROR
+
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              $ref: '#/components/schemas/ErrorCode'
+            message:
+              type: string
+            details:
+              type: object
+              additionalProperties: true
+
+    UserRole:
+      type: string
+      enum: [admin, executor]
+    UserStatus:
+      type: string
+      enum: [active, blocked, archived]
+    ProjectStatus:
+      type: string
+      enum: [active, archived, blocked, completed]
+    StageStatus:
+      type: string
+      enum: [active, completed, archived]
+    SubscriptionStatus:
+      type: string
+      enum: [active, unactive, expired, cancelled]
+    PaymentCurrency:
+      type: string
+      enum: [RUB]
+
+    User:
+      type: object
+      required: [uuid, name, email, role, status, created_at]
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          $ref: '#/components/schemas/UserRole'
+        status:
+          $ref: '#/components/schemas/UserStatus'
+        created_at:
+          type: string
+          format: date
+        last_login:
+          type: string
+          format: date
+          nullable: true
+
+    Project:
+      type: object
+      required: [uuid, name, creator, created_at, status]
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        name:
+          type: string
+          maxLength: 150
+        description:
+          type: string
+          nullable: true
+          maxLength: 500
+        creator:
+          $ref: '#/components/schemas/User'
+        created_at:
+          type: string
+          format: date
+        status:
+          $ref: '#/components/schemas/ProjectStatus'
+        start_date:
+          type: string
+          format: date
+          nullable: true
+        end_date:
+          type: string
+          format: date
+          nullable: true
+
+    Stage:
+      type: object
+      required: [uuid, name, creator, created_at, project, status]
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        name:
+          type: string
+          maxLength: 150
+        description:
+          type: string
+          nullable: true
+          maxLength: 500
+        creator:
+          $ref: '#/components/schemas/User'
+        created_at:
+          type: string
+          format: date
+        project:
+          $ref: '#/components/schemas/Project'
+        parent:
+          $ref: '#/components/schemas/StageRef'
+        main_path:
+          type: boolean
+          nullable: true
+        status:
+          $ref: '#/components/schemas/StageStatus'
+
+    StageRef:
+      type: object
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        name:
+          type: string
+
+    Task:
+      type: object
+      required: [uuid, name, description, creator, created_at, substage, status]
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        name:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+          maxLength: 2000
+        creator:
+          $ref: '#/components/schemas/User'
+        created_at:
+          type: string
+          format: date
+        substage:
+          $ref: '#/components/schemas/Stage'
+        status:
+          type: string
+          enum: [pending, in_progress, completed, archived]
+        completion_date:
+          type: string
+          format: date
+          nullable: true
+
+    DailyLog:
+      type: object
+      required: [uuid, creator, project, created_at, draft, hours_spent, description]
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        creator:
+          $ref: '#/components/schemas/User'
+        project:
+          $ref: '#/components/schemas/Project'
+        created_at:
+          type: string
+          format: date
+        updated_at:
+          type: string
+          format: date
+          nullable: true
+        draft:
+          type: boolean
+        hours_spent:
+          type: number
+          format: float
+          minimum: 0
+        description:
+          type: string
+          maxLength: 2000
+        substage:
+          $ref: '#/components/schemas/StageRef'
+
+    File:
+      type: object
+      required: [uuid, filename, uri, uploaded_at]
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        filename:
+          type: string
+        uri:
+          type: string
+        uploaded_at:
+          type: string
+          format: date
+
+    ActionLink:
+      type: object
+      required: [link]
+      properties:
+        link:
+          type: string
+          format: uri
+          nullable: true
+
+    MemberShip:
+      type: object
+      required: [uuid, user, project, assigned_by, joined_at]
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        user:
+          $ref: '#/components/schemas/User'
+        project:
+          $ref: '#/components/schemas/Project'
+        assigned_by:
+          $ref: '#/components/schemas/User'
+        joined_at:
+          type: string
+          format: date
+
+    Subscription:
+      type: object
+      required: [uuid, project, created_at, auto_renew, status]
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        project:
+          $ref: '#/components/schemas/Project'
+        created_at:
+          type: string
+          format: date
+        auto_renew:
+          type: boolean
+        start_date:
+          type: string
+          format: date
+          nullable: true
+        end_date:
+          type: string
+          format: date
+          nullable: true
+        status:
+          $ref: '#/components/schemas/SubscriptionStatus'
+
+    LoginUserRequest:
+      type: object
+      required: [email, password]
+      example:
+        email: admin@example.com
+        password: secret123
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+
+    LoginUserResponse:
+      type: object
+      required: [token, user_uuid]
+      example:
+        token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        user_uuid: 74b7ef82-c6e1-4af2-a13e-40ab73cfab61
+      properties:
+        token:
+          type: string
+        user_uuid:
+          type: string
+          format: uuid
+
+    CreateUserRequest:
+      type: object
+      required: [name, email, password, role]
+      example:
+        name: Ivan Petrov
+        email: ivan.petrov@example.com
+        password: secret123
+        role: executor
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 150
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        password:
+          type: string
+          minLength: 8
+        role:
+          $ref: '#/components/schemas/UserRole'
+
+    CreateUserResponse:
+      type: object
+      required: [user_uuid]
+      properties:
+        user_uuid:
+          type: string
+          format: uuid
+
+    UpdateUserRequest:
+      type: object
+      example:
+        name: Ivan Petrov Updated
+        status: active
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 150
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        password:
+          type: string
+          minLength: 8
+        status:
+          $ref: '#/components/schemas/UserStatus'
+        role:
+          $ref: '#/components/schemas/UserRole'
+
+    UpdateUserResponse:
+      type: object
+      required: [user]
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+
+    ResetPasswordRequest:
+      type: object
+      required: [new_password]
+      properties:
+        user_uuid:
+          type: string
+          format: uuid
+          nullable: true
+        new_password:
+          type: string
+          minLength: 8
+
+    GetUserListResponse:
+      type: object
+      required: [users]
+      properties:
+        users:
+          type: array
+          items:
+            $ref: '#/components/schemas/User'
+
+    CreateProjectRequest:
+      type: object
+      required: [name]
+      example:
+        name: HTimer Core
+        description: Core product development
+        start_date: '2026-02-20'
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 150
+        description:
+          type: string
+          maxLength: 500
+          nullable: true
+        start_date:
+          type: string
+          format: date
+          nullable: true
+        end_date:
+          type: string
+          format: date
+          nullable: true
+
+    CreateProjectResponse:
+      type: object
+      required: [project]
+      properties:
+        project:
+          $ref: '#/components/schemas/Project'
+
+    UpdateProjectRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 150
+        description:
+          type: string
+          maxLength: 500
+          nullable: true
+        status:
+          $ref: '#/components/schemas/ProjectStatus'
+        start_date:
+          type: string
+          format: date
+          nullable: true
+        end_date:
+          type: string
+          format: date
+          nullable: true
+
+    UpdateProjectResponse:
+      type: object
+      required: [project]
+      properties:
+        project:
+          $ref: '#/components/schemas/Project'
+
+    GetProjectResponse:
+      type: object
+      required: [project, members]
+      properties:
+        project:
+          $ref: '#/components/schemas/Project'
+        members:
+          type: array
+          items:
+            $ref: '#/components/schemas/User'
+
+    GetProjectListResponse:
+      type: object
+      required: [projects]
+      properties:
+        projects:
+          type: array
+          items:
+            $ref: '#/components/schemas/Project'
+
+    AddMembersRequest:
+      type: object
+      required: [members_uuids]
+      properties:
+        members_uuids:
+          type: array
+          minItems: 1
+          items:
+            type: string
+            format: uuid
+
+    AddMembersResponse:
+      type: object
+      required: [members]
+      properties:
+        members:
+          type: array
+          items:
+            $ref: '#/components/schemas/MemberShip'
+
+    CreateStageRequest:
+      type: object
+      required: [name, project_uuid]
+      example:
+        name: Backend
+        project_uuid: 3f620258-b894-4f3e-a56f-c86a00f4de3d
+        description: Backend stage
+        main_path: true
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 150
+        project_uuid:
+          type: string
+          format: uuid
+        parent_uuid:
+          type: string
+          format: uuid
+          nullable: true
+        description:
+          type: string
+          maxLength: 500
+          nullable: true
+        main_path:
+          type: boolean
+          nullable: true
+
+    CreateStageResponse:
+      type: object
+      required: [stage]
+      properties:
+        stage:
+          $ref: '#/components/schemas/Stage'
+
+    UpdateStageRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 150
+        description:
+          type: string
+          maxLength: 500
+          nullable: true
+        status:
+          $ref: '#/components/schemas/StageStatus'
+
+    UpdateStageResponse:
+      type: object
+      required: [stage]
+      properties:
+        stage:
+          $ref: '#/components/schemas/Stage'
+
+    GetStageListResponse:
+      type: object
+      required: [stages]
+      properties:
+        stages:
+          type: array
+          items:
+            $ref: '#/components/schemas/Stage'
+
+    CreateTaskRequest:
+      type: object
+      required: [name, description, substage_uuid]
+      example:
+        name: Implement auth
+        description: Add JWT login and validation
+        substage_uuid: d18f783f-095f-4efe-92e1-a92018d8d9dc
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+          maxLength: 2000
+        substage_uuid:
+          type: string
+          format: uuid
+
+    CreateTaskResponse:
+      type: object
+      required: [task]
+      properties:
+        task:
+          $ref: '#/components/schemas/Task'
+
+    GetTaskResponse:
+      type: object
+      required: [task]
+      properties:
+        task:
+          $ref: '#/components/schemas/Task'
+
+    UpdateTaskRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+          maxLength: 2000
+        substage_uuid:
+          type: string
+          format: uuid
+        completed:
+          type: boolean
+
+    UpdateTaskResponse:
+      type: object
+      required: [task]
+      properties:
+        task:
+          $ref: '#/components/schemas/Task'
+
+    ListTasksResponse:
+      type: object
+      required: [tasks]
+      properties:
+        tasks:
+          type: array
+          items:
+            $ref: '#/components/schemas/Task'
+
+    CreateDailyLogRequest:
+      type: object
+      required: [date, project_uuid]
+      example:
+        date: '2026-02-20'
+        project_uuid: 3f620258-b894-4f3e-a56f-c86a00f4de3d
+        draft: false
+        hours_spent: 6.5
+        description: Implemented API contract and validation
+      properties:
+        date:
+          type: string
+          format: date
+        project_uuid:
+          type: string
+          format: uuid
+        draft:
+          type: boolean
+          default: false
+        hours_spent:
+          type: number
+          format: float
+          minimum: 0
+          default: 0
+        description:
+          type: string
+          maxLength: 2000
+          default: ''
+        substage_uuid:
+          type: string
+          format: uuid
+          nullable: true
+
+    CreateDailyLogResponse:
+      type: object
+      required: [daily_log]
+      properties:
+        daily_log:
+          $ref: '#/components/schemas/DailyLog'
+
+    GetDailyLogResponse:
+      type: object
+      required: [daily_log]
+      properties:
+        daily_log:
+          $ref: '#/components/schemas/DailyLog'
+
+    UpdateDailyLogRequest:
+      type: object
+      properties:
+        draft:
+          type: boolean
+        hours_spent:
+          type: number
+          format: float
+        description:
+          type: string
+          maxLength: 2000
+        substage_uuid:
+          type: string
+          format: uuid
+
+    UpdateDailyLogResponse:
+      type: object
+      required: [daily_log]
+      properties:
+        daily_log:
+          $ref: '#/components/schemas/DailyLog'
+
+    GetDailyLogListResponse:
+      type: object
+      required: [daily_logs]
+      properties:
+        daily_logs:
+          type: array
+          items:
+            $ref: '#/components/schemas/DailyLog'
+
+    CreateDailyLogFileRequest:
+      type: object
+      required: [filename]
+      properties:
+        filename:
+          type: string
+
+    CreateDailyLogFileResponse:
+      type: object
+      required: [file, action_link]
+      properties:
+        file:
+          $ref: '#/components/schemas/File'
+        action_link:
+          $ref: '#/components/schemas/ActionLink'
+
+    GetDailyLogFileResponse:
+      type: object
+      required: [file, action_link]
+      properties:
+        file:
+          $ref: '#/components/schemas/File'
+        action_link:
+          $ref: '#/components/schemas/ActionLink'
+
+    GetDailyLogFileListResponse:
+      type: object
+      required: [files]
+      properties:
+        files:
+          type: array
+          items:
+            type: object
+            required: [file, action_link]
+            properties:
+              file:
+                $ref: '#/components/schemas/File'
+              action_link:
+                $ref: '#/components/schemas/ActionLink'
+
+    CreateSubscriptionRequest:
+      type: object
+      required: [project_uuid]
+      example:
+        project_uuid: 3f620258-b894-4f3e-a56f-c86a00f4de3d
+      properties:
+        project_uuid:
+          type: string
+          format: uuid
+
+    CreateSubscriptionResponse:
+      type: object
+      required: [subscription]
+      properties:
+        subscription:
+          $ref: '#/components/schemas/Subscription'
+
+    UpdateSubscriptionRequest:
+      type: object
+      required: [project_uuid]
+      properties:
+        project_uuid:
+          type: string
+          format: uuid
+        auto_renew:
+          type: boolean
+          nullable: true
+        status:
+          $ref: '#/components/schemas/SubscriptionStatus'
+
+    CreatePaymentRequest:
+      type: object
+      required: [project_uuid, amount, currency]
+      example:
+        project_uuid: 3f620258-b894-4f3e-a56f-c86a00f4de3d
+        amount: 990.0
+        currency: RUB
+      properties:
+        project_uuid:
+          type: string
+          format: uuid
+        amount:
+          type: number
+          format: float
+          minimum: 0
+          exclusiveMinimum: true
+        currency:
+          allOf:
+            - $ref: '#/components/schemas/PaymentCurrency'
+          default: RUB
+
+    CreatePaymentResponse:
+      type: object
+      required: [process_payment_link]
+      properties:
+        process_payment_link:
+          type: string
+          format: uri
+
+    CompletePaymentAndUpdateSubscriptionRequest:
+      type: object
+      required: [project_uuid, payment_uuid]
+      properties:
+        project_uuid:
+          type: string
+          format: uuid
+        payment_uuid:
+          type: string
+          format: uuid
+
+    ActivateSubscriptionRequest:
+      type: object
+      required: [project_uuid, payment_uuid]
+      properties:
+        project_uuid:
+          type: string
+          format: uuid
+        payment_uuid:
+          type: string
+          format: uuid
+
+    ExtendSubscriptionRequest:
+      type: object
+      required: [project_uuid, payment_uuid]
+      properties:
+        project_uuid:
+          type: string
+          format: uuid
+        payment_uuid:
+          type: string
+          format: uuid

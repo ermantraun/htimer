@@ -1,5 +1,6 @@
 from sqlalchemy.ext.asyncio import  AsyncSession, async_sessionmaker
 import minio
+import aio_pika
 from dishka import Provider, provide, Scope, from_context, AnyOf # type: ignore
 from typing import AsyncGenerator
 from application import common_interfaces
@@ -54,7 +55,7 @@ class RepositoryProvider(Provider):
     db_payment_repository = provide(db_repositories.PaymentRepository, scope=Scope.REQUEST, provides=repository_interfaces.DBPaymentRepository)
     db_file_repository = provide(db_repositories.FileRepository, scope=Scope.REQUEST, provides=repository_interfaces.DBFileRepository)
     file_storage_repository = provide(storage_repository.FileRepository, scope=Scope.REQUEST, provides=repository_interfaces.StorageFileRepository)
-
+    db_report_repository = provide(db_repositories.ReportRepository, scope=Scope.REQUEST, provides=repository_interfaces.DBReportRepository)
 
     user_repository = provide(repositories.UserRepository, scope=Scope.REQUEST, provides=common_interfaces.UserRepository)
     project_repository = provide(repositories.ProjectRepository, scope=Scope.REQUEST, provides=common_interfaces.ProjectRepository)
@@ -64,7 +65,7 @@ class RepositoryProvider(Provider):
     subscription_repository = provide(repositories.SubscriptionRepository, scope=Scope.REQUEST, provides=common_interfaces.SubscriptionRepository)
     payment_repository = provide(repositories.PaymentRepository, scope=Scope.REQUEST, provides=common_interfaces.PaymentRepository)
     file_repository = provide(repositories.FileRepository, scope=Scope.REQUEST, provides=common_interfaces.FileRepository)
-
+    report_repository = provide(repositories.ReportRepository, scope=Scope.REQUEST, provides=common_interfaces.ReportRepository)
 class PaymentGatewayProvider(Provider):
     payment_gateway = provide(payment_gateway.YooKassaGateway, scope=Scope.REQUEST, provides=common_interfaces.PaymentGateway)
 
@@ -80,5 +81,66 @@ class TextNormalizerProvider(Provider):
 class Auth(Provider):
     auth = provide(auth.Auth, scope=Scope.REQUEST, provides=common_interfaces.Context)
 
+class RabbitMQProvider(Provider):
+
+    @provide(scope=Scope.APP, provides=aio_pika.abc.AbstractConnection)
+    async def connection(self, config: Config) -> aio_pika.abc.AbstractConnection:
+        return await aio_pika.connect(
+            host=config.rabbitmq.host,
+            port=config.rabbitmq.port,
+            login=config.rabbitmq.username,
+            password=config.rabbitmq.password,
+            heartbeat=config.rabbitmq.heartbeat,
+            blocked_connection_timeout=config.rabbitmq.blocked_connection_timeout,
+            connection_attempts=config.rabbitmq.connection_attempts,
+            retry_delay=config.rabbitmq.retry_delay,
+            socket_timeout=config.rabbitmq.socket_timeout
+        )
+    
+    @provide(scope=Scope.REQUEST, provides=aio_pika.abc.AbstractChannel)
+    async def channel(self, connection: aio_pika.abc.AbstractConnection, config: Config) -> aio_pika.abc.AbstractChannel:
+        async with connection:
+            channel = await connection.channel()
+            await channel.set_qos(prefetch_count=config.rabbitmq.prefetch_count)
+            return channel
+
+    @provide(scope=Scope.APP, provides=aio_pika.abc.ExchangeType)
+    async def exchange(self, channel: aio_pika.abc.AbstractChannel, config: Config) -> aio_pika.abc.AbstractExchange:
+        return await channel.declare_exchange(config.rabbitmq.exchange_name, 
+                                              aio_pika.ExchangeType.DIRECT, 
+                                              durable=True)
+    
+    @provide(scope=Scope.APP, provides=aio_pika.abc.AbstractQueue)
+    async def report_queue(self, channel: aio_pika.abc.AbstractChannel, config: Config) -> aio_pika.abc.AbstractQueue:
+        return await channel.declare_queue(config.rabbitmq.report_queue_name, durable=True)
+    
+    @provide(scope=Scope.APP, provides=aio_pika.abc.AbstractQueue)
+    async def bind_report_queue(self, report_queue: aio_pika.abc.AbstractQueue, exchange: aio_pika.abc.AbstractExchange, config: Config) -> aio_pika.abc.AbstractQueue:
+        await report_queue.bind(exchange, routing_key=config.rabbitmq.report_queue_name)
+        return report_queue
+    
+    @provide(scope=Scope.APP, provides=aio_pika.abc.AbstractQueue)
+    async def ttl_report_queue(self, channel: aio_pika.abc.AbstractChannel, config: Config) -> aio_pika.abc.AbstractQueue:
+        return await channel.declare_queue(config.rabbitmq.report_queue_name + '_ttl', durable=True, arguments={
+            "x-message-ttl": 60 * 30,
+            "x-dead-letter-exchange": config.rabbitmq.exchange_name,
+            "x-dead-letter-routing-key": config.rabbitmq.report_queue_name,
+            "x-overflow": "drop-head"
+
+        })
+
+    @provide(scope=Scope.APP, provides=aio_pika.abc.ExchangeType)
+    async def dlx_exchange(self, channel: aio_pika.abc.AbstractChannel, config: Config) -> aio_pika.abc.AbstractExchange:
+        return await channel.declare_exchange(config.rabbitmq.exchange_name + '_dlx', 
+                                              aio_pika.ExchangeType.DIRECT, 
+                                              durable=True)
+
+    @provide(scope=Scope.APP, provides=aio_pika.abc.AbstractQueue)
+    async def dlq_report_queue(self, channel: aio_pika.abc.AbstractChannel, config: Config) -> aio_pika.abc.AbstractQueue:
+        return await channel.declare_queue(config.rabbitmq.report_queue_name + '_dlq', durable=True)
+
+
 class CommonProvider(ConfigProvider, StorageProvider, DBProvider, RepositoryProvider, PaymentGatewayProvider, LogerProvider, ClockProvider, TextNormalizerProvider, Auth):
     pass
+
+

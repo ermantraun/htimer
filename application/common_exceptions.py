@@ -1,4 +1,4 @@
-class InvalidToken(Exception):
+class InvalidTokenError(Exception):
     """Ошибка: недействительный токен."""
     pass
 
@@ -134,4 +134,16 @@ class FileAlreadyExistsError(FileRepositoryError):
 
 class FileNotFoundError(FileRepositoryError):
     """Raised when a file is not found."""
+    pass
+
+class ReportRepositoryError(RepositoryError):
+    """Raised when there is an error in the report repository."""
+    pass
+
+class ReportNotFoundError(ReportRepositoryError):
+    """Raised when a report is not found."""
+    pass
+
+class JobGatewayError(Exception):
+    """Raised when there is an error with the job gateway."""
     pass

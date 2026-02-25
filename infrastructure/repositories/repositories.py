@@ -34,7 +34,10 @@ _EXCEPTION_MAP: dict[type[BaseException], type[BaseException]] = {
     db_exceptions.FileAlreadyExistsError: common_exceptions.FileAlreadyExistsError,
     db_exceptions.FileNotFoundError: common_exceptions.FileNotFoundError,
     db_exceptions.FileRepositoryError: common_exceptions.FileRepositoryError,
+    db_exceptions.ReportNotFoundError: common_exceptions.ReportNotFoundError,
+    db_exceptions.ReportRepositoryError: common_exceptions.ReportRepositoryError,
     db_exceptions.RepositoryError: common_exceptions.RepositoryError,
+
 }
 
 
@@ -248,4 +251,13 @@ class FileRepository(common_interfaces.FileRepository):
             return _map_exception(storage_result)
 
         return [(file, common_interfaces.ActionLink(link)) for file, link in storage_result]
-    
+
+class ReportRepository(common_interfaces.ReportRepository):
+    def __init__(self, primary: interfaces.DBReportRepository):
+        self._db_rep = primary
+
+    async def create(self, report: entities.Report) -> None | common_exceptions.RepositoryError | common_exceptions.ProjectNotFoundError | common_exceptions.UserNotFoundError:
+        return _map_exception(await self._db_rep.create(report))
+
+    async def get_by_uuid(self, report_uuid: UUID, lock_record: bool = False) -> entities.Report | common_exceptions.ReportNotFoundError | common_exceptions.RepositoryError:
+        return _map_exception(await self._db_rep.get_by_uuid(report_uuid, lock_record))

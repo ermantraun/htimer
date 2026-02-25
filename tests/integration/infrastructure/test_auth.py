@@ -5,7 +5,7 @@ import jwt
 
 from application import common_interfaces
 from application.user import interfaces as user_interfaces
-from application.common_exceptions import InvalidToken
+from application.common_exceptions import InvalidTokenError
 from config import Config
 
 
@@ -41,4 +41,4 @@ def test_get_current_user_uuid_invalid_context(
 
     result = infra_auth_context.get_current_user_uuid()
 
-    assert isinstance(result, InvalidToken)
+    assert isinstance(result, InvalidTokenError)

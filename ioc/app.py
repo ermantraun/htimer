@@ -8,7 +8,8 @@ from .common import CommonProvider
 from .stage import StageProvider
 from .subscription import SubscriptionProvider
 from .task import TaskProvider
+from .reports import ReportsProvider
 
 
-class AppProvider(CommonProvider, UserProvider, ProjectProvider, StageProvider, DailyLogProvider, TaskProvider, SubscriptionProvider):
+class AppProvider(CommonProvider, UserProvider, ProjectProvider, StageProvider, DailyLogProvider, TaskProvider, SubscriptionProvider, ReportsProvider):
     pass
