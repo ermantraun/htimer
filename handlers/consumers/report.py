@@ -1,10 +1,12 @@
+import aio_pika
+from dishka import AsyncContainer
+from uuid import UUID
 from config import Config
 from application.reports import interactors
 from application import common_interfaces
 from domain import entities
-from uuid import UUID
+from interfaces import BaseConsumer
 
-import aio_pika
 
 
 async def try_retry(exchange: aio_pika.abc.AbstractExchange, message: aio_pika.abc.AbstractIncomingMessage, config: Config):
@@ -37,73 +39,74 @@ async def try_retry(exchange: aio_pika.abc.AbstractExchange, message: aio_pika.a
     return False
 
 
-class ReportConsumer:
+class CreateReportConsumer(BaseConsumer):
 
-    def __init__(self, config: Config, report_repository: common_interfaces.ReportRepository, report_interactor: interactors.CreateReportInteractor, channel: aio_pika.abc.AbstractChannel, logger: common_interfaces.Logger):
-        self.config = config
-        self.report_repository = report_repository  
-        self.report_interactor = report_interactor
-        self.channel = channel
-        self.logger = logger
+    def __init__(self, container: AsyncContainer):
+        self.container = container
 
-    async def handle_create(self):
-        queue = await self.channel.get_queue(self.config.rabbitmq.report_queue_name, ensure=True)
-        exchange = await self.channel.get_exchange(self.config.rabbitmq.exchange_name + "_dlx", ensure=True)
-        exchange_dlx = await self.channel.get_exchange(self.config.rabbitmq.exchange_name + "_dlx", ensure=True)
-        
-        async with queue.iterator() as queue_iter:
-            async for message in queue_iter:
-                msg_id = message.message_id
+    async def handle(self):
 
-                if msg_id is None:
-                    
-                    if not await try_retry(exchange, message, self.config):
-                        await exchange_dlx.publish(
-                            aio_pika.Message(body=message.body, 
-                                             delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
-                                             message_id="unknown_id"),
-                            routing_key=self.config.rabbitmq.report_queue_name + "_dlx"
-                        )
+        async with self.container() as request_scope:
+            report_repository = await request_scope.get(common_interfaces.ReportRepository)
+            report_interactor = await request_scope.get(interactors.CreateReportInteractor)
+            logger = await request_scope.get(common_interfaces.Logger)
+            config = await request_scope.get(Config)
+            channel = await request_scope.get(aio_pika.abc.AbstractChannel)
+            
+            queue = await channel.get_queue(config.rabbitmq.report_queue_name, ensure=True)
+            exchange = await channel.get_exchange(config.rabbitmq.exchange_name + "_dlx", ensure=True)
+            exchange_dlx = await channel.get_exchange(config.rabbitmq.exchange_name + "_dlx", ensure=True)
+            
+            async with queue.iterator() as queue_iter:
+                async for message in queue_iter:
+                    msg_id = message.message_id
 
+                    if msg_id is None:
                         
+                        if not await try_retry(exchange, message, config):
+                            await exchange_dlx.publish(
+                                aio_pika.Message(body=message.body, 
+                                                delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
+                                                message_id="unknown_id"),
+                                routing_key=config.rabbitmq.report_queue_name + "_dlx"
+                            )
+                            await logger.info(operation="report_generation_failed", message=f'msg_id: unknown_id, error: Missing message_id')
 
-                        await self.logger.info(operation="report_generation_failed", message=f'msg_id: unknown_id, error: Missing message_id')
-
-                    continue
-
-                try:
-
-                    report = await self.report_repository.get_by_uuid(report_uuid=UUID(msg_id))
-
-                    if isinstance(report, Exception):
-                        raise report
-                    
-                    if report.status != entities.ReportStatus.PENDING:
-                        await message.ack()
                         continue
 
-                    await self.report_interactor.execute()
+                    try:
 
-                    await message.ack()
-                    await self.logger.info(operation="report_generation_success", message=msg_id)
+                        report = await report_repository.get_by_uuid(report_uuid=UUID(msg_id))
 
-                except Exception as e:
-                    if not await try_retry(exchange, message, self.config):
+                        if isinstance(report, Exception):
+                            raise report
                         
-                        await exchange_dlx.publish(
-                            aio_pika.Message(body=message.body, 
-                                             delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
-                                             message_id=msg_id),
-                            routing_key=self.config.rabbitmq.report_queue_name + "_dlx"
-                        )
+                        if report.status != entities.ReportStatus.PENDING:
+                            await message.ack()
+                            continue
 
-                        exc = await self.report_repository.update(report_uuid=UUID(msg_id), data={"status": entities.ReportStatus.FAILED})
+                        await report_interactor.execute()
 
-                        if isinstance(exc, Exception):
-                            await self.logger.info(operation="report_status_update_failed", message=f'msg_id: {msg_id}, error: {str(e)}, details: Cant update report status to FAILED after exhausting retries')
+                        await message.ack()
+                        await logger.info(operation="report_generation_success", message=msg_id)
+
+                    except Exception as e:
+                        if not await try_retry(exchange, message, config):
+                            
+                            await exchange_dlx.publish(
+                                aio_pika.Message(body=message.body, 
+                                                delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
+                                                message_id=msg_id),
+                                routing_key=config.rabbitmq.report_queue_name + "_dlx"
+                            )
+
+                            exc = await report_repository.update(report_uuid=UUID(msg_id), data={"status": entities.ReportStatus.FAILED})
+
+                            if isinstance(exc, Exception):
+                                await logger.info(operation="report_status_update_failed", message=f'msg_id: {msg_id}, error: {str(e)}, details: Cant update report status to FAILED after exhausting retries')
 
 
-                        await self.logger.info(operation="report_generation_failed", message=f'msg_id: {msg_id}, error: {str(e)}')
+                            await logger.info(operation="report_generation_failed", message=f'msg_id: {msg_id}, error: {str(e)}')
 
                         
                     

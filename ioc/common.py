@@ -104,42 +104,6 @@ class RabbitMQProvider(Provider):
             await channel.set_qos(prefetch_count=config.rabbitmq.prefetch_count)
             return channel
 
-    @provide(scope=Scope.APP, provides=aio_pika.abc.ExchangeType)
-    async def exchange(self, channel: aio_pika.abc.AbstractChannel, config: Config) -> aio_pika.abc.AbstractExchange:
-        return await channel.declare_exchange(config.rabbitmq.exchange_name, 
-                                              aio_pika.ExchangeType.DIRECT, 
-                                              durable=True)
-    
-    @provide(scope=Scope.APP, provides=aio_pika.abc.AbstractQueue)
-    async def report_queue(self, channel: aio_pika.abc.AbstractChannel, config: Config) -> aio_pika.abc.AbstractQueue:
-        return await channel.declare_queue(config.rabbitmq.report_queue_name, durable=True)
-    
-    @provide(scope=Scope.APP, provides=aio_pika.abc.AbstractQueue)
-    async def bind_report_queue(self, report_queue: aio_pika.abc.AbstractQueue, exchange: aio_pika.abc.AbstractExchange, config: Config) -> aio_pika.abc.AbstractQueue:
-        await report_queue.bind(exchange, routing_key=config.rabbitmq.report_queue_name)
-        return report_queue
-    
-    @provide(scope=Scope.APP, provides=aio_pika.abc.AbstractQueue)
-    async def ttl_report_queue(self, channel: aio_pika.abc.AbstractChannel, config: Config) -> aio_pika.abc.AbstractQueue:
-        return await channel.declare_queue(config.rabbitmq.report_queue_name + '_ttl', durable=True, arguments={
-            "x-message-ttl": 60 * 30,
-            "x-dead-letter-exchange": config.rabbitmq.exchange_name,
-            "x-dead-letter-routing-key": config.rabbitmq.report_queue_name,
-            "x-overflow": "drop-head"
-
-        })
-
-    @provide(scope=Scope.APP, provides=aio_pika.abc.ExchangeType)
-    async def dlx_exchange(self, channel: aio_pika.abc.AbstractChannel, config: Config) -> aio_pika.abc.AbstractExchange:
-        return await channel.declare_exchange(config.rabbitmq.exchange_name + '_dlx', 
-                                              aio_pika.ExchangeType.DIRECT, 
-                                              durable=True)
-
-    @provide(scope=Scope.APP, provides=aio_pika.abc.AbstractQueue)
-    async def dlq_report_queue(self, channel: aio_pika.abc.AbstractChannel, config: Config) -> aio_pika.abc.AbstractQueue:
-        return await channel.declare_queue(config.rabbitmq.report_queue_name + '_dlq', durable=True)
-
-
 class CommonProvider(ConfigProvider, StorageProvider, DBProvider, RepositoryProvider, PaymentGatewayProvider, LogerProvider, ClockProvider, TextNormalizerProvider, Auth):
     pass
 
