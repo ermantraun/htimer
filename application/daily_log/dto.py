@@ -51,7 +51,7 @@ class CreateDailyLogFileInDTO:
 
 @dataclass
 class CreateDailyLogFileOutDTO:
-    file: entities.File
+    file: entities.DailyLogFile
     action_link: ActionLink
 
 
@@ -63,7 +63,7 @@ class GetDailyLogFileInDTO:
 
 @dataclass
 class GetDailyLogFileOutDTO:
-    file: entities.File
+    file: entities.DailyLogFile
     action_link: ActionLink
 
 
@@ -80,13 +80,14 @@ class GetDailyLogFileListInDTO:
 
 @dataclass
 class GetDailyLogFileListOutDTO:
-    files: list[tuple[entities.File, ActionLink]]
+    files: list[tuple[entities.DailyLogFile, ActionLink]]
 
 
 @dataclass
 class GetDailyLogListInDTO:
     project_uuid: UUID
-    date: date
+    start_date: date
+    end_date: date
     user_uuid: UUID | None = None
 
 

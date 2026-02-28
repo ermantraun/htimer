@@ -147,3 +147,7 @@ class ReportNotFoundError(ReportRepositoryError):
 class JobGatewayError(Exception):
     """Raised when there is an error with the job gateway."""
     pass
+
+class FileStorageError(Exception):
+    """Raised when there is an error with file storage."""
+    pass

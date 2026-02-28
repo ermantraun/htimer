@@ -6,8 +6,6 @@ from domain import entities
 
 from . import exceptions
 
-
-
 class DBUserRepository(Protocol):
     @abstractmethod
     async def create(self, data: entities.User) -> entities.User | exceptions.EmailAlreadyExistsError | exceptions.RepositoryError:
@@ -90,6 +88,10 @@ class DBStageRepository(Protocol):
         pass
 
     @abstractmethod
+    async def get_children(self, stage_uuid: UUID) -> list[entities.Stage] | exceptions.StageNotFoundError | exceptions.RepositoryError:
+        pass
+
+    @abstractmethod
     async def delete(self, stage_uuid: UUID) -> None | exceptions.StageNotFoundError | exceptions.RepositoryError:
         pass
 
@@ -108,7 +110,7 @@ class DBDailyLogRepository(Protocol):
         pass
 
     @abstractmethod
-    async def get_list(self, project_uuid: UUID, date: date, draft: bool = False) -> list[entities.DailyLog] | exceptions.ProjectNotFoundError | exceptions.RepositoryError:
+    async def get_list_by_project(self, project_uuid: UUID, start_date: date | None, end_date: date | None, users_uuid: list[UUID], draft: bool = False) -> list[entities.DailyLog] | exceptions.ProjectNotFoundError | exceptions.RepositoryError:
         pass
 
 
@@ -132,7 +134,10 @@ class DBTaskRepository(Protocol):
     @abstractmethod
     async def get_list(self, substage_uuid: UUID) -> list[entities.Task] | exceptions.StageNotFoundError | exceptions.RepositoryError:
         pass
-
+    
+    @abstractmethod
+    async def get_list_by_project(self, project_uuid: UUID) -> list[entities.Task] | exceptions.ProjectNotFoundError | exceptions.RepositoryError:
+        pass
 
 class DBPaymentRepository(Protocol):
     @abstractmethod
@@ -171,20 +176,20 @@ class DBSubscriptionRepository(Protocol):
 
 class DBFileRepository(Protocol):
     @abstractmethod
-    async def create(self, file: entities.File) -> entities.File | exceptions.FileAlreadyExistsError | exceptions.RepositoryError:
+    async def create(self, file: entities.DailyLogFile) -> entities.DailyLogFile | exceptions.FileAlreadyExistsError | exceptions.RepositoryError:
 
         pass
 
     @abstractmethod
-    async def get(self, file_uuid: UUID) -> entities.File | exceptions.FileNotFoundError | exceptions.RepositoryError:
+    async def get(self, file_uuid: UUID) -> entities.DailyLogFile | exceptions.FileNotFoundError | exceptions.RepositoryError:
         pass
 
     @abstractmethod
-    async def remove(self, file_uuid: UUID) -> entities.File | exceptions.FileNotFoundError | exceptions.RepositoryError:
+    async def remove(self, file_uuid: UUID) -> entities.DailyLogFile | exceptions.FileNotFoundError | exceptions.RepositoryError:
         pass
 
     @abstractmethod
-    async def get_list(self, daily_log_uuid: UUID) -> list[entities.File] | exceptions.FileNotFoundError | exceptions.RepositoryError:
+    async def get_list(self, daily_log_uuid: UUID) -> list[entities.DailyLogFile] | exceptions.FileNotFoundError | exceptions.RepositoryError:
         pass
 
 class DBReportRepository(Protocol):
@@ -197,19 +202,19 @@ class DBReportRepository(Protocol):
         pass
 class StorageFileRepository(Protocol):
     @abstractmethod
-    async def get_upload_link(self, file: entities.File) -> str | exceptions.FileRepositoryError:
+    async def get_upload_link(self, file: entities.DailyLogFile) -> str | exceptions.FileRepositoryError:
         pass
 
     @abstractmethod
-    async def get_unload_link(self, file: entities.File) -> str | exceptions.FileRepositoryError | exceptions.FileNotFoundError:
+    async def get_unload_link(self, file: entities.DailyLogFile) -> str | exceptions.FileRepositoryError | exceptions.FileNotFoundError:
         pass
     
     @abstractmethod
-    async def get_unload_link_list(self, files: list[entities.File]) -> list[tuple[entities.File, str]] | exceptions.FileRepositoryError | exceptions.FileNotFoundError:
+    async def get_unload_link_list(self, files: list[entities.DailyLogFile]) -> list[tuple[entities.DailyLogFile, str]] | exceptions.FileRepositoryError | exceptions.FileNotFoundError:
         pass
 
     @abstractmethod
-    async def get_remove_link(self, file: entities.File) -> None | exceptions.FileRepositoryError | exceptions.FileNotFoundError:
+    async def get_remove_link(self, file: entities.DailyLogFile) -> None | exceptions.FileRepositoryError | exceptions.FileNotFoundError:
         pass
 
 

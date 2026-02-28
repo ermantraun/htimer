@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 from datetime import datetime, date
+from typing import Any
 from enum import Enum
 from uuid import UUID
 from . import value_objects
@@ -207,6 +208,7 @@ class UserDecisions:
         ALLOWED = "allowed"
         FORBIDDEN_FOR_NON_PROJECT_ADMIN_AND_NON_TARGET = "forbidden_for_non_project_admin_and_non_target"
         FORBIDDEN_GET_NON_PROJECT_USERS = "forbidden_get_non_project_users"
+        FORBIDDEN_FOR_NON_PROJECT_ADMIN = "forbidden_for_non_project_admin"
 
 
 # ==================== USER ====================
@@ -419,12 +421,18 @@ class User:
         self,
         project: Project,
         project_members: list[User],
-        target_users: list[User],
+        target_users: list[User] | None,
     ) -> UserDecisions.CreateReportDecision:
-        if not ((self in project_members and self.role == UserRole.ADMIN) or (len(target_users) == 1 and target_users[0].uuid == self.uuid)):
-            return UserDecisions.CreateReportDecision.FORBIDDEN_FOR_NON_PROJECT_ADMIN_AND_NON_TARGET
         
-        if not set(project_members).intersection(target_users):
+        user_is_admin = self in project_members and self.role == UserRole.ADMIN
+
+        if target_users is None and not user_is_admin:
+            return UserDecisions.CreateReportDecision.FORBIDDEN_FOR_NON_PROJECT_ADMIN
+        
+        if target_users is not None and not user_is_admin and [self] != target_users:
+            return UserDecisions.CreateReportDecision.FORBIDDEN_FOR_NON_PROJECT_ADMIN_AND_NON_TARGET
+
+        if target_users is not None and not set(project_members).intersection(target_users):
             return UserDecisions.CreateReportDecision.FORBIDDEN_GET_NON_PROJECT_USERS
 
 
@@ -606,7 +614,7 @@ class Stage:
     main_path: bool | None = None
     status: StageStatus = StageStatus.ACTIVE
 
-    def ensure_update(self, subscription: Subscription | None = None) -> str:
+    def ensure_update(self, subscription: Subscription | None = None, children: list[Stage] | None = None, update_data: dict[str, Any] | None = None) -> str:
 
         proj_err = self.project.ensure_update(subscription)
         if proj_err:
@@ -614,6 +622,10 @@ class Stage:
 
         if self.status in {StageStatus.COMPLETED, StageStatus.ARCHIVED}:
             return "Нельзя изменить этап в завершённом или архивном статусе."
+
+        if update_data is not None and 'status' in update_data and update_data['status'] in {StageStatus.COMPLETED, StageStatus.ARCHIVED}:
+            if children is not None and any(child.status not in {StageStatus.COMPLETED, StageStatus.ARCHIVED} for child in children):
+                return "Нельзя завершить или архивировать этап, у которого есть активные дочерние этапы."
 
         return ''
     
@@ -722,7 +734,7 @@ class Task:
 
 
 @dataclass
-class File:
+class DailyLogFile:
     uuid: UUID
     filename: str
     uri: str
@@ -810,23 +822,95 @@ class Report:
     target_users: list[User] | None = None
     start_date: date | None = None
     end_date: date | None = None   
-    file_path: str | None = None
+    file_name: str | None = None
     status: ReportStatus = ReportStatus.PENDING
 
-    def is_user_report(self) -> bool:
+    def is_users_report(self) -> bool:
         return self.target_users is not None
 
     def is_summary_report(self) -> bool:
         return self.target_users is None
 
-    def mark_completed(self, file_path: str) -> None:
+    def mark_completed(self, file_name: str) -> None:
         self.status = ReportStatus.COMPLETED
-        self.file_path = file_path
+        self.file_name = file_name
 
     def mark_failed(self) -> None:
         self.status = ReportStatus.FAILED
 
+    def make_activity_report_content(self, daily_logs: list[DailyLog]) -> dict[str, dict[Any, Any]]:
+        stage_activity: dict[Stage, dict[date, dict[User, list[DailyLog]]]] = {}
+        days_activity: dict[date, dict[User, list[DailyLog]]] = {}
 
+
+        stage_activity_level: dict[Stage, dict[User, int]] = {}
+        
+        project_activity_level: dict[User, int] = {}
+
+
+        for daily_log in daily_logs:
+            stage = daily_log.substage
+            if stage is not None:
+                    stage_activity \
+                    .setdefault(stage, {}) \
+                    .setdefault(daily_log.created_at, {}) \
+                    .setdefault(daily_log.creator, []) \
+                    .append(daily_log)
+
+
+
+                    stage_activity_level.setdefault(stage, {}).setdefault(daily_log.creator, 0) 
+
+                    stage_activity_level[stage][daily_log.creator] += 1
+
+            days_activity.setdefault(daily_log.created_at, {}) \
+                .setdefault(daily_log.creator, []) \
+                .append(daily_log)
+
+            project_activity_level.setdefault(daily_log.creator, 0)
+            project_activity_level[daily_log.creator] += 1
+
+        return {
+            "stage_activity": stage_activity,
+            "days_activity": days_activity,
+            "stage_activity_level": stage_activity_level,
+            "project_activity_level": project_activity_level,
+        }
+
+    def make_summary_report_content(self, daily_logs: list[DailyLog], tasks: list[Task]) -> dict[str, int | float]:
+
+        stage_count = 0
+        completed_stage_count = 0
+        task_count = 0
+        completed_task_count = 0
+
+        for daily_log in daily_logs:
+            if daily_log.substage is not None:
+                stage_count += 1
+                if daily_log.substage.status == StageStatus.COMPLETED:
+                    completed_stage_count += 1
+
+        for task in tasks:
+            task_count += 1
+            if task.status == TaskStatus.COMPLETED:
+                completed_task_count += 1
+
+        completed_project_parts = completed_stage_count + completed_task_count
+        total_project_parts = stage_count + task_count
+
+        stage_completion_progress = (completed_stage_count / stage_count * 100) if stage_count > 0 else 0
+        task_completion_progress = (completed_task_count / task_count * 100) if task_count > 0 else 0
+        overall_completion_progress = (completed_project_parts / total_project_parts * 100) if total_project_parts > 0 else 0
+
+        return {
+            "stage_count": stage_count,
+            "completed_stage_count": completed_stage_count,
+            "task_count": task_count,
+            "completed_task_count": completed_task_count,
+            "stage_completion_progress": stage_completion_progress,
+            "task_completion_progress": task_completion_progress,
+            "overall_completion_progress": overall_completion_progress,
+        }
 
 @dataclass
 class AuditLog:

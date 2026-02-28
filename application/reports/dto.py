@@ -13,3 +13,8 @@ class CreateReportRequestInDTO:
 @dataclass
 class CreateReportRequestOutDTO:
     report: entities.Report
+
+@dataclass
+class CreateReportInDTO:
+    report_id: str
+

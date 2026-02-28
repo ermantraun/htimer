@@ -7,3 +7,6 @@ class ValidateReportRequestError(Exception):
 
 class InvalidPeriodError(ValidateReportRequestError):
     pass
+
+class ReportCreateError(Exception):
+    pass

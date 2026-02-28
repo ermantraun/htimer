@@ -114,7 +114,6 @@ class StageRepository(common_interfaces.StageRepository):
     async def get_list(self, project_uuid: UUID) -> list[entities.Stage] | common_exceptions.ProjectNotFoundError | common_exceptions.RepositoryError:
         return _map_exception(await self._db_rep.get_list(project_uuid))
 
-
     async def update(self, stage_uuid: UUID, data: dict[str, Any]) -> entities.Stage | common_exceptions.StageNotFoundError | common_exceptions.RepositoryError:
         return _map_exception(await self._db_rep.update(stage_uuid, data))
 
@@ -123,6 +122,9 @@ class StageRepository(common_interfaces.StageRepository):
 
     async def get_by_name(self, project_uuid: UUID, stage_name: str, lock_record: bool = False) -> entities.Stage | common_exceptions.StageNotFoundError | common_exceptions.RepositoryError:
         return _map_exception(await self._db_rep.get_by_name(project_uuid, stage_name, lock_record))
+
+    async def get_children(self, stage_uuid: UUID) -> list[entities.Stage] | common_exceptions.StageNotFoundError | common_exceptions.RepositoryError:
+        return _map_exception(await self._db_rep.get_children(stage_uuid))
 
     async def delete(self, stage_uuid: UUID) -> None | common_exceptions.StageNotFoundError | common_exceptions.RepositoryError:
         return _map_exception(await self._db_rep.delete(stage_uuid))
@@ -141,8 +143,8 @@ class DailyLogRepository(common_interfaces.DailyLogRepository):
     async def update(self, day_uuid: UUID, data: dict[str, Any]) -> entities.DailyLog | common_exceptions.DailyLogNotFoundError | common_exceptions.RepositoryError:
         return _map_exception(await self._db_rep.update(day_uuid, data))
 
-    async def get_list(self, project_uuid: UUID, date: date, draft: bool = False) -> list[entities.DailyLog] | common_exceptions.ProjectNotFoundError | common_exceptions.RepositoryError:
-        return _map_exception(await self._db_rep.get_list(project_uuid, date, draft))
+    async def get_list_by_project(self, project_uuid: UUID, start_date: date | None, end_date: date | None, users_uuid: list[UUID], draft: bool = False) ->  list[entities.DailyLog] | common_exceptions.ProjectNotFoundError | common_exceptions.RepositoryError:
+        return _map_exception(await self._db_rep.get_list_by_project(project_uuid, start_date, end_date, users_uuid, draft))
 
 
 class TaskRepository(common_interfaces.TaskRepository):
@@ -164,6 +166,8 @@ class TaskRepository(common_interfaces.TaskRepository):
     async def get_list(self, substage_uuid: UUID) -> list[entities.Task] | common_exceptions.StageNotFoundError | common_exceptions.RepositoryError:
         return _map_exception(await self._db_rep.get_list(substage_uuid))
 
+    async def get_list_by_project(self, project_uuid: UUID) -> list[entities.Task] | common_exceptions.ProjectNotFoundError | common_exceptions.RepositoryError:
+        return _map_exception(await self._db_rep.get_list_by_project(project_uuid))
 
 class PaymentRepository(common_interfaces.PaymentRepository):
     def __init__(self, primary: interfaces.DBPaymentRepository):
@@ -204,7 +208,7 @@ class FileRepository(common_interfaces.FileRepository):
         self._storage_rep = storage_rep
 
 
-    async def create(self, file: entities.File) ->  tuple[entities.File, common_interfaces.ActionLink] | common_exceptions.FileAlreadyExistsError | common_exceptions.RepositoryError:
+    async def create(self, file: entities.DailyLogFile) ->  tuple[entities.DailyLogFile, common_interfaces.ActionLink] | common_exceptions.FileAlreadyExistsError | common_exceptions.RepositoryError:
         
 
         db_result = await self._db_rep.create(file)
@@ -218,7 +222,7 @@ class FileRepository(common_interfaces.FileRepository):
 
         return db_result, common_interfaces.ActionLink(storage_result)
     
-    async def get(self, file_uuid: UUID) -> tuple[entities.File, common_interfaces.ActionLink] | common_exceptions.FileNotFoundError | common_exceptions.RepositoryError:
+    async def get(self, file_uuid: UUID) -> tuple[entities.DailyLogFile, common_interfaces.ActionLink] | common_exceptions.FileNotFoundError | common_exceptions.RepositoryError:
         db_result = await self._db_rep.get(file_uuid)
         if isinstance(db_result, BaseException):
             return _map_exception(db_result)
@@ -229,7 +233,7 @@ class FileRepository(common_interfaces.FileRepository):
 
         return db_result, common_interfaces.ActionLink(storage_result)
     
-    async def remove(self, file_uuid: UUID) -> tuple[entities.File, common_interfaces.ActionLink] | common_exceptions.FileNotFoundError | common_exceptions.RepositoryError:
+    async def remove(self, file_uuid: UUID) -> tuple[entities.DailyLogFile, common_interfaces.ActionLink] | common_exceptions.FileNotFoundError | common_exceptions.RepositoryError:
         db_result = await self._db_rep.remove(file_uuid)
         if isinstance(db_result, BaseException):
             return _map_exception(db_result)
@@ -241,7 +245,7 @@ class FileRepository(common_interfaces.FileRepository):
 
         return (db_result, common_interfaces.ActionLink(storage_result))
     
-    async def get_list(self, daily_log_uuid: UUID) -> list[tuple[entities.File, common_interfaces.ActionLink]] | common_exceptions.FileNotFoundError | common_exceptions.RepositoryError:
+    async def get_list(self, daily_log_uuid: UUID) -> list[tuple[entities.DailyLogFile, common_interfaces.ActionLink]] | common_exceptions.FileNotFoundError | common_exceptions.RepositoryError:
         db_result = await self._db_rep.get_list(daily_log_uuid)
         if isinstance(db_result, BaseException):
             return _map_exception(db_result)

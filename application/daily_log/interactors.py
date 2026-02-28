@@ -231,7 +231,7 @@ class CreateDailyLogFileInteractor:
         if isinstance(authorization_error, exceptions.DayliLogAuthorizationError):
             raise authorization_error
 
-        file = entities.File(
+        file = entities.DailyLogFile(
             uuid=uuid4(),
             filename=data.filename,
             daily_log=daily_log,
@@ -429,7 +429,7 @@ class GetDailyLogListInteractor:
         if authorization_error is not None:
             raise authorization_error
 
-        daily_logs = await self.daily_log_repository.get_list(project.uuid, data.date)
+        daily_logs = await self.daily_log_repository.get_list_by_project(project.uuid, data.start_date, data.end_date, [target.uuid], draft=False)
         if isinstance(daily_logs, (common_exceptions.ProjectNotFoundError, common_exceptions.RepositoryError)):
             raise daily_logs
 

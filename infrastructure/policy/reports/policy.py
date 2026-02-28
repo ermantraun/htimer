@@ -4,15 +4,21 @@ from . import exceptions
 
 
 class ReportsAuthorizationPolicyImpl(interfaces.ReportsAuthorizationPolicy):
-    def decide_create_report(self, actor: entities.User, project: entities.Project, project_members: list[entities.User], target_users: list[entities.User]) -> exceptions.UserNotProjectAdmin | exceptions.TargetUsersNotProjectMembers | None:
+    def decide_create_report(self, actor: entities.User, project: entities.Project, project_members: list[entities.User], target_users: list[entities.User] | None) -> exceptions.UserNotProjectAdmin | exceptions.TargetUsersNotProjectMembers | None:
         decision = actor.decide_create_report(project, project_members, target_users)
 
         if decision is entities.UserDecisions.CreateReportDecision.ALLOWED:
             return None
 
+        if decision is entities.UserDecisions.CreateReportDecision.FORBIDDEN_FOR_NON_PROJECT_ADMIN:
+            return exceptions.UserNotProjectAdmin(
+                "Пользователь может формировать отчёт только для себя"
+            )
+        
+
         if decision is entities.UserDecisions.CreateReportDecision.FORBIDDEN_FOR_NON_PROJECT_ADMIN_AND_NON_TARGET:
             return exceptions.UserNotProjectAdmin(
-                "Пользователь может формировать отчёт только для себя или как создатель проекта."
+                "Пользователь может формировать отчёт только для себя"
             )
 
         if decision is entities.UserDecisions.CreateReportDecision.FORBIDDEN_GET_NON_PROJECT_USERS:

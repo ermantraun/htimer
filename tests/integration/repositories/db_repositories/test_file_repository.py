@@ -38,7 +38,7 @@ async def test_create_file_success(
 
     result = await db_file_repository.create(file)
 
-    assert isinstance(result, entities.File)
+    assert isinstance(result, entities.DailyLogFile)
     assert result.uuid == file.uuid
     assert result.filename == file.filename
 
@@ -70,11 +70,11 @@ async def test_get_file_success(
     daily_log = await _prepare_daily_log(user_repository, project_repository, daily_log_repository)
     file = factories.make_file_entity(daily_log=daily_log)
     created = await db_file_repository.create(file)
-    assert isinstance(created, entities.File)
+    assert isinstance(created, entities.DailyLogFile)
 
     result = await db_file_repository.get(created.uuid)
 
-    assert isinstance(result, entities.File)
+    assert isinstance(result, entities.DailyLogFile)
     assert result.uuid == created.uuid
 
 
@@ -97,11 +97,11 @@ async def test_remove_file_success(
     daily_log = await _prepare_daily_log(user_repository, project_repository, daily_log_repository)
     file = factories.make_file_entity(daily_log=daily_log)
     created = await db_file_repository.create(file)
-    assert isinstance(created, entities.File)
+    assert isinstance(created, entities.DailyLogFile)
 
     removed = await db_file_repository.remove(created.uuid)
 
-    assert isinstance(removed, entities.File)
+    assert isinstance(removed, entities.DailyLogFile)
     assert removed.uuid == created.uuid
 
     after_remove = await db_file_repository.get(created.uuid)
@@ -121,8 +121,8 @@ async def test_get_list_success(
 
     created_first = await db_file_repository.create(first)
     created_second = await db_file_repository.create(second)
-    assert isinstance(created_first, entities.File)
-    assert isinstance(created_second, entities.File)
+    assert isinstance(created_first, entities.DailyLogFile)
+    assert isinstance(created_second, entities.DailyLogFile)
 
     result = await db_file_repository.get_list(daily_log.uuid)
 

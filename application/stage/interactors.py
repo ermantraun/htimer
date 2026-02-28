@@ -145,10 +145,19 @@ class UpdateStageInteractor:
         if isinstance(stage, (common_exceptions.StageNotFoundError, common_exceptions.RepositoryError)):
             raise stage
         
+        
+
         project_members = await self.project_repository.get_members([stage.project.uuid])
         if isinstance(project_members, (common_exceptions.ProjectNotFoundError, common_exceptions.RepositoryError)):
             raise project_members
         
+        stage_children = None
+
+        if stage.main_path:
+            stage_children = await self.stage_repository.get_children(stage.uuid)
+            if isinstance(stage_children, (common_exceptions.StageNotFoundError, common_exceptions.RepositoryError)):
+                raise stage_children
+
         authorization_error = self.authorization_policy.decide_update_stage(actor, stage.project, project_members)
         if authorization_error is not None:
             raise authorization_error
@@ -170,7 +179,7 @@ class UpdateStageInteractor:
         if isinstance(subscription, common_exceptions.RepositoryError):
             raise subscription
 
-        if error := stage.ensure_update(subscription):
+        if error := stage.ensure_update(subscription, stage_children, update_data):
             raise exceptions.StageCantUpdateError(str(error))
         
         updated_stage = await self.stage_repository.update(stage.uuid, update_data)

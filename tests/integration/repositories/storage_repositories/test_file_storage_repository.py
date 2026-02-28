@@ -15,11 +15,11 @@ from infrastructure.repositories import exceptions as repo_exceptions
 from tests.integration import factories
 
 
-def _build_file_entity() -> entities.File:
+def _build_file_entity() -> entities.DailyLogFile:
     owner = factories.make_user_entity(role=entities.UserRole.ADMIN)
     project = factories.make_project_entity(creator=owner)
     daily_log = factories.make_daily_log_entity(creator=owner, project=project)
-    return entities.File(
+    return entities.DailyLogFile(
         uuid=uuid4(),
         filename="report.pdf",
         uri="s3://bucket/report.pdf",

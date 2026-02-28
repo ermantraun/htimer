@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from typing import Protocol, Any
+from typing import Protocol, Any, BinaryIO
 from uuid import UUID
 from dataclasses import dataclass
 from datetime import date 
@@ -132,6 +132,10 @@ class StageRepository(Protocol):
         pass
     
     @abstractmethod
+    async def get_children(self, stage_uuid: UUID) -> list[entities.Stage] | common_exceptions.StageNotFoundError | common_exceptions.RepositoryError:
+        pass
+
+    @abstractmethod
     async def delete(self, stage_uuid: UUID) -> None | common_exceptions.StageNotFoundError | common_exceptions.RepositoryError:
         pass
     
@@ -149,27 +153,27 @@ class DailyLogRepository(Protocol):
         pass
 
     @abstractmethod
-    async def get_list(self, project_uuid: UUID, date: date, draft: bool = False) -> list[entities.DailyLog] | common_exceptions.ProjectNotFoundError | common_exceptions.RepositoryError:
+    async def get_list_by_project(self, project_uuid: UUID, start_date: date | None, end_date: date | None, users_uuid: list[UUID], draft: bool = False) -> list[entities.DailyLog] | common_exceptions.ProjectNotFoundError | common_exceptions.RepositoryError:
         pass
     
 
     
 class FileRepository(Protocol):
     @abstractmethod
-    async def create(self, file: entities.File) -> tuple[entities.File, ActionLink] | common_exceptions.FileAlreadyExistsError | common_exceptions.RepositoryError:
+    async def create(self, file: entities.DailyLogFile) -> tuple[entities.DailyLogFile, ActionLink] | common_exceptions.FileAlreadyExistsError | common_exceptions.RepositoryError:
 
         pass
 
     @abstractmethod
-    async def get(self, file_uuid: UUID) -> tuple[entities.File, ActionLink] | common_exceptions.FileNotFoundError | common_exceptions.RepositoryError:
+    async def get(self, file_uuid: UUID) -> tuple[entities.DailyLogFile, ActionLink] | common_exceptions.FileNotFoundError | common_exceptions.RepositoryError:
         pass
 
     @abstractmethod
-    async def remove(self, file_uuid: UUID) -> tuple[entities.File, ActionLink] | common_exceptions.FileNotFoundError | common_exceptions.RepositoryError:
+    async def remove(self, file_uuid: UUID) -> tuple[entities.DailyLogFile, ActionLink] | common_exceptions.FileNotFoundError | common_exceptions.RepositoryError:
         pass
 
     @abstractmethod
-    async def get_list(self, daily_log_uuid: UUID) -> list[tuple[entities.File, ActionLink]] | common_exceptions.FileNotFoundError | common_exceptions.RepositoryError:
+    async def get_list(self, daily_log_uuid: UUID) -> list[tuple[entities.DailyLogFile, ActionLink]] | common_exceptions.FileNotFoundError | common_exceptions.RepositoryError:
         pass
 
 
@@ -194,6 +198,9 @@ class TaskRepository(Protocol):
     async def get_list(self, substage_uuid: UUID) -> list[entities.Task] | common_exceptions.StageNotFoundError | common_exceptions.RepositoryError:
         pass
 
+    @abstractmethod
+    async def get_list_by_project(self, project_uuid: UUID) -> list[entities.Task] | common_exceptions.ProjectNotFoundError | common_exceptions.RepositoryError:
+        pass
 
 class PaymentRepository(Protocol):
     @abstractmethod
@@ -262,4 +269,14 @@ class ReportRepository(Protocol):
 class JobGateway(Protocol):
     @abstractmethod
     async def enqueue_report_generation(self, report: entities.Report) -> None | common_exceptions.RepositoryError | common_exceptions.JobGatewayError:
+        pass
+
+class FileStorage(Protocol):
+
+    @abstractmethod
+    async def save(self, file_name: str, content: BinaryIO) -> None | common_exceptions.FileStorageError:
+        pass
+
+    @abstractmethod
+    async def get_unload_link(self, file_name: str) -> str | common_exceptions.FileNotFoundError | common_exceptions.FileStorageError:
         pass

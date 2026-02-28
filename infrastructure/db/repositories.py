@@ -1057,6 +1057,43 @@ class StageRepository(_RepositoryDebugMixin, repository_interfaces.DBStageReposi
         except (DBAPIError, TimeoutError) as e:
             return self._build_error(repo_exceptions.RepositoryError, "Не удалось получить этап", e)
     
+    async def get_children(self, stage_uuid: UUID) -> list[entities.Stage] | repo_exceptions.StageNotFoundError | repo_exceptions.RepositoryError:
+        try:
+            parent_exist_stmt = select(sq.exists().where(models.Stage.uuid == stage_uuid))
+            
+            async def _op(): #type: ignore
+                result = await self.session.execute(parent_exist_stmt)
+                return result.scalar_one_or_none()
+            
+            parent_exist = await _execute_idempotent(self.session, self._idempotent_retries, self._base_backoff, _op, error_message='Не удалось проверить существование родительского этапа', exception=repo_exceptions.RepositoryError )
+            if not parent_exist:
+                return repo_exceptions.StageNotFoundError("Родительский этап не найден")
+            
+            stmt = (
+                select(models.Stage)
+                .options(
+                    selectinload(models.Stage.creator).selectinload(models.User.creator),
+                    selectinload(models.Stage.project).selectinload(models.Project.creator),
+                    selectinload(models.Stage.parent),
+                    selectinload(models.Stage.parent).selectinload(models.Stage.creator).selectinload(models.User.creator),
+                    selectinload(models.Stage.parent).selectinload(models.Stage.project).selectinload(models.Project.creator),
+                )
+                .where(models.Stage.parent_uuid == stage_uuid)
+            )
+            
+            async def _op():
+                return await self.session.execute(stmt)
+            
+            result = await _execute_idempotent(self.session, self._idempotent_retries, self._base_backoff, _op, error_message='Не удалось получить дочерние этапы', exception=repo_exceptions.RepositoryError )
+            stages = result.scalars().all()
+            return [self.map_stage_to_entity(stage) for stage in stages]
+        
+        except repo_exceptions.RepositoryError as e:
+            return self._enrich_error(e)
+        
+        except (DBAPIError, TimeoutError) as e:
+            return self._build_error(repo_exceptions.RepositoryError, "Не удалось получить дочерние этапы", e)
+
     @classmethod
     def map_stage_status_to_model(cls, status: entities.StageStatus) -> models.StageStatus:
         mapping = {
@@ -1279,7 +1316,7 @@ class DailyLogRepository(_RepositoryDebugMixin, repository_interfaces.DBDailyLog
         except (DBAPIError, TimeoutError) as e:
             return self._build_error(repo_exceptions.RepositoryError, "Не удалось получить ежедневный отчет", e)
     
-    async def get_list(self, project_uuid: UUID, date: date, draft: bool = False) -> list[entities.DailyLog] | repo_exceptions.ProjectNotFoundError | repo_exceptions.RepositoryError:
+    async def get_list_by_project(self, project_uuid: UUID, start_date: date | None, end_date: date | None, users_uuid: list[UUID], draft: bool = False) -> list[entities.DailyLog] | repo_exceptions.ProjectNotFoundError | repo_exceptions.RepositoryError:
         try:
             project_exist_stmt = select(sq.exists().where(models.Project.uuid == project_uuid))
             async def _op(): #type: ignore
@@ -1301,9 +1338,13 @@ class DailyLogRepository(_RepositoryDebugMixin, repository_interfaces.DBDailyLog
                     selectinload(models.DailyLog.substage).selectinload(models.Stage.parent).selectinload(models.Stage.creator).selectinload(models.User.creator),
                     selectinload(models.DailyLog.substage).selectinload(models.Stage.parent).selectinload(models.Stage.project).selectinload(models.Project.creator),
                 )
-                .join(models.Project)
-                .where(and_(models.DailyLog.project_uuid == models.Project.uuid, models.DailyLog.created_at == date))
+                .where(and_(models.DailyLog.project_uuid == models.Project.uuid, models.DailyLog.creator_uuid.in_(users_uuid)))
             )
+
+            if start_date:
+                daily_log_list_stmt = daily_log_list_stmt.where(models.DailyLog.created_at >= start_date)
+            if end_date:
+                daily_log_list_stmt = daily_log_list_stmt.where(models.DailyLog.created_at <= end_date)
 
             if draft:
                 daily_log_list_stmt = daily_log_list_stmt.where(models.DailyLog.draft == draft)
@@ -1415,6 +1456,45 @@ class TaskRepository(_RepositoryDebugMixin, repository_interfaces.DBTaskReposito
             await self.session.rollback()
             return self._build_error(repo_exceptions.RepositoryError, "Не удалось создать задачу", e)
     
+    async def get_list_by_project(self, project_uuid: UUID) -> list[entities.Task] | repo_exceptions.ProjectNotFoundError | repo_exceptions.RepositoryError:
+        try:
+            project_exist_stmt = select(sq.exists().where(models.Project.uuid == project_uuid))
+            
+            async def _op(): #type: ignore
+                result = await self.session.execute(project_exist_stmt)
+                return result.scalar_one_or_none()
+            
+            project_exist = await _execute_idempotent(self.session, self._idempotent_retries, self._base_backoff, _op, error_message='Не удалось проверить существование проекта', exception=repo_exceptions.RepositoryError )
+            if not project_exist:
+                return repo_exceptions.ProjectNotFoundError("Проект не найден")
+            
+            stmt = (
+                select(models.Task)
+                .join(models.Task.substage)
+                .options(
+                    selectinload(models.Task.creator).selectinload(models.User.creator),
+                    selectinload(models.Task.substage).selectinload(models.Stage.creator).selectinload(models.User.creator),
+                    selectinload(models.Task.substage).selectinload(models.Stage.project).selectinload(models.Project.creator),
+                    selectinload(models.Task.substage).selectinload(models.Stage.parent),
+                    selectinload(models.Task.substage).selectinload(models.Stage.parent).selectinload(models.Stage.creator).selectinload(models.User.creator),
+                    selectinload(models.Task.substage).selectinload(models.Stage.parent).selectinload(models.Stage.project).selectinload(models.Project.creator),
+                )
+                .where(models.Stage.project_uuid == project_uuid)
+            )
+            
+            async def _op():
+                result = await self.session.execute(stmt)
+                return result.scalars().all()
+            
+            tasks = await _execute_idempotent(self.session, self._idempotent_retries, self._base_backoff, _op, error_message='Не удалось получить задачи проекта', exception=repo_exceptions.RepositoryError )
+            return [self.map_task_to_entity(task) for task in tasks]
+        
+        except repo_exceptions.RepositoryError as e:
+            return self._enrich_error(e)
+        
+        except (DBAPIError, TimeoutError) as e:
+            return self._build_error(repo_exceptions.RepositoryError, "Не удалось получить задачи проекта", e)
+
     async def get_by_uuid(self, task_uuid: UUID, lock_record: bool = False) -> entities.Task | repo_exceptions.TaskAlreadyExistsError | repo_exceptions.TaskNotFoundError | repo_exceptions.RepositoryError:
         try:
             stmt = (
@@ -2085,7 +2165,7 @@ class FileRepository(_RepositoryDebugMixin, repository_interfaces.DBFileReposito
         self._base_backoff = 0.1
         self._init_debug(config)
 
-    async def create(self, file: entities.File) -> entities.File | repo_exceptions.FileAlreadyExistsError | repo_exceptions.RepositoryError:
+    async def create(self, file: entities.DailyLogFile) -> entities.DailyLogFile | repo_exceptions.FileAlreadyExistsError | repo_exceptions.RepositoryError:
         try:
             file_model = self.map_entity_to_file(file)
 
@@ -2103,7 +2183,7 @@ class FileRepository(_RepositoryDebugMixin, repository_interfaces.DBFileReposito
                 exception=repo_exceptions.RepositoryError,
             )
 
-            loaded_file_stmt = self._build_file_stmt(models.File.uuid == file.uuid)
+            loaded_file_stmt = self._build_file_stmt(models.DailyLogFile.uuid == file.uuid)
             loaded_file_result = await _execute_statement_idempotent(
                 self.session,
                 self._idempotent_retries,
@@ -2130,9 +2210,9 @@ class FileRepository(_RepositoryDebugMixin, repository_interfaces.DBFileReposito
             await self.session.rollback()
             return self._build_error(repo_exceptions.RepositoryError, "Не удалось создать файл", e)
 
-    async def get(self, file_uuid: UUID) -> entities.File | repo_exceptions.FileNotFoundError | repo_exceptions.RepositoryError:
+    async def get(self, file_uuid: UUID) -> entities.DailyLogFile | repo_exceptions.FileNotFoundError | repo_exceptions.RepositoryError:
         try:
-            file_stmt = self._build_file_stmt(models.File.uuid == file_uuid)
+            file_stmt = self._build_file_stmt(models.DailyLogFile.uuid == file_uuid)
             file_result = await _execute_statement_idempotent(
                 self.session,
                 self._idempotent_retries,
@@ -2151,9 +2231,9 @@ class FileRepository(_RepositoryDebugMixin, repository_interfaces.DBFileReposito
         except (DBAPIError, TimeoutError) as e:
             return self._build_error(repo_exceptions.RepositoryError, "Не удалось получить файл", e)
 
-    async def remove(self, file_uuid: UUID) -> entities.File | repo_exceptions.FileNotFoundError | repo_exceptions.RepositoryError:
+    async def remove(self, file_uuid: UUID) -> entities.DailyLogFile | repo_exceptions.FileNotFoundError | repo_exceptions.RepositoryError:
         try:
-            file_stmt = self._build_file_stmt(models.File.uuid == file_uuid)
+            file_stmt = self._build_file_stmt(models.DailyLogFile.uuid == file_uuid)
             file_result = await _execute_statement_idempotent(
                 self.session,
                 self._idempotent_retries,
@@ -2190,9 +2270,9 @@ class FileRepository(_RepositoryDebugMixin, repository_interfaces.DBFileReposito
             await self.session.rollback()
             return self._build_error(repo_exceptions.RepositoryError, "Не удалось удалить файл", e)
 
-    async def get_list(self, daily_log_uuid: UUID) -> list[entities.File] | repo_exceptions.FileNotFoundError | repo_exceptions.RepositoryError:
+    async def get_list(self, daily_log_uuid: UUID) -> list[entities.DailyLogFile] | repo_exceptions.FileNotFoundError | repo_exceptions.RepositoryError:
         try:
-            file_list_stmt = self._build_file_stmt(models.File.daily_log_uuid == daily_log_uuid)
+            file_list_stmt = self._build_file_stmt(models.DailyLogFile.daily_log_uuid == daily_log_uuid)
             file_list_result = await _execute_statement_idempotent(
                 self.session,
                 self._idempotent_retries,
@@ -2214,22 +2294,22 @@ class FileRepository(_RepositoryDebugMixin, repository_interfaces.DBFileReposito
     @classmethod
     def _build_file_stmt(cls, condition: Any) -> Any:
         return (
-            select(models.File)
+            select(models.DailyLogFile)
             .options(
-                selectinload(models.File.daily_log).selectinload(models.DailyLog.creator).selectinload(models.User.creator),
-                selectinload(models.File.daily_log).selectinload(models.DailyLog.project).selectinload(models.Project.creator),
-                selectinload(models.File.daily_log).selectinload(models.DailyLog.substage).selectinload(models.Stage.creator).selectinload(models.User.creator),
-                selectinload(models.File.daily_log).selectinload(models.DailyLog.substage).selectinload(models.Stage.project).selectinload(models.Project.creator),
-                selectinload(models.File.daily_log).selectinload(models.DailyLog.substage).selectinload(models.Stage.parent),
-                selectinload(models.File.daily_log).selectinload(models.DailyLog.substage).selectinload(models.Stage.parent).selectinload(models.Stage.creator).selectinload(models.User.creator),
-                selectinload(models.File.daily_log).selectinload(models.DailyLog.substage).selectinload(models.Stage.parent).selectinload(models.Stage.project).selectinload(models.Project.creator),
+                selectinload(models.DailyLogFile.daily_log).selectinload(models.DailyLog.creator).selectinload(models.User.creator),
+                selectinload(models.DailyLogFile.daily_log).selectinload(models.DailyLog.project).selectinload(models.Project.creator),
+                selectinload(models.DailyLogFile.daily_log).selectinload(models.DailyLog.substage).selectinload(models.Stage.creator).selectinload(models.User.creator),
+                selectinload(models.DailyLogFile.daily_log).selectinload(models.DailyLog.substage).selectinload(models.Stage.project).selectinload(models.Project.creator),
+                selectinload(models.DailyLogFile.daily_log).selectinload(models.DailyLog.substage).selectinload(models.Stage.parent),
+                selectinload(models.DailyLogFile.daily_log).selectinload(models.DailyLog.substage).selectinload(models.Stage.parent).selectinload(models.Stage.creator).selectinload(models.User.creator),
+                selectinload(models.DailyLogFile.daily_log).selectinload(models.DailyLog.substage).selectinload(models.Stage.parent).selectinload(models.Stage.project).selectinload(models.Project.creator),
             )
             .where(condition)
         )
 
     @classmethod
-    def map_entity_to_file(cls, file_entity: entities.File) -> models.File:
-        return models.File(
+    def map_entity_to_file(cls, file_entity: entities.DailyLogFile) -> models.DailyLogFile:
+        return models.DailyLogFile(
             uuid=file_entity.uuid,
             name=file_entity.filename,
             uri=file_entity.uri,
@@ -2238,8 +2318,8 @@ class FileRepository(_RepositoryDebugMixin, repository_interfaces.DBFileReposito
         )
 
     @classmethod
-    def map_file_to_entity(cls, file_model: models.File) -> entities.File:
-        return entities.File(
+    def map_file_to_entity(cls, file_model: models.DailyLogFile) -> entities.DailyLogFile:
+        return entities.DailyLogFile(
             uuid=file_model.uuid,
             filename=file_model.name,
             uri=file_model.uri,

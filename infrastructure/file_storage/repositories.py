@@ -1,7 +1,7 @@
 
 import minio
 from datetime import timedelta
-from domain.entities import File
+from domain.entities import DailyLogFile
 from infrastructure.repositories import interfaces, exceptions
 from config import Config
 import asyncio
@@ -14,7 +14,7 @@ class FileRepository(interfaces.StorageFileRepository):
         self.bucket_name = config.minio.bucket_name
         self.loop = asyncio.get_event_loop()
 
-    async def get_upload_link(self, file: File) -> str | exceptions.FileRepositoryError:
+    async def get_upload_link(self, file: DailyLogFile) -> str | exceptions.FileRepositoryError:
         
         def _get_upload_link():
             return self.client.presigned_put_object(
@@ -27,7 +27,7 @@ class FileRepository(interfaces.StorageFileRepository):
         except minio.S3Error as e:
             return exceptions.FileRepositoryError(str(e))
     
-    async def get_unload_link(self, file: File) -> str | exceptions.FileRepositoryError | exceptions.FileNotFoundError:
+    async def get_unload_link(self, file: DailyLogFile) -> str | exceptions.FileRepositoryError | exceptions.FileNotFoundError:
         def _get_unload_link():
             return self.client.presigned_get_object(
                     bucket_name=self.bucket_name,
@@ -42,9 +42,9 @@ class FileRepository(interfaces.StorageFileRepository):
                 return exceptions.FileNotFoundError(f"File with uuid {file.uuid} not found")
             return exceptions.FileRepositoryError(str(e))
     
-    async def get_unload_link_list(self, files: list[File]) -> list[tuple[File, str]] | exceptions.FileRepositoryError | exceptions.FileNotFoundError:
+    async def get_unload_link_list(self, files: list[DailyLogFile]) -> list[tuple[DailyLogFile, str]] | exceptions.FileRepositoryError | exceptions.FileNotFoundError:
         
-        def _get_unload_link_list(file: File):
+        def _get_unload_link_list(file: DailyLogFile):
             link = self.client.presigned_get_object(
                         bucket_name=self.bucket_name,
                         object_name=str(file.uuid),
@@ -60,7 +60,7 @@ class FileRepository(interfaces.StorageFileRepository):
             return exceptions.FileRepositoryError(str(e))
 
     
-    async def get_remove_link(self, file: File) -> None | exceptions.FileRepositoryError | exceptions.FileNotFoundError:
+    async def get_remove_link(self, file: DailyLogFile) -> None | exceptions.FileRepositoryError | exceptions.FileNotFoundError:
         
         def _get_remove_link():
             self.client.remove_object(

@@ -173,8 +173,8 @@ def make_file_entity(
     filename: str | None = None,
     uri: str | None = None,
     uuid: UUID | None = None,
-) -> entities.File:
-    return entities.File(
+) -> entities.DailyLogFile:
+    return entities.DailyLogFile(
         uuid=uuid or uuid4(),
         filename=filename or _unique_str("file"),
         uri=uri or f"s3://bucket/{_unique_str('file')}",
@@ -356,8 +356,8 @@ def build_file_model(
     name: str | None = None,
     uri: str | None = None,
     uuid: UUID | None = None,
-) -> models.File:
-    return models.File(
+) -> models.DailyLogFile:
+    return models.DailyLogFile(
         uuid=uuid or uuid4(),
         name=name or _unique_str("file"),
         uri=uri or f"s3://bucket/{_unique_str('file')}",

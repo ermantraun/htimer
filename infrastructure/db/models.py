@@ -225,7 +225,7 @@ class Stage(Base):
 
     __table_args__ = (
         sq.UniqueConstraint("parent_uuid", "name", name="uq_parent_name"),
-        sq.UniqueConstraint("parent_uuid", "main_path", name="uq_parent_main_path")
+        sq.Index('parent_uuid_main_path_idx', 'parent_uuid', unique=True, postgresql_where=(sq.column('main_path') == True)),
     )
 
 
@@ -251,16 +251,7 @@ class Task(Base):
         
         sq.UniqueConstraint("substage_uuid", "name", name="uq_substage_name"),
         
-        
-        
-# """         sq.CheckConstraint(
-#             "array_length(working_days, 1) = cardinality(ARRAY(SELECT DISTINCT unnest(working_days)))",
-#             name="ck_tasks_working_days_unique",
-#         ),
-#         sq.CheckConstraint(
-#             "completion_date IS NULL OR completion_date = ANY(working_days)",
-#             name="ck_tasks_completion_date_in_working_days",
-#         ), """
+
     )
 
 
@@ -278,7 +269,7 @@ class DailyLog(Base):
     substage_uuid: Mapped[UUID | None] = mapped_column(sq.ForeignKey("stages.uuid"))
     substage: Mapped[Stage | None] = relationship("Stage", back_populates="daily_logs", lazy="raise")
 
-    files: Mapped[list[File]] = relationship("File", back_populates="daily_log", cascade="all, delete-orphan", passive_deletes=True, lazy="raise")
+    files: Mapped[list[DailyLogFile]] = relationship("DailyLogFile", back_populates="daily_log", cascade="all, delete-orphan", passive_deletes=True, lazy="raise")
 
     created_at: Mapped[date] = mapped_column(sq.Date, nullable=False)
     updated_at: Mapped[date | None] = mapped_column(sq.Date)
@@ -293,7 +284,7 @@ class DailyLog(Base):
     )
 
 
-class File(Base):
+class DailyLogFile(Base):
     __tablename__ = "files"
 
     uuid: Mapped[UUID] = mapped_column(sq.UUID(as_uuid=True), primary_key=True)
@@ -318,16 +309,7 @@ class UserReport(Base):
     report_uuid: Mapped[UUID] = mapped_column(sq.ForeignKey("reports.uuid", ondelete="CASCADE"), nullable=False)
     report: Mapped[Report] = relationship("Report", lazy="raise", back_populates="target_users")
 
-# class Report:
-#     uuid: UUID
-#     project: Project
-#     generated_by: User
-#     generated_at: date
-#     target_users: list[User] | None = None
-#     start_date: date | None = None
-#     end_date: date | None = None   
-#     file_path: str | None = None
-#     status: ReportStatus = ReportStatus.PENDING
+
 class Report(Base):
     __tablename__ = "reports"
 

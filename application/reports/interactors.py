@@ -1,4 +1,4 @@
-from uuid import uuid4
+from uuid import uuid4, UUID
 from . import dto, exceptions, interfaces, validators
 from application import common_interfaces, common_exceptions
 from domain import entities
@@ -52,9 +52,7 @@ class CreateReportRequestInteractor:
 
         if isinstance(users, (common_exceptions.UserNotFoundError, common_exceptions.RepositoryError)):
             return users
-        
-        if users is None:
-            users = [actor]
+
         project_members = await self.project_repository.get_members([project.uuid])
 
         if isinstance(project_members, (common_exceptions.ProjectNotFoundError, common_exceptions.RepositoryError)):
@@ -83,16 +81,80 @@ class CreateReportRequestInteractor:
         if isinstance(enqueue_error, common_exceptions.JobGatewayError):
             return enqueue_error
 
-        await self.logger.info(message=f"Report {report.uuid} creation requested by user {actor.uuid} for project {project.uuid} with target users {[user.uuid for user in users]} and period {start_date} to {end_date}", operation="create_report_request")
+        await self.logger.info(message=f"Report {report.uuid} creation requested by user {actor.uuid} for project {project.uuid} with period {start_date} to {end_date}", operation="create_report_request")
 
         await self.session.commit()
 
         return dto.CreateReportRequestOutDTO(report=report)
     
+
 class CreateReportInteractor:
-    def __init__(self, create_report_request_interactor: CreateReportRequestInteractor):
-        self.create_report_request_interactor = create_report_request_interactor
+    def __init__(self, file_storage: common_interfaces.FileStorage, visualizer: interfaces.Vizualizer, project_repository: common_interfaces.ProjectRepository,  report_repository: common_interfaces.ReportRepository, logger: common_interfaces.Logger, daily_log_repository: common_interfaces.DailyLogRepository, task_repository: common_interfaces.TaskRepository):
+        self.visualizer = visualizer
+        self.project_repository = project_repository
+        self.report_repository = report_repository
+        self.logger = logger
+        self.daily_log_repository = daily_log_repository
+        self.task_repository = task_repository
+        self.file_storage = file_storage
 
-    async def execute(self) -> None:
 
-        pass
+    async def execute(self, dto: dto.CreateReportInDTO) -> None | common_exceptions.ProjectNotFoundError | common_exceptions.RepositoryError | exceptions.ReportCreateError:
+
+        report = await self.report_repository.get_by_uuid(UUID(dto.report_id))
+
+        if isinstance(report, (common_exceptions.ReportNotFoundError, common_exceptions.RepositoryError)):
+            await self.logger.info(message=f"Report generation failed for report {dto.report_id} due to report not found", operation="report_generation_failed")
+            return report
+        
+        project_members = await self.project_repository.get_members([report.project.uuid])
+
+        if isinstance(project_members, (common_exceptions.ProjectNotFoundError, common_exceptions.RepositoryError)):
+            await self.logger.info(message=f"Report generation failed for report {dto.report_id} due to project not found", operation="report_generation_failed")
+            return project_members
+
+        daily_logs = await self.daily_log_repository.get_list_by_project(report.project.uuid, report.start_date, report.end_date, [member.uuid for member in project_members], draft=False)
+        
+        if isinstance(daily_logs, (common_exceptions.ProjectNotFoundError, common_exceptions.RepositoryError)):
+            await self.logger.info(message=f"Report generation failed for report {dto.report_id} due to error fetching daily logs", operation="report_generation_failed")
+            return daily_logs
+
+        if report.is_summary_report():
+            tasks = await self.task_repository.get_list_by_project(report.project.uuid)
+
+        
+
+            if isinstance(tasks, (common_exceptions.ProjectNotFoundError, common_exceptions.RepositoryError)):
+                await self.logger.info(message=f"Report generation failed for report {dto.report_id} due to error fetching tasks", operation="report_generation_failed")
+                return tasks
+
+            report_content = report.make_summary_report_content(daily_logs, tasks)
+
+        else:
+            report_content = report.make_activity_report_content(daily_logs)
+
+        visualization = self.visualizer.vizualize(report_content)
+
+        report_file = self.visualizer.create_vizualization_file(visualization)
+
+        report.mark_completed(file_name=f"{report.uuid}")
+
+
+        report_update_error = await self.report_repository.update(report.uuid, {
+            "status": report.status,
+            "file_name": report.file_name
+        })
+
+        if isinstance(report_update_error, (common_exceptions.RepositoryError, common_exceptions.ReportNotFoundError)):
+            await self.logger.info(message=f"Report generation failed for report {dto.report_id} due to error updating report status", operation="report_generation_failed")
+            return report_update_error
+
+        error = await self.file_storage.save(file_name=f"{report.uuid}", content=report_file)
+
+        if isinstance(error, common_exceptions.FileStorageError):
+            await self.logger.info(message=f"Report generation failed for report {dto.report_id} due to error saving report file", operation="report_generation_failed")
+            raise error
+       
+
+        
+
