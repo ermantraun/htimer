@@ -1,4 +1,4 @@
-from report import CreateReportConsumer
+from .report import CreateReportConsumer
 
 
 

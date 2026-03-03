@@ -42,7 +42,7 @@ def on_shutdown_signal(*_: Any) -> None:
     os.killpg(os.getpgrp(), signal.SIGTERM)
 
 
-if __name__ == "__main__":
+def main() -> None:
     os.setpgrp()
 
     signal.signal(signal.SIGTERM, on_shutdown_signal)
@@ -50,3 +50,7 @@ if __name__ == "__main__":
 
     MessageBrokerInitializer(Config()).init()
     asyncio.run(run_consumers(consumers))
+
+
+if __name__ == "__main__":
+   main()

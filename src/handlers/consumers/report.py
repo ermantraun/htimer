@@ -8,7 +8,7 @@ from application.reports import interactors, dto
 from application import common_interfaces
 from domain import entities
 
-from interfaces import BaseConsumer
+from .interfaces import BaseConsumer
 
 
 shutdown_signal_received = False
