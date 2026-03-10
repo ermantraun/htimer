@@ -1,0 +1,4 @@
+[console_scripts]
+consumers = rabbit_mq_main:main
+fastapi-dev = cli:dev
+fastapi-prod = cli:prod
