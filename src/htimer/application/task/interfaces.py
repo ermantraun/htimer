@@ -1,6 +1,6 @@
 from typing import Protocol
 from abc import abstractmethod
-from domain import entities
+from htimer.domain import entities
 from . import exceptions
 
 class TaskAuthorizationPolicy(Protocol):

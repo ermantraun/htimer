@@ -1,6 +1,11 @@
-class TaskAuthorizationError(Exception):
-    """Raised when there is an authorization error related to tasks."""
-    pass
+from htimer.application import common_exceptions
+
+
+class TaskAuthorizationError(common_exceptions.AuthorizationError):
+    """Ошибка авторизации при работе с задачами."""
+
+    def __init__(self, message: str = "Недостаточно прав для операции с задачей."):
+        super().__init__(message)
 
 class TaskValidationError(Exception):
     """Raised when task input is invalid."""

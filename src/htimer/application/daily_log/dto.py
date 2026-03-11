@@ -1,8 +1,8 @@
 from datetime import date
 from dataclasses import dataclass
 from uuid import UUID
-from domain import entities
-from application.common_interfaces import ActionLink 
+from htimer.domain import entities
+from htimer.application.common_interfaces import ActionLink 
 
 @dataclass
 class CreateDailyLogInDTO:

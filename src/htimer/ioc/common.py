@@ -3,19 +3,20 @@ import minio
 import aio_pika
 from dishka import Provider, provide, Scope, from_context, AnyOf # type: ignore
 from typing import AsyncGenerator
-from application import common_interfaces
-from infrastructure.db import repositories as db_repositories
-from infrastructure import text_normalizer
-from infrastructure import clock
-from infrastructure.repositories import repositories
-from infrastructure.auth import auth
-from infrastructure.repositories import interfaces as repository_interfaces
-from infrastructure.db import database
-from infrastructure.logger import logger, interfaces as logger_interfaces
-from infrastructure.auth import interfaces as auth_interfaces
-from infrastructure.file_storage import repositories as storage_repository
-from infrastructure.payment_gateway import gateway as payment_gateway
-from config import Config, ClockConfig
+from htimer.application import common_interfaces
+from htimer.infrastructure.db import repositories as db_repositories
+from htimer.infrastructure import text_normalizer
+from htimer.infrastructure import clock
+from htimer.infrastructure.repositories import repositories
+from htimer.infrastructure.auth import auth
+from htimer.infrastructure.repositories import interfaces as repository_interfaces
+from htimer.infrastructure.db import database
+from htimer.infrastructure.logger import logger, interfaces as logger_interfaces
+from htimer.infrastructure.auth import interfaces as auth_interfaces
+from htimer.infrastructure.file_storage import storage
+from htimer.infrastructure.payment_gateway import gateway as payment_gateway
+from htimer.infrastructure.file_storage import storage
+from htimer.config import Config, ClockConfig
 
 class ConfigProvider(Provider):
     config = from_context( scope=Scope.APP, provides=Config)
@@ -33,6 +34,8 @@ class StorageProvider(Provider):
             secret_key=config.minio.secret_key,
             secure=False,
         )
+    
+    storage = provide(storage.Storage, scope=Scope.REQUEST, provides=common_interfaces.FileStorage)
     
 class DBProvider(Provider):
     
@@ -54,7 +57,6 @@ class RepositoryProvider(Provider):
     db_subscription_repository = provide(db_repositories.SubscriptionRepository, scope=Scope.REQUEST, provides=repository_interfaces.DBSubscriptionRepository)
     db_payment_repository = provide(db_repositories.PaymentRepository, scope=Scope.REQUEST, provides=repository_interfaces.DBPaymentRepository)
     db_file_repository = provide(db_repositories.FileRepository, scope=Scope.REQUEST, provides=repository_interfaces.DBFileRepository)
-    file_storage_repository = provide(storage_repository.FileRepository, scope=Scope.REQUEST, provides=repository_interfaces.StorageFileRepository)
     db_report_repository = provide(db_repositories.ReportRepository, scope=Scope.REQUEST, provides=repository_interfaces.DBReportRepository)
 
     user_repository = provide(repositories.UserRepository, scope=Scope.REQUEST, provides=common_interfaces.UserRepository)
@@ -66,6 +68,8 @@ class RepositoryProvider(Provider):
     payment_repository = provide(repositories.PaymentRepository, scope=Scope.REQUEST, provides=common_interfaces.PaymentRepository)
     file_repository = provide(repositories.FileRepository, scope=Scope.REQUEST, provides=common_interfaces.FileRepository)
     report_repository = provide(repositories.ReportRepository, scope=Scope.REQUEST, provides=common_interfaces.ReportRepository)
+
+
 class PaymentGatewayProvider(Provider):
     payment_gateway = provide(payment_gateway.YooKassaGateway, scope=Scope.REQUEST, provides=common_interfaces.PaymentGateway)
 

@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession, AsyncEngine, async_sessionmaker, create_async_engine
-from config import Config
+from htimer.config import Config
 
 async def new_engine(config: Config) -> AsyncEngine:
     psql_config = config.postgres

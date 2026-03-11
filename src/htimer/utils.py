@@ -1,5 +1,5 @@
 import pika
-from config import Config
+from htimer.config import Config
 
 
 

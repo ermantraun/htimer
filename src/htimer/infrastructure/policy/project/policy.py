@@ -1,6 +1,6 @@
-from domain import entities
-from application.project import interfaces
-import infrastructure.policy.project.project_exceptions as project_exceptions
+from htimer.domain import entities
+from htimer.application.project import interfaces
+import htimer.infrastructure.policy.project.project_exceptions as project_exceptions
 
 class ProjectAuthorizationPolicyImpl(interfaces.ProjectAuthorizationPolicy):
 
@@ -12,7 +12,7 @@ class ProjectAuthorizationPolicyImpl(interfaces.ProjectAuthorizationPolicy):
 
         if error is entities.UserDecisions.CreateProjectDecision.FORBIDDEN_FOR_NON_ADMIN:
             return project_exceptions.UserNotAdminError(
-                "Пользователь не является администратором и не может создать проект."
+                "Недостаточно прав: создание проекта доступно только администратору."
             )
 
         return None
@@ -25,7 +25,7 @@ class ProjectAuthorizationPolicyImpl(interfaces.ProjectAuthorizationPolicy):
 
         if error is entities.UserDecisions.UpdateProjectDecision.FORBIDDEN_FOR_NON_PROJECT_ADMIN_OR_CREATOR:
             return project_exceptions.UserNotProjectAdminError(
-                "Пользователь не является администратором проекта и не может обновить проект."
+                "Недостаточно прав: обновление проекта доступно только администратору проекта."
             )
 
 
@@ -40,7 +40,7 @@ class ProjectAuthorizationPolicyImpl(interfaces.ProjectAuthorizationPolicy):
 
         if error is entities.UserDecisions.GetProjectDecision.FORBIDDEN_FOR_NON_MEMBER:
             return project_exceptions.UserNotProjectMemberError(
-                "Пользователь не является участником проекта и не может получить проект."
+                "Недостаточно прав: просмотр проекта доступен только участнику проекта."
             )
 
         return None

@@ -1,7 +1,7 @@
 from uuid import uuid4
 from dataclasses import asdict
-from application import common_exceptions, common_interfaces
-from domain import entities
+from htimer.application import common_exceptions, common_interfaces
+from htimer.domain import entities
 from . import exceptions, interfaces, validators, dto
 
 
@@ -33,7 +33,29 @@ class CreateProjectInteractor:
         self.text_normalizer = text_normalizer
         self.project_repository = project_repository
         
-    async def execute(self, data: dto.CreateProjectInDTO) -> dto.CreateProjectOutDTO | common_exceptions.UserAlreadyHasProjectError | common_exceptions.InvalidTokenError | exceptions.ProjectAuthorizationError | exceptions.InvalidProjectDescriptionError | exceptions.InvalidProjectNameError | common_exceptions.UserNotFoundError | common_exceptions.RepositoryError:
+    async def execute(self, data: dto.CreateProjectInDTO) -> dto.CreateProjectOutDTO:
+        """Создаёт проект.
+
+        Args:
+            data: Структура CreateProjectInDTO.
+                - name: str
+                - description: str | None
+                - start_date: str | None
+                - end_date: str | None
+
+        Returns:
+            dto.CreateProjectOutDTO: Структура результата.
+                - project: entities.Project
+
+        Raises:
+            exceptions.InvalidProjectDescriptionError: Описание проекта не прошло валидацию.
+            exceptions.InvalidProjectNameError: Имя проекта не прошло валидацию.
+            common_exceptions.InvalidTokenError: Токен пользователя невалиден.
+            common_exceptions.UserNotFoundError: Пользователь не найден.
+            exceptions.ProjectAuthorizationError: Недостаточно прав для создания проекта.
+            common_exceptions.UserAlreadyHasProjectError: У пользователя уже есть проект.
+            common_exceptions.RepositoryError: Ошибка репозитория.
+        """
         
 
         if data.description is not None:
@@ -69,7 +91,7 @@ class CreateProjectInteractor:
 
         created_project = await self.project_repository.create(new_project)
         if isinstance(created_project, (common_exceptions.UserAlreadyHasProjectError, common_exceptions.UserNotFoundError, common_exceptions.RepositoryError)):
-            return created_project
+            raise created_project
 
         await self.db_session.commit()
 
@@ -100,7 +122,35 @@ class UpdateProjectInteractor:
         self.subscription_repository = subscription_repository
         self.text_normalizer = text_normalizer
         
-    async def execute(self, data: dto.UpdateProjectInDTO) -> dto.UpdateProjectOutDTO | common_exceptions.SubscriptionNotFoundError | common_exceptions.UserNotFoundError | common_exceptions.ProjectNotFoundError | common_exceptions.UserAlreadyHasProjectError | common_exceptions.InvalidTokenError | exceptions.ProjectAuthorizationError | exceptions.InvalidProjectDescriptionError | exceptions.InvalidProjectNameError | common_exceptions.RepositoryError:
+    async def execute(self, data: dto.UpdateProjectInDTO) -> dto.UpdateProjectOutDTO:
+        """Обновляет проект.
+
+        Args:
+            data: Структура UpdateProjectInDTO.
+                - uuid: UUID
+                - name: str | None
+                - description: str | None
+                - status: entities.ProjectStatus | None
+                - start_date: str | None
+                - end_date: str | None
+
+        Returns:
+            dto.UpdateProjectOutDTO: Структура результата.
+                - project: entities.Project
+
+        Raises:
+            exceptions.AllFieldsNoneError: Не переданы поля для обновления.
+            exceptions.InvalidProjectDescriptionError: Описание проекта не прошло валидацию.
+            exceptions.InvalidProjectNameError: Имя проекта не прошло валидацию.
+            common_exceptions.InvalidTokenError: Токен пользователя невалиден.
+            common_exceptions.UserNotFoundError: Пользователь не найден.
+            common_exceptions.ProjectNotFoundError: Проект не найден.
+            exceptions.ProjectAuthorizationError: Недостаточно прав для обновления проекта.
+            common_exceptions.SubscriptionNotFoundError: Активная подписка проекта не найдена.
+            exceptions.CantUpdateProjectError: Нарушены доменные ограничения обновления проекта.
+            common_exceptions.UserAlreadyHasProjectError: Конфликт уникальности проекта.
+            common_exceptions.RepositoryError: Ошибка репозитория.
+        """
         
 
         if data.description is not None:
@@ -115,10 +165,14 @@ class UpdateProjectInteractor:
             raise current_user_uuid
 
         actor = await self.user_repository.get_by_uuid(current_user_uuid)
+        if isinstance(actor, common_exceptions.UserNotFoundError):
+            raise actor
         if isinstance(actor, common_exceptions.RepositoryError):
             raise actor
 
         project = await self.project_repository.get_by_uuid(data.uuid, lock_record=True)
+        if isinstance(project, common_exceptions.ProjectNotFoundError):
+            raise project
         if isinstance(project, common_exceptions.RepositoryError):
             raise project
 
@@ -177,19 +231,41 @@ class GetProjectInteractor:
         self.user_repository = user_repository
         self.context = context
         
-    async def execute(self, data: dto.GetProjectInDTO) -> dto.GetProjectsOutDTO | common_exceptions.UserNotFoundError | common_exceptions.ProjectNotFoundError | common_exceptions.RepositoryError:
+    async def execute(self, data: dto.GetProjectInDTO) -> dto.GetProjectsOutDTO:
+        """Возвращает проект и его участников.
+
+        Args:
+            data: Структура GetProjectInDTO.
+                - project_uuid: UUID
+
+        Returns:
+            dto.GetProjectsOutDTO: Структура результата.
+                - project: entities.Project
+                - members: list[entities.User]
+
+        Raises:
+            common_exceptions.InvalidTokenError: Токен пользователя невалиден.
+            common_exceptions.UserNotFoundError: Пользователь не найден.
+            common_exceptions.ProjectNotFoundError: Проект не найден.
+            exceptions.ProjectAuthorizationError: Недостаточно прав для просмотра проекта.
+            common_exceptions.RepositoryError: Ошибка репозитория.
+        """
         actor_uuid = self.context.get_current_user_uuid()
         
         if isinstance(actor_uuid, common_exceptions.InvalidTokenError):
             raise actor_uuid
         
         actor = await self.user_repository.get_by_uuid(actor_uuid)
+        if isinstance(actor, common_exceptions.UserNotFoundError):
+            raise actor
         
         if isinstance(actor, common_exceptions.RepositoryError):
             raise actor
         
         
         project = await self.project_repository.get_by_uuid(data.project_uuid)
+        if isinstance(project, common_exceptions.ProjectNotFoundError):
+            raise project
 
         if isinstance(project, common_exceptions.RepositoryError):
             raise project
@@ -224,7 +300,24 @@ class GetProjectListInteractor:
         self.user_context = user_context
         self.validator = validator
 
-    async def execute(self, data: dto.GetProjectListInDTO) -> dto.GetProjectListOutDTO | exceptions.ProjectValidationError | common_exceptions.UserNotFoundError | common_exceptions.ProjectNotFoundError | common_exceptions.InvalidTokenError | common_exceptions.RepositoryError:
+    async def execute(self, data: dto.GetProjectListInDTO) -> dto.GetProjectListOutDTO:
+        """Возвращает список проектов текущего пользователя.
+
+        Args:
+            data: Структура GetProjectListInDTO.
+                - (полей нет)
+
+        Returns:
+            dto.GetProjectListOutDTO: Структура результата.
+                - projects: list[entities.Project]
+
+        Raises:
+            exceptions.ProjectValidationError: Входные данные не прошли валидацию.
+            common_exceptions.InvalidTokenError: Токен пользователя невалиден.
+            common_exceptions.UserNotFoundError: Пользователь не найден.
+            common_exceptions.ProjectNotFoundError: Проект не найден.
+            common_exceptions.RepositoryError: Ошибка репозитория.
+        """
 
         validation_error = self.validator.validate(data)
         if validation_error is not None:
@@ -257,19 +350,42 @@ class AddMembersToProjectInteractor:
         self.authorization_policy = authorization_policy
         self.clock = clock
     
-    async def execute(self, data: dto.AddMembersInDTO) -> dto.AddMembersOutDTO | common_exceptions.ProjectNotFoundError | common_exceptions.UserNotFoundError | common_exceptions.UserAlreadyProjectMemberError | exceptions.ProjectAuthorizationError | common_exceptions.RepositoryError:
+    async def execute(self, data: dto.AddMembersInDTO) -> dto.AddMembersOutDTO:
+        """Добавляет участников в проект.
+
+        Args:
+            data: Структура AddMembersInDTO.
+                - project_uuid: UUID
+                - members_uuids: list[UUID]
+
+        Returns:
+            dto.AddMembersOutDTO: Структура результата.
+                - members: list[entities.MemberShip]
+
+        Raises:
+            common_exceptions.InvalidTokenError: Токен пользователя невалиден.
+            common_exceptions.UserNotFoundError: Пользователь не найден.
+            common_exceptions.ProjectNotFoundError: Проект не найден.
+            exceptions.ProjectAuthorizationError: Недостаточно прав для изменения состава проекта.
+            common_exceptions.UserAlreadyProjectMemberError: Пользователь уже состоит в проекте.
+            common_exceptions.RepositoryError: Ошибка репозитория.
+        """
         actor_uuid = self.context.get_current_user_uuid()
         
         if isinstance(actor_uuid, common_exceptions.InvalidTokenError):
             raise actor_uuid
         
         actor = await self.user_repository.get_by_uuid(actor_uuid)
+        if isinstance(actor, common_exceptions.UserNotFoundError):
+            raise actor
         
         if isinstance(actor, common_exceptions.RepositoryError):
             raise actor
         
                 
         project = await self.project_repository.get_by_uuid(data.project_uuid)
+        if isinstance(project, common_exceptions.ProjectNotFoundError):
+            raise project
 
         if isinstance(project, common_exceptions.RepositoryError):
             raise project
@@ -279,9 +395,6 @@ class AddMembersToProjectInteractor:
         if isinstance(project_members, (common_exceptions.ProjectNotFoundError, common_exceptions.RepositoryError)):
             raise project_members
         
-        
-        if isinstance(project, (common_exceptions.ProjectNotFoundError, common_exceptions.UserNotFoundError, common_exceptions.RepositoryError)):
-            raise project
         
         authorization_error = self.authorization_policy.decide_update_project(
             actor,
@@ -296,6 +409,8 @@ class AddMembersToProjectInteractor:
         assigned_by = actor
         
         added_users = await self.user_repository.get_list(data.members_uuids)
+        if isinstance(added_users, common_exceptions.UserNotFoundError):
+            raise added_users
         
         if isinstance(added_users, common_exceptions.RepositoryError):
             raise added_users
@@ -334,13 +449,33 @@ class RemoveMembersFromProjectInteractor:
         self.context = context
         self.authorization_policy = authorization_policy
         
-    async def execute(self, data: dto.RemoveMembersInDTO) ->  None | common_exceptions.ProjectNotFoundError | common_exceptions.MemberNotFound | exceptions.ProjectAuthorizationError | common_exceptions.RepositoryError:
+    async def execute(self, data: dto.RemoveMembersInDTO) -> None:
+        """Удаляет участников из проекта.
+
+        Args:
+            data: Структура RemoveMembersInDTO.
+                - project_uuid: UUID
+                - members_uuids: list[UUID]
+
+        Returns:
+            None: Участники успешно удалены.
+
+        Raises:
+            common_exceptions.InvalidTokenError: Токен пользователя невалиден.
+            common_exceptions.UserNotFoundError: Пользователь не найден.
+            common_exceptions.ProjectNotFoundError: Проект не найден.
+            common_exceptions.MemberNotFound: Участник проекта не найден.
+            exceptions.ProjectAuthorizationError: Недостаточно прав для изменения состава проекта.
+            common_exceptions.RepositoryError: Ошибка репозитория.
+        """
         actor_uuid = self.context.get_current_user_uuid()
         
         if isinstance(actor_uuid, common_exceptions.InvalidTokenError):
             raise actor_uuid
         
         actor = await self.user_repository.get_by_uuid(actor_uuid)
+        if isinstance(actor, common_exceptions.UserNotFoundError):
+            raise actor
         
         if isinstance(actor, common_exceptions.RepositoryError):
             raise actor
@@ -348,7 +483,7 @@ class RemoveMembersFromProjectInteractor:
         
         project = await self.project_repository.get_by_uuid(data.project_uuid)
 
-        if isinstance(project, (common_exceptions.ProjectNotFoundError, common_exceptions.UserNotFoundError, common_exceptions.RepositoryError)):
+        if isinstance(project, (common_exceptions.ProjectNotFoundError, common_exceptions.RepositoryError)):
             raise project
 
         members = await self.project_repository.get_members([project.uuid])

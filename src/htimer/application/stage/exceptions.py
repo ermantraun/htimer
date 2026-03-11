@@ -1,3 +1,6 @@
+from htimer.application import common_exceptions
+
+
 class ProjectRepositoryError(Exception):
     """Raised when there is an error in the project repository."""
     pass
@@ -22,9 +25,11 @@ class ParentStageAlreadyHasMainSubStageError(StageRepositoryError):
     """Raised when a parent stage already has sub-stages."""
     pass
 
-class StageAuthorizationError(Exception):
-    """Raised when there is an error during stage creation."""
-    pass
+class StageAuthorizationError(common_exceptions.AuthorizationError):
+    """Ошибка авторизации при работе с этапом."""
+
+    def __init__(self, message: str = "Недостаточно прав для операции с этапом."):
+        super().__init__(message)
 
 class UserRepositoryError(Exception):
     """Raised when there is an error in the user repository."""

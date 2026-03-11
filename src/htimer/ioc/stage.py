@@ -1,6 +1,6 @@
 from dishka import Provider, Scope, provide, AnyOf, provide_all # type: ignore
-from application.stage import interactors, interfaces
-from infrastructure.policy.stage import policy
+from htimer.application.stage import interactors, interfaces
+from htimer.infrastructure.policy.stage import policy
 
 class PolicyProvider(Provider):
     stage_authorization_policy = provide(

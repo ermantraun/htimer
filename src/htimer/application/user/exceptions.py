@@ -1,3 +1,6 @@
+from htimer.application import common_exceptions
+
+
 class UserValidationError(Exception):
     """Ошибка валидации данных пользователя."""
     pass
@@ -19,9 +22,11 @@ class InvalidPasswordError(UserValidationError):
     """Ошибка некорректного пароля пользователя."""
     pass
 
-class UserAuthorizationError(Exception):
-    """Ошибка авторизации пользователя."""
-    pass
+class UserAuthorizationError(common_exceptions.AuthorizationError):
+    """Ошибка авторизации при работе с пользователем."""
+
+    def __init__(self, message: str = "Недостаточно прав для операции с пользователем."):
+        super().__init__(message)
 
 class InvalidPasswordHashError(Exception):
     """Ошибка: некорректный хеш пароля."""

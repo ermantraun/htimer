@@ -1,140 +1,140 @@
 class InvalidToken(Exception):
-	"""Raised when a token is invalid."""
+	"""Ошибка: токен недействителен."""
 
 
 class RepositoryError(Exception):
-	"""Raised when there is a generic repository error."""
+	"""Общая ошибка репозитория."""
 
 
 class UserRepositoryError(RepositoryError):
-	"""Raised when there is an error in the user repository."""
+	"""Ошибка репозитория пользователей."""
 
 
 class EmailAlreadyExistsError(UserRepositoryError):
-	"""Raised when a user with the same email already exists."""
+	"""Пользователь с таким email уже существует."""
 
 
 class UserNotFoundError(UserRepositoryError):
-	"""Raised when a user is not found."""
+	"""Пользователь не найден."""
 
 
 class ProjectRepositoryError(RepositoryError):
-	"""Raised when there is an error in the project repository."""
+	"""Ошибка репозитория проектов."""
 
 
 class UserAlreadyHasProjectError(ProjectRepositoryError):
-	"""Raised when a user already has a project with the same name."""
+	"""У пользователя уже есть проект с таким именем."""
 
 
 class ProjectNotFoundError(ProjectRepositoryError):
-	"""Raised when a project is not found."""
+	"""Проект не найден."""
 
 
 class MemberNotFound(ProjectRepositoryError):
-	"""Raised when a user is not in the project members."""
+	"""Участник проекта не найден."""
 
 
 class UserAlreadyProjectMemberError(ProjectRepositoryError):
-	"""Raised when a user is already a project member."""
+	"""Пользователь уже является участником проекта."""
 
 
 class StageRepositoryError(RepositoryError):
-	"""Raised when there is an error in the stage repository."""
+	"""Ошибка репозитория этапов."""
 
 
 class StageNotFoundError(StageRepositoryError):
-	"""Raised when a stage is not found."""
+	"""Этап не найден."""
 
 
 class StageAlreadyExistsError(StageRepositoryError):
-	"""Raised when a stage already exists."""
+	"""Этап уже существует."""
 
 
 class ParentStageAlreadyHasMainSubStageError(StageRepositoryError):
-	"""Raised when a parent stage already has a main sub-stage."""
+	"""У родительского этапа уже есть основной подэтап."""
 
 
 class DailyLogRepositoryError(RepositoryError):
-	"""Raised when there is an error in the daily log repository."""
+	"""Ошибка репозитория записей дня."""
 
 
 class DailyLogAlreadyExistsError(DailyLogRepositoryError):
-	"""Raised when a daily log already exists for the given criteria."""
+	"""Запись дня с заданными параметрами уже существует."""
 
 
 class DailyLogNotFoundError(DailyLogRepositoryError):
-	"""Raised when a daily log is not found."""
+	"""Запись дня не найдена."""
 
 
 class TaskRepositoryError(RepositoryError):
-	"""Raised when there is an error in the task repository."""
+	"""Ошибка репозитория задач."""
 
 
 class TaskNotFoundError(TaskRepositoryError):
-	"""Raised when a task is not found."""
+	"""Задача не найдена."""
 
 
 class TaskAlreadyExistsError(TaskRepositoryError):
-	"""Raised when a task already exists."""
+	"""Задача уже существует."""
 
 
 class InvalidDate(Exception):
-	"""Raised when a provided date is invalid."""
+	"""Передана некорректная дата."""
 
 
 class PaymentRepositoryError(RepositoryError):
-	"""Raised when there is an error in the payment repository."""
+	"""Ошибка репозитория платежей."""
 
 
 class PaymentNotFoundError(PaymentRepositoryError):
-	"""Raised when a payment is not found."""
+	"""Платёж не найден."""
 
 
 class SubscriptionRepositoryError(RepositoryError):
-	"""Raised when there is an error in the subscription repository."""
+	"""Ошибка репозитория подписок."""
 
 
 class SubscriptionNotFoundError(SubscriptionRepositoryError):
-	"""Raised when a subscription is not found."""
+	"""Подписка не найдена."""
 
 
 class SubscriptionAlreadyExistsError(SubscriptionRepositoryError):
-	"""Raised when a subscription already exists."""
+	"""Подписка уже существует."""
 
 
 class PaymentGatewayError(Exception):
-	"""Raised when there is an error with the payment gateway."""
+	"""Ошибка платёжного шлюза."""
 
 
 class PaymentFailedError(PaymentGatewayError):
-	"""Raised when a payment through the gateway fails."""
+	"""Ошибка выполнения платежа через шлюз."""
 
 
 class PaymentNotComplete(PaymentGatewayError):
-	"""Raised when a payment is not completed successfully."""
+	"""Платёж не завершён успешно."""
 
 
 class PaymentNotExistsError(PaymentGatewayError):
-	"""Raised when a payment does not exist."""
+	"""Платёж не существует."""
 
 
 class PaymentRefundFailedError(PaymentGatewayError):
-	"""Raised when a payment refund fails."""
+	"""Ошибка возврата платежа."""
 
 
 class FileRepositoryError(RepositoryError):
-	"""Raised when there is an error in the file repository."""
+	"""Ошибка репозитория файлов."""
 
 
 class FileAlreadyExistsError(FileRepositoryError):
-	"""Raised when a file already exists."""
+	"""Файл уже существует."""
 
 
 class FileNotFoundError(FileRepositoryError):
-	"""Raised when a file is not found."""
+	"""Файл не найден."""
 
 class ReportRepositoryError(RepositoryError):
-	"""Raised when there is an error in the report repository."""
+	"""Ошибка репозитория отчётов."""
 
 class ReportNotFoundError(ReportRepositoryError):
-	"""Raised when a report is not found."""
+	"""Отчёт не найден."""

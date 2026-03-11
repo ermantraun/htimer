@@ -1,7 +1,7 @@
 from dishka import Provider, Scope, provide, provide_all # type: ignore
 
-from application.reports import interactors, interfaces
-from infrastructure.policy.reports import policy
+from htimer.application.reports import interactors, interfaces
+from htimer.infrastructure.policy.reports import policy
 
 
 class PolicyProvider(Provider):

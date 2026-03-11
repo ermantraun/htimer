@@ -1,9 +1,9 @@
 from typing import Protocol, BinaryIO, Any
 from abc import abstractmethod
-from domain import entities
+from htimer.domain import entities
 from . import exceptions
 
-ContentType = dict[Any, dict[Any, "ContentType"]] | list[dict[Any, Any]]
+ContentType = dict[str, Any | 'ContentType']
 
 
 class ReportsAuthorizationPolicy(Protocol):

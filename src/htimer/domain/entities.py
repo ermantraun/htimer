@@ -462,6 +462,8 @@ class User:
 
         return UserDecisions.ListUsersDecision.ALLOWED
 
+    def __str__(self) -> str:
+        return self.name
 
 @dataclass
 class Project:
@@ -643,6 +645,9 @@ class Stage:
 
         return ""
 
+    def __str__(self) -> str:
+        return self.name
+
 @dataclass
 class DailyLog:
     uuid: UUID
@@ -667,6 +672,9 @@ class DailyLog:
 
     def update_hours(self, hours: float) -> None:
         self.hours_spent = hours
+
+    def __str__(self) -> str:
+        return f"DailyLog by {self.creator.name} ({self.created_at.isoformat()})"
 
 @dataclass
 class Task:
@@ -740,7 +748,6 @@ class DailyLogFile:
     uri: str
     daily_log: DailyLog
     uploaded_at: date
-
 
 @dataclass
 class TableColumn:
@@ -838,37 +845,37 @@ class Report:
     def mark_failed(self) -> None:
         self.status = ReportStatus.FAILED
 
-    def make_activity_report_content(self, daily_logs: list[DailyLog]) -> dict[str, dict[Stage, dict[date, list[dict[User, DailyLog]]]] | dict[date, list[dict[User, DailyLog]]] | dict[Stage, dict[User, int]] | dict[User, int]]:
-        stage_activity: dict[Stage, dict[date, list[dict[User, DailyLog]]]] = {}
-        days_activity: dict[date, list[dict[User, DailyLog]]] = {}
+    def make_activity_report_content(self, daily_logs: list[DailyLog]) -> dict[str, dict[str, dict[date, list[dict[str, str]]]] | dict[date, list[dict[str, str]]] | dict[str, dict[str, int]] | dict[str, int]]:
+        stage_activity: dict[str, dict[date, list[dict[str, str]]]] = {}
+        days_activity: dict[date, list[dict[str, str]]] = {}
 
 
-        stage_activity_level: dict[Stage, dict[User, int]] = {}
+        stage_activity_level: dict[str, dict[str, int]] = {}
         
-        project_activity_level: dict[User, int] = {}
+        project_activity_level: dict[str, int] = {}
 
 
         for daily_log in daily_logs:
             stage = daily_log.substage
             if stage is not None:
                     stage_activity \
-                    .setdefault(stage, {}) \
+                    .setdefault(str(stage), {}) \
                     .setdefault(daily_log.created_at, []) \
-                    .append({daily_log.creator: daily_log}) # pyright: ignore[reportUnhashable]
+                    .append({str(daily_log.creator): str(daily_log)}) # pyright: ignore[reportUnhashable]
                     
                     
 
 
 
-                    stage_activity_level.setdefault(stage, {}).setdefault(daily_log.creator, 0) 
+                    stage_activity_level.setdefault(str(stage), {}).setdefault(str(daily_log.creator), 0)
 
-                    stage_activity_level[stage][daily_log.creator] += 1
+                    stage_activity_level[str(stage)][str(daily_log.creator)] += 1
 
             days_activity.setdefault(daily_log.created_at, []) \
-                .append({daily_log.creator: daily_log}) # pyright: ignore[reportUnhashable]
+                .append({str(daily_log.creator): str(daily_log)}) # pyright: ignore[reportUnhashable]
 
-            project_activity_level.setdefault(daily_log.creator, 0)
-            project_activity_level[daily_log.creator] += 1
+            project_activity_level.setdefault(str(daily_log.creator), 0)
+            project_activity_level[str(daily_log.creator)] += 1
 
         return {
             "stage_activity": stage_activity,

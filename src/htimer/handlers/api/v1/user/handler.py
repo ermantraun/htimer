@@ -1,19 +1,16 @@
-from fastapi import APIRouter, status
+from fastapi import APIRouter, status, Body
 from dishka.integrations.fastapi import FromDishka, DishkaRoute
-from application.user import dto, interactors
+from htimer.application.user import dto, interactors
+from htimer.domain.entities import UserRole
+from . import schemas
 
 router = APIRouter(prefix='/users', tags=['User'], route_class=DishkaRoute)
 
 @router.post('', status_code=status.HTTP_201_CREATED, name='Create user', 
-             summary='Creates a new user',
-             responses={status.HTTP_422_UNPROCESSABLE_ENTITY: user_responses['create'][422], 
-                        status.HTTP_409_CONFLICT: user_responses['create'][409],
-                        status.HTTP_201_CREATED: user_responses['create'][201]}
+             summary='Creates a new user',  response_model=schemas.CreateUserOut,
+             responses={}
              )
-async def create_user(user: schemas, interactor: FromDishka[interactors.CreateUserInteractor]) -> dict:
-    result = await interactor(dto.CreateUserInDTO(
-        login=user.login,
-        email=user.email,
-        password=user.password
-    ))
-    return {"token": result.token}
+async def create_user(interactor: FromDishka[interactors.CreateUserInteractor], user: schemas.CreateUserIn = Body(...)) -> schemas.CreateUserOut:
+    result = await interactor.execute(dto.CreateUserInDTO(name=user.name, email=user.email, password=user.password, role=UserRole(user.role)))
+    return schemas.CreateUserOut(user_uuid=result.user_uuid)
+

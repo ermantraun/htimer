@@ -1,6 +1,6 @@
 from abc import abstractmethod
 from typing import Protocol
-from domain import entities
+from htimer.domain import entities
 from . import exceptions
 
 class ProjectAuthorizationPolicy(Protocol):

@@ -10,10 +10,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 import psycopg.errors
 
-from domain import entities
-from config import Config
-from infrastructure.repositories import exceptions as repo_exceptions
-from infrastructure.repositories import interfaces as repository_interfaces
+from htimer.domain import entities
+from htimer.config import Config
+from htimer.infrastructure.repositories import exceptions as repo_exceptions
+from htimer.infrastructure.repositories import interfaces as repository_interfaces
 from . import models
 
 TExc = TypeVar("TExc", bound=Exception)
@@ -856,7 +856,7 @@ class StageRepository(_RepositoryDebugMixin, repository_interfaces.DBStageReposi
                     return repo_exceptions.UserNotFoundError("Пользователь не найден")
             if isinstance(e.orig, psycopg.errors.UniqueViolation):
                 return repo_exceptions.StageAlreadyExistsError("Этап с таким именем уже существует")
-            if isinstance(e.orig, psycopg.errors.CheckViolation):
+            if isinstance(e.orig, psycopg.errors.UniqueViolation):
                 return repo_exceptions.ParentStageAlreadyHasMainSubStageError("Главный подэтап уже существует")
             constraint_name = getattr(getattr(e.orig, "diag", None), "constraint_name", None)
 

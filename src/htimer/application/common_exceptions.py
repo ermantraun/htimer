@@ -1,5 +1,9 @@
+class AuthorizationError(Exception):
+    """Raised when there is an authorization error."""
+    pass
+
 class InvalidTokenError(Exception):
-    """Ошибка: недействительный токен."""
+    """Raised when a provided token is invalid."""
     pass
 
 class RepositoryError(Exception):
@@ -150,4 +154,12 @@ class JobGatewayError(Exception):
 
 class FileStorageError(Exception):
     """Raised when there is an error with file storage."""
+    pass
+
+class FileNotFoundInStorageError(FileStorageError):
+    """Raised when a file is not found in storage."""
+    pass
+
+class FileAlreadyExistsInStorageError(FileStorageError):
+    """Raised when a file already exists in storage."""
     pass

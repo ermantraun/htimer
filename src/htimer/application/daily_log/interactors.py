@@ -1,6 +1,6 @@
 from uuid import uuid4
-from application import common_exceptions, common_interfaces
-from domain import entities
+from htimer.application import common_exceptions, common_interfaces
+from htimer.domain import entities
 from . import dto, interfaces, exceptions, validators
 
 
@@ -27,8 +27,38 @@ class CreateDailyLogInteractor:
         self.clock = clock
         self.validator = validator
         self.text_normalizer = text_normalizer
+
+        # file storage will be injected into interactors that need upload/download links
+        
     
-    async def execute(self, data: dto.CreateDailyLogInDTO) -> dto.CreateDailyLogOutDTO | common_exceptions.DailyLogAlreadyExistsError | common_exceptions.UserNotFoundError | common_exceptions.ProjectNotFoundError | exceptions.DayliLogAuthorizationError | common_exceptions.StageNotFoundError | common_exceptions.InvalidDate | common_exceptions.InvalidTokenError | common_exceptions.RepositoryError:
+    async def execute(self, data: dto.CreateDailyLogInDTO) -> dto.CreateDailyLogOutDTO:
+        """Создаёт запись дня проекта.
+
+        Args:
+            data: Структура CreateDailyLogInDTO.
+                - date: str
+                - creator_uuid: UUID
+                - project_uuid: UUID
+                - draft: bool
+                - hours_spent: float
+                - description: str
+                - substage_uuid: UUID | None
+
+        Returns:
+            dto.CreateDailyLogOutDTO: Структура результата.
+                - daily_log: entities.DailyLog
+
+        Raises:
+            exceptions.DayliLogValidationError: Входные данные не прошли валидацию.
+            common_exceptions.InvalidDate: Передана некорректная дата.
+            common_exceptions.InvalidTokenError: Токен пользователя невалиден.
+            common_exceptions.UserNotFoundError: Пользователь не найден.
+            common_exceptions.ProjectNotFoundError: Проект не найден.
+            exceptions.DayliLogAuthorizationError: Недостаточно прав для создания записи дня.
+            common_exceptions.StageNotFoundError: Указанный этап не найден.
+            common_exceptions.DailyLogAlreadyExistsError: Запись дня уже существует.
+            common_exceptions.RepositoryError: Ошибка репозитория.
+        """
         
         validation_error = self.validator.validate(data)
         
@@ -103,7 +133,31 @@ class UpdateDailyLogInteractor:
         self.validator = validator
         self.text_normalizer = text_normalizer
 
-    async def execute(self, data: dto.UpdateDailyLogInDTO) -> dto.UpdateDailyLogOutDTO | common_exceptions.DailyLogNotFoundError | common_exceptions.UserNotFoundError | common_exceptions.ProjectNotFoundError | exceptions.DayliLogAuthorizationError | common_exceptions.InvalidTokenError | common_exceptions.RepositoryError:
+        
+
+    async def execute(self, data: dto.UpdateDailyLogInDTO) -> dto.UpdateDailyLogOutDTO:
+        """Обновляет запись дня.
+
+        Args:
+            data: Структура UpdateDailyLogInDTO.
+                - uuid: UUID
+                - draft: bool | None
+                - hours_spent: float | None
+                - description: str | None
+                - substage_uuid: UUID | None
+
+        Returns:
+            dto.UpdateDailyLogOutDTO: Структура результата.
+                - daily_log: entities.DailyLog
+
+        Raises:
+            exceptions.DayliLogValidationError: Входные данные не прошли валидацию.
+            common_exceptions.InvalidTokenError: Токен пользователя невалиден.
+            common_exceptions.UserNotFoundError: Пользователь не найден.
+            common_exceptions.DailyLogNotFoundError: Запись дня не найдена.
+            exceptions.DayliLogAuthorizationError: Недостаточно прав для обновления записи дня.
+            common_exceptions.RepositoryError: Ошибка репозитория.
+        """
         validation_error = self.validator.validate(data)
 
         if validation_error is not None:
@@ -167,7 +221,25 @@ class GetDailyLogInteractor:
         self.context = context
         self.project_repository = project_repository
         
-    async def execute(self, data: dto.GetDailyLogInDTO) -> dto.GetDailyLogOutDTO | common_exceptions.DailyLogNotFoundError | common_exceptions.UserNotFoundError | common_exceptions.InvalidTokenError | common_exceptions.RepositoryError:
+    async def execute(self, data: dto.GetDailyLogInDTO) -> dto.GetDailyLogOutDTO:
+        """Возвращает запись дня по идентификатору.
+
+        Args:
+            data: Структура GetDailyLogInDTO.
+                - uuid: UUID
+
+        Returns:
+            dto.GetDailyLogOutDTO: Структура результата.
+                - daily_log: entities.DailyLog
+
+        Raises:
+            common_exceptions.InvalidTokenError: Токен пользователя невалиден.
+            common_exceptions.UserNotFoundError: Пользователь не найден.
+            common_exceptions.DailyLogNotFoundError: Запись дня не найдена.
+            common_exceptions.ProjectNotFoundError: Проект не найден.
+            exceptions.DayliLogAuthorizationError: Недостаточно прав для просмотра записи дня.
+            common_exceptions.RepositoryError: Ошибка репозитория.
+        """
         actor_uuid = self.context.get_current_user_uuid()
 
         if isinstance(actor_uuid, common_exceptions.InvalidTokenError):
@@ -201,6 +273,7 @@ class CreateDailyLogFileInteractor:
         user_repository: common_interfaces.UserRepository,
         authorization_policy: interfaces.DailyLogAuthorizationPolicy,
         file_repository: common_interfaces.FileRepository,
+        file_storage: common_interfaces.FileStorage,
         db_session: common_interfaces.DBSession,
         clock: common_interfaces.Clock,
         context: common_interfaces.Context,
@@ -212,8 +285,31 @@ class CreateDailyLogFileInteractor:
         self.db_session = db_session
         self.clock = clock
         self.context = context
+        self.file_storage = file_storage
 
-    async def execute(self, data: dto.CreateDailyLogFileInDTO) -> dto.CreateDailyLogFileOutDTO | common_exceptions.DailyLogNotFoundError | common_exceptions.UserNotFoundError | common_exceptions.InvalidTokenError | exceptions.DayliLogAuthorizationError | common_exceptions.FileAlreadyExistsError | common_exceptions.RepositoryError:
+    async def execute(self, data: dto.CreateDailyLogFileInDTO) -> dto.CreateDailyLogFileOutDTO:
+        """Создаёт файл записи дня и выдаёт ссылку на загрузку.
+
+        Args:
+            data: Структура CreateDailyLogFileInDTO.
+                - daily_log_uuid: UUID
+                - filename: str
+
+        Returns:
+            dto.CreateDailyLogFileOutDTO: Структура результата.
+                - file: entities.DailyLogFile
+                - action_link: ActionLink
+
+        Raises:
+            common_exceptions.InvalidTokenError: Токен пользователя невалиден.
+            common_exceptions.UserNotFoundError: Пользователь не найден.
+            common_exceptions.DailyLogNotFoundError: Запись дня не найдена.
+            exceptions.DayliLogAuthorizationError: Недостаточно прав для изменения записи дня.
+            common_exceptions.FileAlreadyExistsError: Файл уже существует в репозитории.
+            common_exceptions.FileAlreadyExistsInStorageError: Файл уже существует в хранилище.
+            common_exceptions.FileStorageError: Ошибка файлового хранилища.
+            common_exceptions.RepositoryError: Ошибка репозитория.
+        """
         actor_uuid = self.context.get_current_user_uuid()
 
         if isinstance(actor_uuid, common_exceptions.InvalidTokenError):
@@ -244,9 +340,14 @@ class CreateDailyLogFileInteractor:
         if isinstance(stored, (common_exceptions.FileAlreadyExistsError, common_exceptions.RepositoryError)):
             raise stored
 
+
+        storage_result = await self.file_storage.get_upload_link(str(stored.uuid))
+        if isinstance(storage_result, (common_exceptions.FileAlreadyExistsInStorageError, common_exceptions.FileStorageError)):
+            raise storage_result
+
         await self.db_session.commit()
 
-        return dto.CreateDailyLogFileOutDTO(file=stored[0], action_link=stored[1])
+        return dto.CreateDailyLogFileOutDTO(file=stored, action_link=common_interfaces.ActionLink(storage_result))
 
 
 class GetDailyLogFileInteractor:
@@ -257,6 +358,7 @@ class GetDailyLogFileInteractor:
         authorization_policy: interfaces.DailyLogAuthorizationPolicy,
         project_repository: common_interfaces.ProjectRepository,
         file_repository: common_interfaces.FileRepository,
+        file_storage: common_interfaces.FileStorage,
         context: common_interfaces.Context,
     ):
         self.daily_log_repository = daily_log_repository
@@ -265,8 +367,31 @@ class GetDailyLogFileInteractor:
         self.project_repository = project_repository
         self.file_repository = file_repository
         self.context = context
+        self.file_storage = file_storage
+    async def execute(self, data: dto.GetDailyLogFileInDTO) -> dto.GetDailyLogFileOutDTO:
+        """Возвращает файл записи дня и ссылку на скачивание.
 
-    async def execute(self, data: dto.GetDailyLogFileInDTO) -> dto.GetDailyLogFileOutDTO | common_exceptions.DailyLogNotFoundError | common_exceptions.UserNotFoundError | common_exceptions.InvalidTokenError | exceptions.DayliLogAuthorizationError | common_exceptions.FileNotFoundError | common_exceptions.RepositoryError:
+        Args:
+            data: Структура GetDailyLogFileInDTO.
+                - daily_log_uuid: UUID
+                - file_uuid: UUID
+
+        Returns:
+            dto.GetDailyLogFileOutDTO: Структура результата.
+                - file: entities.DailyLogFile
+                - action_link: ActionLink
+
+        Raises:
+            common_exceptions.InvalidTokenError: Токен пользователя невалиден.
+            common_exceptions.UserNotFoundError: Пользователь не найден.
+            common_exceptions.DailyLogNotFoundError: Запись дня не найдена.
+            common_exceptions.ProjectNotFoundError: Проект не найден.
+            exceptions.DayliLogAuthorizationError: Недостаточно прав для просмотра файла.
+            common_exceptions.FileNotFoundError: Файл не найден в репозитории.
+            common_exceptions.FileNotFoundInStorageError: Файл не найден в хранилище.
+            common_exceptions.FileStorageError: Ошибка файлового хранилища.
+            common_exceptions.RepositoryError: Ошибка репозитория.
+        """
         actor_uuid = self.context.get_current_user_uuid()
 
         if isinstance(actor_uuid, common_exceptions.InvalidTokenError):
@@ -291,7 +416,13 @@ class GetDailyLogFileInteractor:
         found = await self.file_repository.get(data.file_uuid)
         if isinstance(found, (common_exceptions.FileNotFoundError, common_exceptions.RepositoryError)):
             raise found
-        return dto.GetDailyLogFileOutDTO(file=found[0], action_link=found[1])
+
+
+        storage_result = await self.file_storage.get_unload_link(str(found.uuid))
+        if isinstance(storage_result, (common_exceptions.FileNotFoundInStorageError, common_exceptions.FileStorageError)):
+            raise storage_result
+
+        return dto.GetDailyLogFileOutDTO(file=found, action_link=common_interfaces.ActionLink(storage_result))
 
 
 class RemoveDailyLogFileInteractor:
@@ -301,6 +432,7 @@ class RemoveDailyLogFileInteractor:
         user_repository: common_interfaces.UserRepository,
         authorization_policy: interfaces.DailyLogAuthorizationPolicy,
         file_repository: common_interfaces.FileRepository,
+        file_storage: common_interfaces.FileStorage,
         db_session: common_interfaces.DBSession,
         context: common_interfaces.Context,
     ):
@@ -308,9 +440,32 @@ class RemoveDailyLogFileInteractor:
         self.user_repository = user_repository
         self.authorization_policy = authorization_policy
         self.file_repository = file_repository
+        self.file_storage = file_storage
         self.db_session = db_session
         self.context = context
-    async def execute(self, data: dto.RemoveDailyLogFileInDTO) -> dto.GetDailyLogFileOutDTO | common_exceptions.DailyLogNotFoundError | common_exceptions.UserNotFoundError | common_exceptions.InvalidTokenError | exceptions.DayliLogAuthorizationError | common_exceptions.FileNotFoundError | common_exceptions.RepositoryError:
+    async def execute(self, data: dto.RemoveDailyLogFileInDTO) -> dto.GetDailyLogFileOutDTO:
+        """Удаляет файл записи дня.
+
+        Args:
+            data: Структура RemoveDailyLogFileInDTO.
+                - daily_log_uuid: UUID
+                - file_uuid: UUID
+
+        Returns:
+            dto.GetDailyLogFileOutDTO: Структура результата.
+                - file: entities.DailyLogFile
+                - action_link: ActionLink
+
+        Raises:
+            common_exceptions.InvalidTokenError: Токен пользователя невалиден.
+            common_exceptions.UserNotFoundError: Пользователь не найден.
+            common_exceptions.DailyLogNotFoundError: Запись дня не найдена.
+            exceptions.DayliLogAuthorizationError: Недостаточно прав для изменения записи дня.
+            common_exceptions.FileNotFoundError: Файл не найден в репозитории.
+            common_exceptions.FileNotFoundInStorageError: Файл не найден в хранилище.
+            common_exceptions.FileStorageError: Ошибка файлового хранилища.
+            common_exceptions.RepositoryError: Ошибка репозитория.
+        """
         actor_uuid = self.context.get_current_user_uuid()
 
         if isinstance(actor_uuid, common_exceptions.InvalidTokenError):
@@ -332,9 +487,14 @@ class RemoveDailyLogFileInteractor:
         if isinstance(removed, (common_exceptions.FileNotFoundError, common_exceptions.RepositoryError)):
             raise removed
 
+
+        storage_result = await self.file_storage.remove(str(removed.uuid))
+        if isinstance(storage_result, (common_exceptions.FileNotFoundInStorageError, common_exceptions.FileStorageError)):
+            raise storage_result
+
         await self.db_session.commit()
 
-        return dto.GetDailyLogFileOutDTO(file=removed[0], action_link=removed[1])
+        return dto.GetDailyLogFileOutDTO(file=removed, action_link=common_interfaces.ActionLink(None))
 
 
 class GetDailyLogFileListInteractor:
@@ -345,6 +505,7 @@ class GetDailyLogFileListInteractor:
         authorization_policy: interfaces.DailyLogAuthorizationPolicy,
         project_repository: common_interfaces.ProjectRepository,
         file_repository: common_interfaces.FileRepository,
+        file_storage: common_interfaces.FileStorage,
         context: common_interfaces.Context,
     ):
         self.daily_log_repository = daily_log_repository
@@ -353,8 +514,30 @@ class GetDailyLogFileListInteractor:
         self.project_repository = project_repository
         self.file_repository = file_repository
         self.context = context
+        self.file_storage = file_storage
 
-    async def execute(self, data: dto.GetDailyLogFileListInDTO) -> dto.GetDailyLogFileListOutDTO | common_exceptions.DailyLogNotFoundError | common_exceptions.UserNotFoundError | common_exceptions.InvalidTokenError | exceptions.DayliLogAuthorizationError | common_exceptions.FileNotFoundError | common_exceptions.RepositoryError:
+    async def execute(self, data: dto.GetDailyLogFileListInDTO) -> dto.GetDailyLogFileListOutDTO:
+        """Возвращает список файлов записи дня с ссылками на скачивание.
+
+        Args:
+            data: Структура GetDailyLogFileListInDTO.
+                - daily_log_uuid: UUID
+
+        Returns:
+            dto.GetDailyLogFileListOutDTO: Структура результата.
+                - files: list[tuple[entities.DailyLogFile, ActionLink]]
+
+        Raises:
+            common_exceptions.InvalidTokenError: Токен пользователя невалиден.
+            common_exceptions.UserNotFoundError: Пользователь не найден.
+            common_exceptions.DailyLogNotFoundError: Запись дня не найдена.
+            common_exceptions.ProjectNotFoundError: Проект не найден.
+            exceptions.DayliLogAuthorizationError: Недостаточно прав для просмотра файлов.
+            common_exceptions.FileNotFoundError: Файлы не найдены в репозитории.
+            common_exceptions.FileNotFoundInStorageError: Файлы не найдены в хранилище.
+            common_exceptions.FileStorageError: Ошибка файлового хранилища.
+            common_exceptions.RepositoryError: Ошибка репозитория.
+        """
         actor_uuid = self.context.get_current_user_uuid()
 
         if isinstance(actor_uuid, common_exceptions.InvalidTokenError):
@@ -379,7 +562,15 @@ class GetDailyLogFileListInteractor:
         files = await self.file_repository.get_list(data.daily_log_uuid)
         if isinstance(files, (common_exceptions.FileNotFoundError, common_exceptions.RepositoryError)):
             raise files
-        return dto.GetDailyLogFileListOutDTO(files=files)
+
+
+        storage_result = await self.file_storage.get_unload_link_list([str(f.uuid) for f in files])
+        if isinstance(storage_result, (common_exceptions.FileNotFoundInStorageError, common_exceptions.FileStorageError)):
+            raise storage_result
+
+        uuid_to_file = {str(f.uuid): f for f in files}
+        paired = [(uuid_to_file[file_name], common_interfaces.ActionLink(link)) for file_name, link in storage_result]
+        return dto.GetDailyLogFileListOutDTO(files=paired)
         
 
 
@@ -398,7 +589,27 @@ class GetDailyLogListInteractor:
         self.authorization_policy = authorization_policy
         self.context = context
 
-    async def execute(self, data: dto.GetDailyLogListInDTO) -> dto.GetDailyLogListOutDTO | common_exceptions.ProjectNotFoundError | common_exceptions.UserNotFoundError | exceptions.DayliLogAuthorizationError | common_exceptions.InvalidTokenError | common_exceptions.RepositoryError:
+    async def execute(self, data: dto.GetDailyLogListInDTO) -> dto.GetDailyLogListOutDTO:
+        """Возвращает список записей дня проекта.
+
+        Args:
+            data: Структура GetDailyLogListInDTO.
+                - project_uuid: UUID
+                - start_date: date
+                - end_date: date
+                - user_uuid: UUID | None
+
+        Returns:
+            dto.GetDailyLogListOutDTO: Структура результата.
+                - daily_logs: list[entities.DailyLog]
+
+        Raises:
+            common_exceptions.InvalidTokenError: Токен пользователя невалиден.
+            common_exceptions.UserNotFoundError: Пользователь не найден.
+            common_exceptions.ProjectNotFoundError: Проект не найден.
+            exceptions.DayliLogAuthorizationError: Недостаточно прав для просмотра списка.
+            common_exceptions.RepositoryError: Ошибка репозитория.
+        """
         actor_uuid = self.context.get_current_user_uuid()
 
         if isinstance(actor_uuid, common_exceptions.InvalidTokenError):

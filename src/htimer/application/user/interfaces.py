@@ -1,7 +1,7 @@
 from abc import abstractmethod
 from typing import Protocol
 from uuid import UUID
-from domain import entities
+from htimer.domain import entities
 from . import exceptions
 
 class UserAuthorizationPolicy(Protocol):

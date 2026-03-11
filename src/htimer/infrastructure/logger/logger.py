@@ -1,5 +1,5 @@
-from config import Config
-from application import common_interfaces
+from htimer.config import Config
+from htimer.application import common_interfaces
 from . import interfaces
 
 

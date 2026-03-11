@@ -1,8 +1,8 @@
 from uuid import uuid4
 from typing import Any
 from . import dto, interfaces, exceptions, validators
-from application import common_interfaces, common_exceptions
-from domain import entities
+from htimer.application import common_interfaces, common_exceptions
+from htimer.domain import entities
 
 class CreateStageInteractor:
     def __init__(
@@ -30,7 +30,34 @@ class CreateStageInteractor:
         self.validator = validator
         self.text_normalizer = text_normalizer
         
-    async def execute(self, data: dto.CreateStageInDTO) -> dto.CreateStageOutDTO | common_exceptions.StageAlreadyExistsError | common_exceptions.ParentStageAlreadyHasMainSubStageError | exceptions.StageAuthorizationError | common_exceptions.ProjectNotFoundError | common_exceptions.UserNotFoundError | exceptions.InvalidStageDescriptionError | exceptions.InvalidStageNameError | common_exceptions.InvalidTokenError | common_exceptions.RepositoryError:
+    async def execute(self, data: dto.CreateStageInDTO) -> dto.CreateStageOutDTO:
+        """Создаёт новый этап проекта.
+
+        Args:
+            data: Структура CreateStageInDTO.
+                - name: str
+                - project_uuid: UUID
+                - parent_uuid: UUID | None
+                - description: str | None
+                - main_path: bool | None
+
+        Returns:
+            dto.CreateStageOutDTO: Структура результата.
+                - stage: entities.Stage
+
+        Raises:
+            exceptions.InvalidStageDescriptionError: Описание этапа не прошло валидацию.
+            exceptions.InvalidStageNameError: Имя этапа не прошло валидацию.
+            common_exceptions.InvalidTokenError: Токен пользователя невалиден.
+            common_exceptions.UserNotFoundError: Пользователь не найден.
+            common_exceptions.ProjectNotFoundError: Проект не найден.
+            common_exceptions.StageNotFoundError: Родительский этап не найден.
+            exceptions.StageAuthorizationError: Недостаточно прав для создания этапа.
+            exceptions.StageCantCreateError: Нарушены доменные ограничения создания этапа.
+            common_exceptions.StageAlreadyExistsError: Этап с такими данными уже существует.
+            common_exceptions.ParentStageAlreadyHasMainSubStageError: У родительского этапа уже есть основной подэтап.
+            common_exceptions.RepositoryError: Ошибка репозитория.
+        """
         
         data.description = self.text_normalizer.normalize(data.description) if data.description else data.description
         
@@ -122,7 +149,32 @@ class UpdateStageInteractor:
         self.validator = validator
         self.text_normalizer = text_normalizer
         
-    async def execute(self, data: dto.UpdateStageInDTO) -> dto.UpdateStageOutDTO | common_exceptions.StageNotFoundError | exceptions.StageAuthorizationError | common_exceptions.UserNotFoundError | exceptions.InvalidStageNameError | exceptions.InvalidStageDescriptionError | exceptions.AllFieldsNoneError | common_exceptions.InvalidTokenError | common_exceptions.ProjectNotFoundError | common_exceptions.RepositoryError:
+    async def execute(self, data: dto.UpdateStageInDTO) -> dto.UpdateStageOutDTO:
+        """Обновляет существующий этап проекта.
+
+        Args:
+            data: Структура UpdateStageInDTO.
+                - uuid: UUID
+                - name: str | None
+                - description: str | None
+                - status: str | None
+
+        Returns:
+            dto.UpdateStageOutDTO: Структура результата.
+                - stage: entities.Stage
+
+        Raises:
+            exceptions.InvalidStageNameError: Имя этапа не прошло валидацию.
+            exceptions.InvalidStageDescriptionError: Описание этапа не прошло валидацию.
+            exceptions.AllFieldsNoneError: Не переданы поля для изменения.
+            common_exceptions.InvalidTokenError: Токен пользователя невалиден.
+            common_exceptions.UserNotFoundError: Пользователь не найден.
+            common_exceptions.StageNotFoundError: Этап не найден.
+            common_exceptions.ProjectNotFoundError: Проект не найден.
+            exceptions.StageAuthorizationError: Недостаточно прав для обновления этапа.
+            exceptions.StageCantUpdateError: Нарушены доменные ограничения обновления этапа.
+            common_exceptions.RepositoryError: Ошибка репозитория.
+        """
         
         if data.description is not None:
             data.description = self.text_normalizer.normalize(data.description)
@@ -208,7 +260,24 @@ class DeleteStageInteractor:
         self.db_session = db_session
         self.context = context
 
-    async def execute(self, data: dto.DeleteStageInDTO) -> None | common_exceptions.StageNotFoundError | exceptions.StageAuthorizationError | common_exceptions.UserNotFoundError | common_exceptions.ProjectNotFoundError | common_exceptions.InvalidTokenError | common_exceptions.RepositoryError:
+    async def execute(self, data: dto.DeleteStageInDTO) -> None:
+        """Удаляет этап проекта.
+
+        Args:
+            data: Структура DeleteStageInDTO.
+                - uuid: UUID
+
+        Returns:
+            None: Этап успешно удалён.
+
+        Raises:
+            common_exceptions.InvalidTokenError: Токен пользователя невалиден.
+            common_exceptions.UserNotFoundError: Пользователь не найден.
+            common_exceptions.StageNotFoundError: Этап не найден.
+            common_exceptions.ProjectNotFoundError: Проект не найден.
+            exceptions.StageAuthorizationError: Недостаточно прав для удаления этапа.
+            common_exceptions.RepositoryError: Ошибка репозитория.
+        """
         actor_uuid = self.context.get_current_user_uuid()
 
         if isinstance(actor_uuid, common_exceptions.InvalidTokenError):
@@ -231,6 +300,8 @@ class DeleteStageInteractor:
             raise authorization_error
 
         delete_result = await self.stage_repository.delete(stage.uuid)
+        if isinstance(delete_result, common_exceptions.StageNotFoundError):
+            raise delete_result
         if isinstance(delete_result, common_exceptions.RepositoryError):
             raise delete_result
         await self.db_session.commit()
@@ -252,7 +323,24 @@ class GetStageListInteractor:
         self.context = context
         self.authorization_policy = authorization_policy
 
-    async def execute(self, data: dto.GetStageListInDTO) -> dto.GetStageListOutDTO | common_exceptions.UserNotFoundError | common_exceptions.ProjectNotFoundError | exceptions.StageAuthorizationError | common_exceptions.RepositoryError:
+    async def execute(self, data: dto.GetStageListInDTO) -> dto.GetStageListOutDTO:
+        """Возвращает список этапов проекта.
+
+        Args:
+            data: Структура GetStageListInDTO.
+                - project_uuid: UUID
+
+        Returns:
+            dto.GetStageListOutDTO: Структура результата.
+                - stages: list[entities.Stage]
+
+        Raises:
+            common_exceptions.InvalidTokenError: Токен пользователя невалиден.
+            common_exceptions.UserNotFoundError: Пользователь не найден.
+            common_exceptions.ProjectNotFoundError: Проект не найден.
+            exceptions.StageAuthorizationError: Недостаточно прав для просмотра этапов.
+            common_exceptions.RepositoryError: Ошибка репозитория.
+        """
         actor_uuid = self.context.get_current_user_uuid()
 
         if isinstance(actor_uuid, common_exceptions.InvalidTokenError):

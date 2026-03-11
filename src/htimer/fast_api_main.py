@@ -2,10 +2,10 @@ import dishka
 from dishka.integrations.fastapi import setup_dishka
 import fastapi
 from fastapi.middleware.cors import CORSMiddleware
-from handlers.api.v1 import routers, exception_handlers
-from ioc import AppProvider
-from config import Config
-from utils import MessageBrokerInitializer
+from htimer.handlers.api.v1 import routers, exception_handlers
+from htimer.ioc import AppProvider
+from htimer.config import Config
+from htimer.utils import MessageBrokerInitializer
 
 
 def fast_api_app() -> fastapi.FastAPI:

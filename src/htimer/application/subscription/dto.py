@@ -1,7 +1,7 @@
 
 from dataclasses import dataclass
 from uuid import UUID
-from domain import entities
+from htimer.domain import entities
 
 @dataclass
 class CreateSubscriptionInDTO:

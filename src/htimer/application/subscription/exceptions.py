@@ -1,6 +1,11 @@
-class SubscriptionAuthorizationError(Exception):
-    """Ошибка авторизации подписки (subscription)."""
-    pass
+from htimer.application import common_exceptions
+
+
+class SubscriptionAuthorizationError(common_exceptions.AuthorizationError):
+    """Ошибка авторизации при работе с подпиской."""
+
+    def __init__(self, message: str = "Недостаточно прав для операции с подпиской."):
+        super().__init__(message)
 
 
 class CantCreateSubscription(Exception):
@@ -21,9 +26,11 @@ class CantExtendSubscription(Exception):
     pass
 
 
-class PaymentAuthorizationError(Exception):
-    """Raised when there is an authorization error related to payments."""
-    pass
+class PaymentAuthorizationError(common_exceptions.AuthorizationError):
+    """Ошибка авторизации при работе с платежом."""
+
+    def __init__(self, message: str = "Недостаточно прав для операции с платежом."):
+        super().__init__(message)
 
 
 class CantCreatePayment(Exception):

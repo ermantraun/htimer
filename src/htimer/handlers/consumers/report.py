@@ -3,10 +3,10 @@ from dishka import AsyncContainer
 import signal
 from typing import Any
 from uuid import UUID
-from config import Config
-from application.reports import interactors, dto
-from application import common_interfaces
-from domain import entities
+from htimer.config import Config
+from htimer.application.reports import interactors, dto
+from htimer.application import common_interfaces
+from htimer.domain import entities
 
 from .interfaces import BaseConsumer
 

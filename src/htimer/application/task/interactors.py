@@ -1,6 +1,6 @@
 from uuid import uuid4
-from application import common_exceptions, common_interfaces
-from domain import entities
+from htimer.application import common_exceptions, common_interfaces
+from htimer.domain import entities
 from typing import Any
 from . import dto, interfaces, exceptions, validators
 
@@ -30,7 +30,30 @@ class CreateTaskInteractor:
         self.clock = clock
         self.validator = validator
 
-    async def execute(self, data: dto.CreateTaskInDTO) -> dto.CreateTaskOutDTO | common_exceptions.StageNotFoundError | common_exceptions.UserNotFoundError | exceptions.TaskAuthorizationError | common_exceptions.ProjectNotFoundError | common_exceptions.InvalidTokenError | common_exceptions.TaskAlreadyExistsError | common_exceptions.RepositoryError:
+    async def execute(self, data: dto.CreateTaskInDTO) -> dto.CreateTaskOutDTO:
+        """Создаёт задачу в подэтапе.
+
+        Args:
+            data: Структура CreateTaskInDTO.
+                - name: str
+                - description: str
+                - substage_uuid: UUID
+
+        Returns:
+            dto.CreateTaskOutDTO: Структура результата.
+                - task: entities.Task
+
+        Raises:
+            exceptions.TaskValidationError: Входные данные не прошли валидацию.
+            common_exceptions.InvalidTokenError: Токен пользователя невалиден.
+            common_exceptions.UserNotFoundError: Пользователь не найден.
+            common_exceptions.StageNotFoundError: Подэтап не найден.
+            common_exceptions.ProjectNotFoundError: Проект не найден.
+            exceptions.TaskAuthorizationError: Недостаточно прав для создания задачи.
+            exceptions.CantCreateTask: Нарушены доменные ограничения создания задачи.
+            common_exceptions.TaskAlreadyExistsError: Задача уже существует.
+            common_exceptions.RepositoryError: Ошибка репозитория.
+        """
         validation_error = self.validator.validate(data)
         if validation_error is not None:
             raise validation_error
@@ -78,6 +101,8 @@ class CreateTaskInteractor:
         )
 
         created = await self.task_repository.create(task)
+        if isinstance(created, (common_exceptions.StageNotFoundError, common_exceptions.UserNotFoundError)):
+            raise created
         if isinstance(created, (common_exceptions.TaskAlreadyExistsError, common_exceptions.RepositoryError)):
             raise created
 
@@ -101,7 +126,25 @@ class GetTaskInteractor:
         self.authorization_policy = authorization_policy
         self.context = context
 
-    async def execute(self, data: dto.GetTaskInDTO) -> dto.GetTaskOutDTO | common_exceptions.TaskNotFoundError | common_exceptions.UserNotFoundError | exceptions.TaskAuthorizationError | common_exceptions.InvalidTokenError | common_exceptions.TaskAlreadyExistsError |   common_exceptions.RepositoryError:
+    async def execute(self, data: dto.GetTaskInDTO) -> dto.GetTaskOutDTO:
+        """Возвращает задачу по идентификатору.
+
+        Args:
+            data: Структура GetTaskInDTO.
+                - uuid: UUID
+
+        Returns:
+            dto.GetTaskOutDTO: Структура результата.
+                - task: entities.Task
+
+        Raises:
+            common_exceptions.InvalidTokenError: Токен пользователя невалиден.
+            common_exceptions.UserNotFoundError: Пользователь не найден.
+            common_exceptions.TaskNotFoundError: Задача не найдена.
+            common_exceptions.ProjectNotFoundError: Проект не найден.
+            exceptions.TaskAuthorizationError: Недостаточно прав для просмотра задачи.
+            common_exceptions.RepositoryError: Ошибка репозитория.
+        """
         actor_uuid = self.context.get_current_user_uuid()
         if isinstance(actor_uuid, common_exceptions.InvalidTokenError):
             raise actor_uuid
@@ -154,7 +197,33 @@ class UpdateTaskInteractor:
         self.text_normalizer = text_normalizer
         self.validator = validator
 
-    async def execute(self, data: dto.UpdateTaskInDTO) -> dto.UpdateTaskOutDTO | common_exceptions.TaskNotFoundError | common_exceptions.UserNotFoundError | exceptions.TaskAuthorizationError | common_exceptions.InvalidTokenError | common_exceptions.TaskAlreadyExistsError |  common_exceptions.RepositoryError:
+    async def execute(self, data: dto.UpdateTaskInDTO) -> dto.UpdateTaskOutDTO:
+        """Обновляет существующую задачу.
+
+        Args:
+            data: Структура UpdateTaskInDTO.
+                - uuid: UUID
+                - name: str | None
+                - description: str | None
+                - substage_uuid: UUID | None
+                - completed: bool | None
+
+        Returns:
+            dto.UpdateTaskOutDTO: Структура результата.
+                - task: entities.Task
+
+        Raises:
+            exceptions.TaskValidationError: Входные данные не прошли валидацию.
+            common_exceptions.InvalidTokenError: Токен пользователя невалиден.
+            common_exceptions.UserNotFoundError: Пользователь не найден.
+            common_exceptions.TaskNotFoundError: Задача не найдена.
+            common_exceptions.StageNotFoundError: Подэтап не найден.
+            common_exceptions.ProjectNotFoundError: Проект не найден.
+            exceptions.TaskAuthorizationError: Недостаточно прав для обновления задачи.
+            exceptions.CantUpdateTask: Нарушены доменные ограничения обновления задачи.
+            common_exceptions.TaskAlreadyExistsError: Конфликт уникальности задачи.
+            common_exceptions.RepositoryError: Ошибка репозитория.
+        """
         validation_error = self.validator.validate(data)
         if validation_error is not None:
             raise validation_error
@@ -229,7 +298,24 @@ class DeleteTaskInteractor:
         self.db_session = db_session
         self.context = context
 
-    async def execute(self, data: dto.DeleteTaskInDTO) -> None | common_exceptions.TaskNotFoundError | common_exceptions.UserNotFoundError | exceptions.TaskAuthorizationError | common_exceptions.InvalidTokenError | common_exceptions.TaskAlreadyExistsError |  common_exceptions.RepositoryError:
+    async def execute(self, data: dto.DeleteTaskInDTO) -> None:
+        """Удаляет задачу.
+
+        Args:
+            data: Структура DeleteTaskInDTO.
+                - uuid: UUID
+
+        Returns:
+            None: Задача успешно удалена.
+
+        Raises:
+            common_exceptions.InvalidTokenError: Токен пользователя невалиден.
+            common_exceptions.UserNotFoundError: Пользователь не найден.
+            common_exceptions.TaskNotFoundError: Задача не найдена.
+            common_exceptions.ProjectNotFoundError: Проект не найден.
+            exceptions.TaskAuthorizationError: Недостаточно прав для удаления задачи.
+            common_exceptions.RepositoryError: Ошибка репозитория.
+        """
         actor_uuid = self.context.get_current_user_uuid()
         if isinstance(actor_uuid, common_exceptions.InvalidTokenError):
             raise actor_uuid
@@ -251,6 +337,8 @@ class DeleteTaskInteractor:
             raise authorization_error
 
         delete_result = await self.task_repository.delete(data.uuid)
+        if isinstance(delete_result, common_exceptions.TaskNotFoundError):
+            raise delete_result
         if isinstance(delete_result, common_exceptions.RepositoryError):
             raise delete_result
         await self.db_session.commit()
@@ -273,7 +361,25 @@ class GetTaskListInteractor:
         self.authorization_policy = authorization_policy
         self.context = context
 
-    async def execute(self, data: dto.ListTasksInDTO) -> dto.ListTasksOutDTO | common_exceptions.StageNotFoundError | common_exceptions.UserNotFoundError | exceptions.TaskAuthorizationError | common_exceptions.InvalidTokenError | common_exceptions.RepositoryError:
+    async def execute(self, data: dto.ListTasksInDTO) -> dto.ListTasksOutDTO:
+        """Возвращает список задач подэтапа.
+
+        Args:
+            data: Структура ListTasksInDTO.
+                - substage_uuid: UUID
+
+        Returns:
+            dto.ListTasksOutDTO: Структура результата.
+                - tasks: list[entities.Task]
+
+        Raises:
+            common_exceptions.InvalidTokenError: Токен пользователя невалиден.
+            common_exceptions.UserNotFoundError: Пользователь не найден.
+            common_exceptions.StageNotFoundError: Подэтап не найден.
+            common_exceptions.ProjectNotFoundError: Проект не найден.
+            exceptions.TaskAuthorizationError: Недостаточно прав для просмотра задач.
+            common_exceptions.RepositoryError: Ошибка репозитория.
+        """
         actor_uuid = self.context.get_current_user_uuid()
         if isinstance(actor_uuid, common_exceptions.InvalidTokenError):
             raise actor_uuid

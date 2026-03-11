@@ -1,8 +1,8 @@
 from dishka import Provider, Scope, provide_all, AnyOf, provide # type: ignore
 
 
-from application.daily_log import interactors, interfaces
-from infrastructure.policy.daily_log import policy
+from htimer.application.daily_log import interactors, interfaces
+from htimer.infrastructure.policy.daily_log import policy
 
 class PolicyProvider(Provider):
     daily_log_authorization_policy = provide(

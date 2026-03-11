@@ -1,6 +1,6 @@
 from uuid import uuid4
-from domain import entities
-from application import common_interfaces, common_exceptions
+from htimer.domain import entities
+from htimer.application import common_interfaces, common_exceptions
 from . import interfaces
 from . import validators
 from . import dto
@@ -28,7 +28,28 @@ class CreateUserInteractor:
         self.clock = clock
         self.logger = logger
         
-    async def execute(self, data: dto.CreateUserInDTO) -> dto.CreateUserOutDTO | common_exceptions.EmailAlreadyExistsError | common_exceptions.UserNotFoundError | common_exceptions.InvalidTokenError | common_exceptions.RepositoryError:
+    async def execute(self, data: dto.CreateUserInDTO) -> dto.CreateUserOutDTO:
+        """Создаёт пользователя.
+
+        Args:
+            data: Структура CreateUserInDTO.
+                - name: str
+                - email: str
+                - password: str
+                - role: entities.UserRole
+
+        Returns:
+            dto.CreateUserOutDTO: Структура результата.
+                - user_uuid: UUID
+
+        Raises:
+            common_exceptions.InvalidTokenError: Токен пользователя невалиден.
+            common_exceptions.UserNotFoundError: Текущий пользователь не найден.
+            exceptions.UserValidationError: Входные данные не прошли валидацию.
+            exceptions.UserAuthorizationError: Недостаточно прав для создания пользователя.
+            common_exceptions.EmailAlreadyExistsError: Пользователь с таким email уже существует.
+            common_exceptions.RepositoryError: Ошибка репозитория.
+        """
         current_user_uuid = self.context.get_current_user_uuid()
         if isinstance(current_user_uuid, common_exceptions.InvalidTokenError):
             raise current_user_uuid
@@ -63,6 +84,8 @@ class CreateUserInteractor:
         )
         created_user = await self.user_repository.create(new_user)
 
+        if isinstance(created_user, common_exceptions.EmailAlreadyExistsError):
+            raise created_user
         if isinstance(created_user, common_exceptions.RepositoryError):
             raise created_user
 
@@ -91,7 +114,26 @@ class GetUsersListInteractor:
         self.validator = validator
         self.policy = user_policy
 
-    async def execute(self, data: dto.GetUserListInDTO) -> dto.GetUserListOutDTO | common_exceptions.UserNotFoundError | common_exceptions.ProjectNotFoundError | common_exceptions.InvalidTokenError | exceptions.UserAuthorizationError | common_exceptions.RepositoryError:
+    async def execute(self, data: dto.GetUserListInDTO) -> dto.GetUserListOutDTO:
+        """Возвращает список пользователей по проектам.
+
+        Args:
+            data: Структура GetUserListInDTO.
+                - projects_names: set[str]
+                - is_active: bool | None
+
+        Returns:
+            dto.GetUserListOutDTO: Структура результата.
+                - users: list[entities.User]
+
+        Raises:
+            common_exceptions.InvalidTokenError: Токен пользователя невалиден.
+            common_exceptions.UserNotFoundError: Пользователь не найден.
+            exceptions.UserAuthorizationError: Недостаточно прав для просмотра списка.
+            exceptions.UserValidationError: Входные данные не прошли валидацию.
+            common_exceptions.ProjectNotFoundError: Проект не найден.
+            common_exceptions.RepositoryError: Ошибка репозитория.
+        """
         current_user_uuid = self.user_context.get_current_user_uuid()
         if isinstance(current_user_uuid, common_exceptions.InvalidTokenError):
             raise current_user_uuid
@@ -157,7 +199,26 @@ class LoginUserInteractor:
         self.clock = clock
         self.logger = logger
         
-    async def execute(self, data: dto.LoginUserInDTO) -> dto.LoginUserOutDTO | exceptions.InvalidCredentialsError | common_exceptions.UserNotFoundError | common_exceptions.RepositoryError:
+    async def execute(self, data: dto.LoginUserInDTO) -> dto.LoginUserOutDTO:
+        """Аутентифицирует пользователя и выдаёт токен.
+
+        Args:
+            data: Структура LoginUserInDTO.
+                - email: str
+                - password: str
+
+        Returns:
+            dto.LoginUserOutDTO: Структура результата.
+                - token: str
+                - user_uuid: UUID
+
+        Raises:
+            exceptions.UserValidationError: Входные данные не прошли валидацию.
+            exceptions.InvalidCredentialsError: Указаны неверные учётные данные.
+            common_exceptions.EmailAlreadyExistsError: Конфликт email при обновлении данных входа.
+            common_exceptions.UserNotFoundError: Пользователь не найден.
+            common_exceptions.RepositoryError: Ошибка репозитория.
+        """
         validation_error = self.validator.validate(data)
         if validation_error is not None:
             raise validation_error
@@ -174,6 +235,10 @@ class LoginUserInteractor:
         updated_user = await self.user_repository.update(user.uuid, {
             'last_login': self.clock.now_date(),
         })
+        if isinstance(updated_user, common_exceptions.EmailAlreadyExistsError):
+            raise updated_user
+        if isinstance(updated_user, common_exceptions.UserNotFoundError):
+            raise updated_user
         if isinstance(updated_user, common_exceptions.RepositoryError):
             raise updated_user
         
@@ -204,23 +269,39 @@ class ResetUserPasswordInteractor:
         self.validator = validator
         self.policy = user_policy
         
-    async def execute(self, data: dto.ResetUserPasswordInDTO) -> None | common_exceptions.UserNotFoundError | common_exceptions.InvalidTokenError | common_exceptions.RepositoryError:
+    async def execute(self, data: dto.ResetUserPasswordInDTO) -> None:
+        """Сбрасывает пароль пользователя.
+
+        Args:
+            data: Структура ResetUserPasswordInDTO.
+                - user_uuid: UUID | None
+                - new_password: str
+
+        Returns:
+            None: Пароль успешно обновлён.
+
+        Raises:
+            common_exceptions.InvalidTokenError: Токен пользователя невалиден.
+            common_exceptions.UserNotFoundError: Пользователь не найден.
+            exceptions.UserAuthorizationError: Недостаточно прав для сброса пароля.
+            exceptions.CantResetPasswordError: Сброс пароля невозможен по доменным ограничениям.
+            exceptions.UserValidationError: Новый пароль не прошёл валидацию.
+            common_exceptions.RepositoryError: Ошибка репозитория.
+        """
         target_user = None
         current_user = None
         
         current_user_uuid = self.user_context.get_current_user_uuid()
         if isinstance(current_user_uuid, common_exceptions.InvalidTokenError):
             raise current_user_uuid
+
+        current_user = await self.user_repository.get_by_uuid(current_user_uuid, lock_record=True)
+        if isinstance(current_user, common_exceptions.UserNotFoundError):
+            raise current_user
+        if isinstance(current_user, common_exceptions.RepositoryError):
+            raise current_user
         
         if data.user_uuid is None:
-    
-
-            current_user = await self.user_repository.get_by_uuid(current_user_uuid, lock_record=True)
-            if isinstance(current_user, common_exceptions.UserNotFoundError):
-                raise current_user
-            if isinstance(current_user, common_exceptions.RepositoryError):
-                raise current_user
-        
             target_user = current_user
         
         else:
@@ -251,6 +332,8 @@ class ResetUserPasswordInteractor:
                 "uuid": str(data.user_uuid),
                 "password": hashed_password,
             })
+        if isinstance(updated_user, common_exceptions.UserNotFoundError):
+            raise updated_user
         if isinstance(updated_user, common_exceptions.RepositoryError):
             raise updated_user
         
@@ -273,7 +356,31 @@ class UpdateUserInteractor:
         self.policy = user_policy
         self.logger = logger
         
-    async def execute(self, data: dto.UpdateUserInDTO) -> dto.UpdateUserOutDTO | common_exceptions.UserNotFoundError | common_exceptions.EmailAlreadyExistsError | common_exceptions.InvalidTokenError | common_exceptions.RepositoryError:
+    async def execute(self, data: dto.UpdateUserInDTO) -> dto.UpdateUserOutDTO:
+        """Обновляет пользователя.
+
+        Args:
+            data: Структура UpdateUserInDTO.
+                - uuid: UUID | None
+                - name: str | None
+                - email: str | None
+                - password: str | None
+                - status: str | None
+                - role: str | None
+
+        Returns:
+            dto.UpdateUserOutDTO: Структура результата.
+                - user: entities.User
+
+        Raises:
+            common_exceptions.InvalidTokenError: Токен пользователя невалиден.
+            common_exceptions.UserNotFoundError: Пользователь не найден.
+            exceptions.UserAuthorizationError: Недостаточно прав для обновления пользователя.
+            exceptions.CantUpdateError: Обновление нарушает доменные ограничения.
+            exceptions.UserValidationError: Входные данные не прошли валидацию.
+            common_exceptions.EmailAlreadyExistsError: Пользователь с таким email уже существует.
+            common_exceptions.RepositoryError: Ошибка репозитория.
+        """
         target_user = None
         current_user = None
         
@@ -331,6 +438,8 @@ class UpdateUserInteractor:
             raise validation_error
 
         updated_user = await self.user_repository.update(target_user.uuid, {k: v for k, v in data.__dict__.items() if v is not None})
+        if isinstance(updated_user, common_exceptions.UserNotFoundError):
+            raise updated_user
         if isinstance(updated_user, common_exceptions.EmailAlreadyExistsError):
             raise updated_user
         if isinstance(updated_user, common_exceptions.RepositoryError):

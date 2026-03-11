@@ -1,8 +1,8 @@
 from uuid import uuid4, UUID
 from typing import Any
 from datetime import timedelta
-from application import common_exceptions, common_interfaces
-from domain import entities
+from htimer.application import common_exceptions, common_interfaces
+from htimer.domain import entities
 from . import dto, interfaces, exceptions
 
 
@@ -24,7 +24,26 @@ class CreateSubscriptionInteractor:
         self.authorization_policy = authorization_policy
         self.project_repository = project_repository
         self.session = session
-    async def execute(self, data: dto.CreateSubscriptionInDTO) -> dto.CreateSubscriptionOutDTO | common_exceptions.SubscriptionAlreadyExistsError | common_exceptions.ProjectNotFoundError | common_exceptions.InvalidTokenError | common_exceptions.UserNotFoundError | exceptions.SubscriptionAuthorizationError | exceptions.CantCreateSubscription | common_exceptions.RepositoryError:
+    async def execute(self, data: dto.CreateSubscriptionInDTO) -> dto.CreateSubscriptionOutDTO:
+        """Создаёт подписку проекта.
+
+        Args:
+            data: Структура CreateSubscriptionInDTO.
+                - project_uuid: UUID
+
+        Returns:
+            dto.CreateSubscriptionOutDTO: Структура результата.
+                - subscription: entities.Subscription
+
+        Raises:
+            common_exceptions.InvalidTokenError: Токен пользователя невалиден.
+            common_exceptions.UserNotFoundError: Пользователь не найден.
+            common_exceptions.ProjectNotFoundError: Проект не найден.
+            exceptions.SubscriptionAuthorizationError: Недостаточно прав для создания подписки.
+            exceptions.CantCreateSubscription: Нарушены доменные ограничения создания подписки.
+            common_exceptions.SubscriptionAlreadyExistsError: Подписка уже существует.
+            common_exceptions.RepositoryError: Ошибка репозитория.
+        """
         actor_uuid = self.context.get_current_user_uuid()
         if isinstance(actor_uuid, common_exceptions.InvalidTokenError):
             raise actor_uuid
@@ -81,7 +100,27 @@ class UpdateSubscriptionInteractor:
         self.authorization_policy = authorization_policy
         self.session = session
 
-    async def execute(self, data: dto.UpdateSubscriptionInDTO) -> None | common_exceptions.SubscriptionNotFoundError | common_exceptions.ProjectNotFoundError | common_exceptions.InvalidTokenError | common_exceptions.UserNotFoundError | exceptions.SubscriptionAuthorizationError | exceptions.CantUpdateSubscription | common_exceptions.RepositoryError:
+    async def execute(self, data: dto.UpdateSubscriptionInDTO) -> None:
+        """Обновляет состояние подписки проекта.
+
+        Args:
+            data: Структура UpdateSubscriptionInDTO.
+                - project_uuid: UUID
+                - auto_renew: bool | None
+                - status: str | None
+
+        Returns:
+            None: Подписка успешно обновлена.
+
+        Raises:
+            common_exceptions.InvalidTokenError: Токен пользователя невалиден.
+            common_exceptions.UserNotFoundError: Пользователь не найден.
+            common_exceptions.ProjectNotFoundError: Проект не найден.
+            common_exceptions.SubscriptionNotFoundError: Подписка не найдена.
+            exceptions.SubscriptionAuthorizationError: Недостаточно прав для обновления подписки.
+            exceptions.CantUpdateSubscription: Нарушены доменные ограничения обновления подписки.
+            common_exceptions.RepositoryError: Ошибка репозитория.
+        """
 
         actor_uuid = self.context.get_current_user_uuid()
         if isinstance(actor_uuid, common_exceptions.InvalidTokenError):
@@ -139,7 +178,26 @@ class ExtendSubscriptionInteractor:
         self.payment_repository = payment_repository
         self.payment_gateway = payment_gateway
         self.session = session
-    async def execute(self, data: dto.ExtendSubscriptionInDTO) -> None | common_exceptions.SubscriptionNotFoundError | common_exceptions.ProjectNotFoundError | exceptions.CantExtendSubscription | common_exceptions.PaymentNotFoundError | common_exceptions.PaymentNotComplete | common_exceptions.PaymentNotExistsError | common_exceptions.RepositoryError:
+    async def execute(self, data: dto.ExtendSubscriptionInDTO) -> None:
+        """Продлевает активную подписку по завершённому платежу.
+
+        Args:
+            data: Структура ExtendSubscriptionInDTO.
+                - project_uuid: UUID
+                - payment_uuid: UUID
+
+        Returns:
+            None: Подписка успешно продлена.
+
+        Raises:
+            common_exceptions.ProjectNotFoundError: Проект не найден.
+            common_exceptions.SubscriptionNotFoundError: Подписка не найдена.
+            common_exceptions.PaymentNotFoundError: Платёж не найден.
+            common_exceptions.PaymentNotComplete: Платёж не завершён.
+            common_exceptions.PaymentNotExistsError: Платёж отсутствует в платёжном шлюзе.
+            exceptions.CantExtendSubscription: Продление подписки невозможно.
+            common_exceptions.RepositoryError: Ошибка репозитория.
+        """
 
         project = await self.project_repository.get_by_uuid(data.project_uuid)
         if isinstance(project, (common_exceptions.ProjectNotFoundError, common_exceptions.RepositoryError)):
@@ -219,7 +277,26 @@ class ActivateSubscriptionInteractor:
         self.payment_repository = payment_repository
         self.payment_gateway = payment_gateway
 
-    async def execute(self, data: dto.ActivateSubscriptionInDTO) -> None | common_exceptions.SubscriptionNotFoundError | common_exceptions.ProjectNotFoundError | exceptions.CantActivateSubscription | common_exceptions.PaymentNotFoundError | common_exceptions.PaymentNotComplete | common_exceptions.PaymentNotExistsError | common_exceptions.RepositoryError:
+    async def execute(self, data: dto.ActivateSubscriptionInDTO) -> None:
+        """Активирует подписку по завершённому платежу.
+
+        Args:
+            data: Структура ActivateSubscriptionInDTO.
+                - project_uuid: UUID
+                - payment_uuid: UUID
+
+        Returns:
+            None: Подписка успешно активирована.
+
+        Raises:
+            common_exceptions.ProjectNotFoundError: Проект не найден.
+            common_exceptions.SubscriptionNotFoundError: Подписка не найдена.
+            common_exceptions.PaymentNotFoundError: Платёж не найден.
+            common_exceptions.PaymentNotComplete: Платёж не завершён.
+            common_exceptions.PaymentNotExistsError: Платёж отсутствует в платёжном шлюзе.
+            exceptions.CantActivateSubscription: Активация подписки невозможна.
+            common_exceptions.RepositoryError: Ошибка репозитория.
+        """
 
 
 
@@ -296,7 +373,31 @@ class CreatePaymentInteractor:
         self.payment_repository = payment_repository
         self.payment_gateway = payment_gateway
         self.session = session
-    async def execute(self, data: dto.CreatePaymentInDTO) -> dto.CreatePaymentOutDTO | common_exceptions.SubscriptionNotFoundError | common_exceptions.ProjectNotFoundError | common_exceptions.InvalidTokenError | common_exceptions.UserNotFoundError | exceptions.SubscriptionAuthorizationError | exceptions.CantCreateSubscription | common_exceptions.PaymentFailedError | exceptions.CantCreatePayment | common_exceptions.RepositoryError:
+    async def execute(self, data: dto.CreatePaymentInDTO) -> dto.CreatePaymentOutDTO:
+        """Создаёт платёж для подписки.
+
+        Args:
+            data: Структура CreatePaymentInDTO.
+                - uuid: UUID
+                - project_uuid: UUID
+                - amount: float
+                - currency: str
+
+        Returns:
+            dto.CreatePaymentOutDTO: Структура результата.
+                - process_payment_link: str
+
+        Raises:
+            common_exceptions.InvalidTokenError: Токен пользователя невалиден.
+            common_exceptions.UserNotFoundError: Пользователь не найден.
+            common_exceptions.ProjectNotFoundError: Проект не найден.
+            exceptions.SubscriptionAuthorizationError: Недостаточно прав для создания платежа.
+            common_exceptions.SubscriptionNotFoundError: Подписка не найдена.
+            exceptions.CantCreatePayment: Платёж не может быть создан по доменным ограничениям.
+            common_exceptions.PaymentFailedError: Платёжный шлюз вернул ошибку создания платежа.
+            common_exceptions.PaymentNotFoundError: Платёж не найден при обновлении данных.
+            common_exceptions.RepositoryError: Ошибка репозитория.
+        """
         actor_uuid = self.context.get_current_user_uuid()
         if isinstance(actor_uuid, common_exceptions.InvalidTokenError):
             raise actor_uuid
@@ -348,9 +449,11 @@ class CreatePaymentInteractor:
         if isinstance(gateway_payment, common_exceptions.PaymentFailedError):
             raise gateway_payment
 
-        await self.payment_repository.update(
+        update_gateway_id_result = await self.payment_repository.update(
             payment_uuid=payment.uuid,
             data={'gateway_payment_id': str(gateway_payment[1])})
+        if isinstance(update_gateway_id_result, (common_exceptions.PaymentNotFoundError, common_exceptions.RepositoryError)):
+            raise update_gateway_id_result
 
         await self.session.commit()
 
@@ -375,7 +478,24 @@ class CompletePaymentInteractor:
         self.session = session
 
 
-    async def execute(self, data: dto.CompletePaymentInDTO) -> None | common_exceptions.SubscriptionNotFoundError | common_exceptions.ProjectNotFoundError | common_exceptions.PaymentNotFoundError | exceptions.CantCompletePayment | common_exceptions.PaymentNotComplete | common_exceptions.PaymentNotExistsError | common_exceptions.RepositoryError:
+    async def execute(self, data: dto.CompletePaymentInDTO) -> None:
+        """Помечает платёж завершённым.
+
+        Args:
+            data: Структура CompletePaymentInDTO.
+                - payment_uuid: UUID
+
+        Returns:
+            None: Платёж успешно завершён.
+
+        Raises:
+            common_exceptions.PaymentNotFoundError: Платёж не найден.
+            common_exceptions.PaymentNotComplete: Платёж не подтверждён.
+            common_exceptions.PaymentNotExistsError: Платёж отсутствует в платёжном шлюзе.
+            exceptions.CantCompletePayment: Платёж не может быть завершён по доменным ограничениям.
+            common_exceptions.PaymentRefundFailedError: Не удалось выполнить возврат платежа.
+            common_exceptions.RepositoryError: Ошибка репозитория.
+        """
         
         
 
@@ -397,7 +517,9 @@ class CompletePaymentInteractor:
         complete_err = payment.ensure_complete()
         
         if complete_err:
-            await self.payment_gateway.refund_payment(payment, gateway_payment_id)
+            refund_result = await self.payment_gateway.refund_payment(payment, gateway_payment_id)
+            if isinstance(refund_result, (common_exceptions.PaymentRefundFailedError, common_exceptions.PaymentNotExistsError)):
+                raise refund_result
             raise exceptions.CantCompletePayment(complete_err)
         
         payment_error = await self.payment_repository.update(
@@ -429,9 +551,31 @@ class CompletePaymentAndUpdateSubscriptionInteractor:
         self.payment_gateway = payment_gateway
         self.session = session
 
-    async def execute(self, data: dto.CompletePaymentAndUpdateSubscriptionInDTO) -> None | exceptions.CantActivateSubscription | common_exceptions.SubscriptionNotFoundError | common_exceptions.ProjectNotFoundError | common_exceptions.PaymentNotFoundError | exceptions.CantCompletePayment | common_exceptions.PaymentNotComplete | common_exceptions.PaymentNotExistsError | exceptions.CantExtendSubscription | common_exceptions.RepositoryError:
+    async def execute(self, data: dto.CompletePaymentAndUpdateSubscriptionInDTO) -> None:
+        """Завершает платёж и приводит подписку в актуальное состояние.
+
+        Args:
+            data: Структура CompletePaymentAndUpdateSubscriptionInDTO.
+                - project_uuid: UUID
+                - payment_uuid: UUID
+
+        Returns:
+            None: Платёж завершён и подписка обновлена.
+
+        Raises:
+            common_exceptions.PaymentNotFoundError: Платёж не найден.
+            common_exceptions.PaymentNotComplete: Платёж не подтверждён.
+            common_exceptions.PaymentNotExistsError: Платёж отсутствует в платёжном шлюзе.
+            common_exceptions.PaymentRefundFailedError: Не удалось выполнить возврат платежа.
+            exceptions.CantCompletePayment: Платёж не может быть завершён.
+            common_exceptions.ProjectNotFoundError: Проект не найден.
+            common_exceptions.SubscriptionNotFoundError: Подписка не найдена.
+            exceptions.CantExtendSubscription: Подписку нельзя продлить.
+            exceptions.CantActivateSubscription: Подписку нельзя активировать.
+            common_exceptions.RepositoryError: Ошибка репозитория.
+        """
         
-        complete_payment_result = await CompletePaymentInteractor(
+        await CompletePaymentInteractor(
             payment_repository=self.payment_repository,
             user_repository=self.user_repository,
             project_repository=self.project_repository,
@@ -439,10 +583,6 @@ class CompletePaymentAndUpdateSubscriptionInteractor:
             payment_gateway=self.payment_gateway,
             session=self.session,
         ).execute(dto.CompletePaymentInDTO(payment_uuid=data.payment_uuid))
-            
-
-        if complete_payment_result is not None:
-            raise complete_payment_result
 
         subscription = await self.subscription_repository.get_by_project_uuid(data.project_uuid)
         if isinstance(subscription, (common_exceptions.SubscriptionNotFoundError, common_exceptions.ProjectNotFoundError, common_exceptions.RepositoryError)):
@@ -453,7 +593,7 @@ class CompletePaymentAndUpdateSubscriptionInteractor:
         if extend_ensure_res:
             raise exceptions.CantExtendSubscription(extend_ensure_res)
         else:
-            extend_subscription_result = await ExtendSubscriptionInteractor(
+            await ExtendSubscriptionInteractor(
                 subscription_repository=self.subscription_repository,
                 project_repository=self.project_repository,
                 payment_repository=self.payment_repository,
@@ -462,15 +602,12 @@ class CompletePaymentAndUpdateSubscriptionInteractor:
                 session=self.session,
             ).execute(dto.ExtendSubscriptionInDTO(project_uuid=data.project_uuid, payment_uuid=data.payment_uuid))
 
-            if extend_subscription_result is not None:
-                raise extend_subscription_result
-
         ensure_activate_res = subscription.ensure_activate()
 
         if ensure_activate_res:
             raise exceptions.CantActivateSubscription(ensure_activate_res)
         else: 
-            activate_subscription_result = await ActivateSubscriptionInteractor(
+            await ActivateSubscriptionInteractor(
                     subscription_repository=self.subscription_repository,
                     project_repository=self.project_repository,
                     clock=self.clock,
@@ -478,8 +615,5 @@ class CompletePaymentAndUpdateSubscriptionInteractor:
                     payment_repository=self.payment_repository,
                     payment_gateway=self.payment_gateway,
                 ).execute(dto.ActivateSubscriptionInDTO(project_uuid=data.project_uuid, payment_uuid=data.payment_uuid))
-
-            if activate_subscription_result is not None:
-                    raise activate_subscription_result
 
         return None

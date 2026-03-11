@@ -1,7 +1,7 @@
 from dishka import Provider, Scope, provide, provide_all # type: ignore
 
-from application.subscription import interactors, interfaces
-from infrastructure.policy.subscription import policy
+from htimer.application.subscription import interactors, interfaces
+from htimer.infrastructure.policy.subscription import policy
 
 class PolicyProvider(Provider):
     subscription_authorization_policy = provide(

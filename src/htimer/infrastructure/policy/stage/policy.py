@@ -1,7 +1,7 @@
-from domain import entities
-from application.stage import interfaces
-import infrastructure.policy.stage.exceptions as infra_exceptions
-from application.stage import exceptions as stage_exceptions
+from htimer.domain import entities
+from htimer.application.stage import interfaces
+import htimer.infrastructure.policy.stage.exceptions as infra_exceptions
+from htimer.application.stage import exceptions as stage_exceptions
 
 class StageAuthorizationPolicyImpl(interfaces.StageAuthorizationPolicy):
 
@@ -13,7 +13,7 @@ class StageAuthorizationPolicyImpl(interfaces.StageAuthorizationPolicy):
 
         if actor_decision is entities.UserDecisions.CreateStageDecision.FORBIDDEN_FOR_NON_MEMBER:
             return infra_exceptions.UserNotProjectMemberError(
-                "Пользователь не является участником проекта и не может создать этап."
+                "Недостаточно прав: создание этапа доступно только участнику проекта."
             )
 
         return None
@@ -26,7 +26,7 @@ class StageAuthorizationPolicyImpl(interfaces.StageAuthorizationPolicy):
 
         if actor_decision is entities.UserDecisions.UpdateStageDecision.FORBIDDEN_FOR_NON_MEMBER:
             return infra_exceptions.UserNotProjectMemberError(
-                "Пользователь не является участником проекта и не может обновить этап."
+                "Недостаточно прав: обновление этапа доступно только участнику проекта."
             )
 
         return None
@@ -36,7 +36,7 @@ class StageAuthorizationPolicyImpl(interfaces.StageAuthorizationPolicy):
 
         if actor_decision is entities.UserDecisions.GetProjectDecision.FORBIDDEN_FOR_NON_MEMBER:
             return infra_exceptions.UserNotProjectMemberError(
-                "Пользователь не является участником проекта и не может получить список этапов."
+                "Недостаточно прав: просмотр списка этапов доступен только участнику проекта."
             )
 
         return None

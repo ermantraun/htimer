@@ -1,6 +1,7 @@
 import aio_pika
-from config import Config
-from application import common_interfaces, common_exceptions
+from uuid import UUID
+from htimer.config import Config
+from htimer.application import common_interfaces, common_exceptions
 
 
 
@@ -12,15 +13,15 @@ class Publisher(common_interfaces.JobGateway):
 
 
 
-    async def publish_report(self, report_id: str) -> common_exceptions.JobGatewayError | None:
+    async def publish_report(self, report_id: UUID) -> common_exceptions.JobGatewayError | None:
         try:
             exchange = await self.channel.get_exchange(self.config.exchange_name, ensure=True)
 
 
             await exchange.publish(
-                aio_pika.Message(body=report_id.encode(), 
+                aio_pika.Message(body=str(report_id).encode(), 
                                  delivery_mode=aio_pika.DeliveryMode.PERSISTENT, 
-                                 message_id=report_id, headers=
+                                 message_id=str(report_id), headers=
                                  {"x-retry-count": self.config.retry_count}),
                 routing_key=self.config.report_queue_name
             )
@@ -30,5 +31,5 @@ class Publisher(common_interfaces.JobGateway):
 
         
         except Exception as e:
-            await self.logger.info(operation="publish_message_failed", message=report_id)
-            return common_exceptions.JobGatewayError(str(e))
+            await self.logger.info(operation="publish_message_failed", message=str(report_id))
+            return common_exceptions.JobGatewayError(f"Ошибка шлюза задач: {e}")

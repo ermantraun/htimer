@@ -1,8 +1,8 @@
-from application import common_interfaces
-from application.common_exceptions import InvalidTokenError
-from application.user import interfaces
+from htimer.application import common_interfaces
+from htimer.application.common_exceptions import InvalidTokenError
+from htimer.application.user import interfaces
 from . import interfaces as auth_interfaces
-from config import Config
+from htimer.config import Config
 from datetime import timedelta
 from typing import Any
 from uuid import UUID
@@ -52,6 +52,6 @@ class Auth(common_interfaces.Context, interfaces.TokenGenerator):
             try:
                 return UUID(value)
             except ValueError:
-                return InvalidTokenError("Invalid user uuid in context")
+                return InvalidTokenError("Некорректный идентификатор пользователя в контексте.")
 
-        return InvalidTokenError("User uuid not found in context")
+        return InvalidTokenError("Идентификатор пользователя не найден в контексте.")

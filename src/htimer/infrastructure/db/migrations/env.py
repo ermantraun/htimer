@@ -3,8 +3,8 @@ from logging.config import fileConfig
 from sqlalchemy import engine_from_config, URL, pool
 
 from alembic import context
-from infrastructure.db.models import Base
-from config import PostgresConfig as psql_config
+from htimer.infrastructure.db.models import Base
+from htimer.config import PostgresConfig as psql_config
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

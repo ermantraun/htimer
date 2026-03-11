@@ -1,6 +1,6 @@
 import hashlib
-from application.user import interfaces
-from config import Config
+from htimer.application.user import interfaces
+from htimer.config import Config
 
 class HashManager(interfaces.HashGenerator, interfaces.HashVerifier):
     def __init__(self, config: Config):

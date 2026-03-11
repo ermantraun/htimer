@@ -1,6 +1,6 @@
-from application.task import interactors, interfaces
+from htimer.application.task import interactors, interfaces
 from dishka import Provider, Scope, provide_all, provide  # type: ignore
-from infrastructure.policy.task import policy
+from htimer.infrastructure.policy.task import policy
 
 class PolicyProvider(Provider):
     task_authorization_policy = provide(

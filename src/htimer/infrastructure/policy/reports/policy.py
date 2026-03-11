@@ -1,5 +1,5 @@
-from application.reports import interfaces
-from domain import entities
+from htimer.application.reports import interfaces
+from htimer.domain import entities
 from . import exceptions
 
 
@@ -12,18 +12,18 @@ class ReportsAuthorizationPolicyImpl(interfaces.ReportsAuthorizationPolicy):
 
         if decision is entities.UserDecisions.CreateReportDecision.FORBIDDEN_FOR_NON_PROJECT_ADMIN:
             return exceptions.UserNotProjectAdmin(
-                "Пользователь может формировать отчёт только для себя"
+                "Недостаточно прав: формирование отчёта доступно только администратору проекта или для собственных данных."
             )
         
 
         if decision is entities.UserDecisions.CreateReportDecision.FORBIDDEN_FOR_NON_PROJECT_ADMIN_AND_NON_TARGET:
             return exceptions.UserNotProjectAdmin(
-                "Пользователь может формировать отчёт только для себя"
+                "Недостаточно прав: формирование отчёта доступно только администратору проекта или для собственных данных."
             )
 
         if decision is entities.UserDecisions.CreateReportDecision.FORBIDDEN_GET_NON_PROJECT_USERS:
             return exceptions.TargetUsersNotProjectMembers(
-                "Пользователь может формировать отчёт только для себя или как создатель проекта. Нельзя формировать отчёт для пользователей, не являющихся участниками проекта."
+                "Недостаточно прав: нельзя формировать отчёт для пользователей, не являющихся участниками проекта."
             )
 
         return None

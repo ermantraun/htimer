@@ -2,8 +2,8 @@ from datetime import date
 from typing import Any
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
-from application import common_exceptions, common_interfaces
-from domain import entities
+from htimer.application import common_exceptions, common_interfaces
+from htimer.domain import entities
 from . import exceptions as db_exceptions, interfaces
 
 
@@ -202,59 +202,37 @@ class SubscriptionRepository(common_interfaces.SubscriptionRepository):
         return _map_exception(await self._db_rep.update(subscription_uuid, data))
 
 class FileRepository(common_interfaces.FileRepository):
-    def __init__(self, session: AsyncSession, db_rep: interfaces.DBFileRepository, storage_rep: interfaces.StorageFileRepository):
+    def __init__(self, session: AsyncSession, db_rep: interfaces.DBFileRepository):
         self._session = session
         self._db_rep = db_rep
-        self._storage_rep = storage_rep
 
-
-    async def create(self, file: entities.DailyLogFile) ->  tuple[entities.DailyLogFile, common_interfaces.ActionLink] | common_exceptions.FileAlreadyExistsError | common_exceptions.RepositoryError:
-        
-
+    async def create(self, file: entities.DailyLogFile) -> entities.DailyLogFile | common_exceptions.FileAlreadyExistsError | common_exceptions.RepositoryError:
         db_result = await self._db_rep.create(file)
         if isinstance(db_result, BaseException):
             return _map_exception(db_result)
 
-        storage_result = await self._storage_rep.get_upload_link(file)
-        if isinstance(storage_result, BaseException):
-            await self._session.rollback()
-            return _map_exception(storage_result)
+        return db_result
 
-        return db_result, common_interfaces.ActionLink(storage_result)
-    
-    async def get(self, file_uuid: UUID) -> tuple[entities.DailyLogFile, common_interfaces.ActionLink] | common_exceptions.FileNotFoundError | common_exceptions.RepositoryError:
+    async def get(self, file_uuid: UUID) -> entities.DailyLogFile | common_exceptions.FileNotFoundError | common_exceptions.RepositoryError:
         db_result = await self._db_rep.get(file_uuid)
         if isinstance(db_result, BaseException):
             return _map_exception(db_result)
 
-        storage_result = await self._storage_rep.get_unload_link(db_result)
-        if isinstance(storage_result, BaseException):
-            return _map_exception(storage_result)
+        return db_result
 
-        return db_result, common_interfaces.ActionLink(storage_result)
-    
-    async def remove(self, file_uuid: UUID) -> tuple[entities.DailyLogFile, common_interfaces.ActionLink] | common_exceptions.FileNotFoundError | common_exceptions.RepositoryError:
+    async def remove(self, file_uuid: UUID) -> entities.DailyLogFile | common_exceptions.FileNotFoundError | common_exceptions.RepositoryError:
         db_result = await self._db_rep.remove(file_uuid)
         if isinstance(db_result, BaseException):
             return _map_exception(db_result)
 
-        storage_result = await self._storage_rep.get_remove_link(db_result)
-        if isinstance(storage_result, BaseException):
-            await self._session.rollback()
-            return _map_exception(storage_result)
+        return db_result
 
-        return (db_result, common_interfaces.ActionLink(storage_result))
-    
-    async def get_list(self, daily_log_uuid: UUID) -> list[tuple[entities.DailyLogFile, common_interfaces.ActionLink]] | common_exceptions.FileNotFoundError | common_exceptions.RepositoryError:
+    async def get_list(self, daily_log_uuid: UUID) -> list[entities.DailyLogFile] | common_exceptions.FileNotFoundError | common_exceptions.RepositoryError:
         db_result = await self._db_rep.get_list(daily_log_uuid)
         if isinstance(db_result, BaseException):
             return _map_exception(db_result)
 
-        storage_result = await self._storage_rep.get_unload_link_list(db_result)
-        if isinstance(storage_result, BaseException):
-            return _map_exception(storage_result)
-
-        return [(file, common_interfaces.ActionLink(link)) for file, link in storage_result]
+        return db_result
 
 class ReportRepository(common_interfaces.ReportRepository):
     def __init__(self, primary: interfaces.DBReportRepository):
@@ -265,3 +243,6 @@ class ReportRepository(common_interfaces.ReportRepository):
 
     async def get_by_uuid(self, report_uuid: UUID, lock_record: bool = False) -> entities.Report | common_exceptions.ReportNotFoundError | common_exceptions.RepositoryError:
         return _map_exception(await self._db_rep.get_by_uuid(report_uuid, lock_record))
+    
+    async def update(self, report_uuid: UUID, data: dict[str, Any]) -> entities.Report | common_exceptions.ReportNotFoundError | common_exceptions.RepositoryError:
+        return _map_exception(await self._db_rep.update(report_uuid, data))

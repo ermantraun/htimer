@@ -5,11 +5,11 @@ import signal
 import os
 from typing import Any
 import dishka
-from handlers.consumers import consumers
-from handlers.consumers.interfaces import BaseConsumer
-from ioc.app import AppProvider
-from utils import MessageBrokerInitializer
-from config import Config
+from htimer.handlers.consumers import consumers
+from htimer.handlers.consumers.interfaces import BaseConsumer
+from htimer.ioc.app import AppProvider
+from htimer.utils import MessageBrokerInitializer
+from htimer.config import Config
 
 
 async def run_consumer(consumer_cls: type[BaseConsumer]) -> None:

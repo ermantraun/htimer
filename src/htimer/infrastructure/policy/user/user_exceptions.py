@@ -1,36 +1,53 @@
-from application.user.exceptions import UserAuthorizationError
+from htimer.application.user.exceptions import UserAuthorizationError
+
 
 class AdminIsNotProjectOwner(UserAuthorizationError):
-    """Ошибка: администратор не состоит в проекте."""
-    pass
+    """Ошибка авторизации: пользователь не имеет доступа к запрошенному проекту."""
+
+    def __init__(self, message: str = "Недостаточно прав: доступ к запрошенному проекту запрещён."):
+        super().__init__(message)
 
 class UserIsNotAdmin(UserAuthorizationError):
-    """Ошибка: пользователь не является администратором."""
-    pass
+    """Ошибка авторизации: пользователь не является администратором."""
+
+    def __init__(self, message: str = "Недостаточно прав: операция доступна только администратору."):
+        super().__init__(message)
 
 class UserCannotCreateUsersError(UserAuthorizationError):
-    """Ошибка: пользователь не имеет прав на создание других пользователей."""
-    pass
+    """Ошибка авторизации: пользователь не может создавать других пользователей."""
+
+    def __init__(self, message: str = "Недостаточно прав: создание пользователей запрещено."):
+        super().__init__(message)
 
 
 class CannotChangeSelfError(UserAuthorizationError):
-    """Попытка самим себе повысить/понизить роль/права."""
-    pass
+    """Ошибка авторизации: запрещено изменять собственные привилегии."""
+
+    def __init__(self, message: str = "Недостаточно прав: нельзя изменять собственные привилегии."):
+        super().__init__(message)
 
 
 class CannotChangeStatusSelfError(UserAuthorizationError):
-    """Попытка самим себе изменить активность/архивность аккаунта."""
-    pass
+    """Ошибка авторизации: запрещено изменять собственный статус аккаунта."""
+
+    def __init__(self, message: str = "Недостаточно прав: нельзя изменять собственный статус аккаунта."):
+        super().__init__(message)
 
 class UserCannotUpdateUserError(UserAuthorizationError):
-    """Ошибка: пользователь не имеет прав для изменения целевого пользователя."""
-    pass
+    """Ошибка авторизации: пользователь не может изменять целевого пользователя."""
+
+    def __init__(self, message: str = "Недостаточно прав: изменение целевого пользователя запрещено."):
+        super().__init__(message)
 
 class CannotResetOwnPasswordError(UserAuthorizationError):
-    """Ошибка: пользователь не может сбросить свой собственный пароль."""
-    pass
+    """Ошибка авторизации: запрещено сбрасывать собственный пароль этим методом."""
+
+    def __init__(self, message: str = "Недостаточно прав: нельзя сбрасывать собственный пароль этим методом."):
+        super().__init__(message)
 
 class UserCannotResetPasswordError(UserAuthorizationError):
-    """Ошибка: пользователь не имеет прав для сброса пароля целевому пользователю."""
-    pass
+    """Ошибка авторизации: пользователь не может сбрасывать пароль целевого пользователя."""
+
+    def __init__(self, message: str = "Недостаточно прав: сброс пароля целевого пользователя запрещён."):
+        super().__init__(message)
 

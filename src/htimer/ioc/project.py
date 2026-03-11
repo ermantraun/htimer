@@ -1,8 +1,8 @@
 from dishka import Provider, Scope, provide, AnyOf, provide_all # type: ignore
 
 
-from application.project import interactors, interfaces
-from infrastructure.policy.project import policy
+from htimer.application.project import interactors, interfaces
+from htimer.infrastructure.policy.project import policy
 
 class PolicyProvider(Provider):
     project_authorization_policy = provide(

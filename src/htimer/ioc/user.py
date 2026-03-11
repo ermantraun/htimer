@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from dishka import Provider, Scope, provide, AnyOf, provide_all # type: ignore
-from application.user import interactors, interfaces
-from infrastructure.policy.user import policy
-from infrastructure import hash_manager
-from infrastructure.auth import auth
+from htimer.application.user import interactors, interfaces
+from htimer.infrastructure.policy.user import policy
+from htimer.infrastructure import hash_manager
+from htimer.infrastructure.auth import auth
 
 class SecurityProvider(Provider):
     hash_generator = provide(hash_manager.HashManager, scope=Scope.REQUEST, provides=interfaces.HashGenerator)

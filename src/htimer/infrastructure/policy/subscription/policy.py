@@ -1,5 +1,5 @@
-from application.subscription import interfaces
-from domain import entities
+from htimer.application.subscription import interfaces
+from htimer.domain import entities
 import infrastructure.policy.subscription.exceptions as exceptions
 
 
@@ -11,7 +11,7 @@ class SubscriptionAuthorizationPolicyImpl(interfaces.SubscriptionAuthorizationPo
             return None
 
         if decision is entities.UserDecisions.CreateSubscriptionDecision.FORBIDDEN_FOR_NON_PROJECT_CREATOR:
-            return exceptions.UserNotProjectCreatorError("Пользователь не является создателем проекта и не может создать подписку.")
+            return exceptions.UserNotProjectCreatorError("Недостаточно прав: создание подписки доступно только создателю проекта.")
 
         return None
 
@@ -22,7 +22,7 @@ class SubscriptionAuthorizationPolicyImpl(interfaces.SubscriptionAuthorizationPo
             return None
 
         if decision is entities.UserDecisions.CreatePaymentDecision.FORBIDDEN_FOR_NON_PROJECT_CREATOR:
-            return exceptions.UserNotProjectCreatorError("Пользователь не является создателем проекта и не может создать платёж.")
+            return exceptions.UserNotProjectCreatorError("Недостаточно прав: создание платежа доступно только создателю проекта.")
 
         return None
 
@@ -34,6 +34,6 @@ class SubscriptionAuthorizationPolicyImpl(interfaces.SubscriptionAuthorizationPo
             return None
 
         if decision is entities.UserDecisions.CreateSubscriptionDecision.FORBIDDEN_FOR_NON_PROJECT_CREATOR:
-            return exceptions.UserNotProjectCreatorError("Пользователь не является создателем проекта и не может изменить подписку.")
+            return exceptions.UserNotProjectCreatorError("Недостаточно прав: изменение подписки доступно только создателю проекта.")
 
         return None

@@ -1,9 +1,9 @@
 from abc import abstractmethod
-from typing import Protocol, Any, BinaryIO
+from typing import Protocol, Any
 from uuid import UUID
 from dataclasses import dataclass
 from datetime import date 
-from domain import entities
+from htimer.domain import entities
 from . import common_exceptions
 
 
@@ -160,20 +160,19 @@ class DailyLogRepository(Protocol):
     
 class FileRepository(Protocol):
     @abstractmethod
-    async def create(self, file: entities.DailyLogFile) -> tuple[entities.DailyLogFile, ActionLink] | common_exceptions.FileAlreadyExistsError | common_exceptions.RepositoryError:
-
+    async def create(self, file: entities.DailyLogFile) -> entities.DailyLogFile | common_exceptions.FileAlreadyExistsError | common_exceptions.RepositoryError:
         pass
 
     @abstractmethod
-    async def get(self, file_uuid: UUID) -> tuple[entities.DailyLogFile, ActionLink] | common_exceptions.FileNotFoundError | common_exceptions.RepositoryError:
+    async def get(self, file_uuid: UUID) -> entities.DailyLogFile | common_exceptions.FileNotFoundError | common_exceptions.RepositoryError:
         pass
 
     @abstractmethod
-    async def remove(self, file_uuid: UUID) -> tuple[entities.DailyLogFile, ActionLink] | common_exceptions.FileNotFoundError | common_exceptions.RepositoryError:
+    async def remove(self, file_uuid: UUID) -> entities.DailyLogFile | common_exceptions.FileNotFoundError | common_exceptions.RepositoryError:
         pass
 
     @abstractmethod
-    async def get_list(self, daily_log_uuid: UUID) -> list[tuple[entities.DailyLogFile, ActionLink]] | common_exceptions.FileNotFoundError | common_exceptions.RepositoryError:
+    async def get_list(self, daily_log_uuid: UUID) -> list[entities.DailyLogFile] | common_exceptions.FileNotFoundError | common_exceptions.RepositoryError:
         pass
 
 
@@ -274,9 +273,21 @@ class JobGateway(Protocol):
 class FileStorage(Protocol):
 
     @abstractmethod
-    async def save(self, file_name: str, content: BinaryIO) -> None | common_exceptions.FileStorageError:
+    async def save(self, file_name: str, content: bytes) -> None | common_exceptions.FileAlreadyExistsInStorageError | common_exceptions.FileStorageError:
         pass
 
     @abstractmethod
-    async def get_unload_link(self, file_name: str) -> str | common_exceptions.FileNotFoundError | common_exceptions.FileStorageError:
+    async def get_unload_link(self, file_name: str) -> str | common_exceptions.FileNotFoundInStorageError | common_exceptions.FileStorageError:
+        pass
+
+    @abstractmethod
+    async def get_upload_link(self, file_name: str) -> str | common_exceptions.FileAlreadyExistsInStorageError | common_exceptions.FileStorageError:
+        pass
+
+    @abstractmethod
+    async def get_unload_link_list(self, files: list[str]) -> list[tuple[str, str]] | common_exceptions.FileNotFoundInStorageError | common_exceptions.FileStorageError:
+        pass
+
+    @abstractmethod
+    async def remove(self, file_name: str) -> None | common_exceptions.FileNotFoundInStorageError | common_exceptions.FileStorageError:
         pass

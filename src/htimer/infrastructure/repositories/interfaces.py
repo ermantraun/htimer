@@ -2,7 +2,7 @@ from abc import abstractmethod
 from datetime import date
 from typing import Any, Protocol
 from uuid import UUID
-from domain import entities
+from htimer.domain import entities
 
 from . import exceptions
 
@@ -202,19 +202,19 @@ class DBReportRepository(Protocol):
         pass
 class StorageFileRepository(Protocol):
     @abstractmethod
-    async def get_upload_link(self, file: entities.DailyLogFile) -> str | exceptions.FileRepositoryError:
+    async def get_upload_link(self, file_name: str) -> str | exceptions.FileRepositoryError:
         pass
 
     @abstractmethod
-    async def get_unload_link(self, file: entities.DailyLogFile) -> str | exceptions.FileRepositoryError | exceptions.FileNotFoundError:
+    async def get_unload_link(self, file_name: str) -> str | exceptions.FileRepositoryError | exceptions.FileNotFoundError:
         pass
     
     @abstractmethod
-    async def get_unload_link_list(self, files: list[entities.DailyLogFile]) -> list[tuple[entities.DailyLogFile, str]] | exceptions.FileRepositoryError | exceptions.FileNotFoundError:
+    async def get_unload_link_list(self, files: list[str]) -> list[tuple[str, str]] | exceptions.FileRepositoryError | exceptions.FileNotFoundError:
         pass
 
     @abstractmethod
-    async def get_remove_link(self, file: entities.DailyLogFile) -> None | exceptions.FileRepositoryError | exceptions.FileNotFoundError:
+    async def get_remove_link(self, file_name: str) -> None | exceptions.FileRepositoryError | exceptions.FileNotFoundError:
         pass
 
 

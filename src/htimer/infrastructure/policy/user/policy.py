@@ -1,5 +1,5 @@
-from domain import entities
-from application.user import interfaces
+from htimer.domain import entities
+from htimer.application.user import interfaces
 import infrastructure.policy.user.user_exceptions as user_exceptions
 
 class UserAuthorizationPolicyImpl(interfaces.UserAuthorizationPolicy):
@@ -12,7 +12,7 @@ class UserAuthorizationPolicyImpl(interfaces.UserAuthorizationPolicy):
 
         if decision is entities.UserDecisions.CreateUserDecision.FORBIDDEN_FOR_NON_ADMIN:
             return user_exceptions.UserCannotCreateUsersError(
-                "Пользователь не имеет прав на создание других пользователей."
+                "Недостаточно прав: создание пользователей доступно только администратору."
             )
 
         return None
@@ -35,7 +35,7 @@ class UserAuthorizationPolicyImpl(interfaces.UserAuthorizationPolicy):
             entities.UserDecisions.UpdateUserDecision.FORBIDDEN_FOR_NON_CREATOR,
         }:
             return user_exceptions.UserCannotUpdateUserError(
-                "Пользователь не имеет прав для изменения целевого пользователя."
+                "Недостаточно прав: изменение целевого пользователя запрещено."
             )
 
         return None
@@ -56,7 +56,7 @@ class UserAuthorizationPolicyImpl(interfaces.UserAuthorizationPolicy):
 
         if decision is entities.UserDecisions.ListUsersDecision.FORBIDDEN_FOR_NON_PROJECT_ADMIN:
             return user_exceptions.AdminIsNotProjectOwner(
-                "Запрошены проекты, к которым у пользователя нет доступа."
+                "Недостаточно прав: запрошены проекты, к которым нет доступа."
             )
 
         return None
@@ -76,7 +76,7 @@ class UserAuthorizationPolicyImpl(interfaces.UserAuthorizationPolicy):
 
         if decision is entities.UserDecisions.ResetUserPasswordDecision.FORBIDDEN_FOR_NON_CREATOR:
             return user_exceptions.UserCannotResetPasswordError(
-                "Пользователь не имеет прав для сброса пароля целевому пользователю."
+                "Недостаточно прав: сброс пароля целевого пользователя запрещён."
             )
             
         return None

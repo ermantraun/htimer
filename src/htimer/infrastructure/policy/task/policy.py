@@ -1,5 +1,5 @@
-from application.task import interfaces
-from domain import entities
+from htimer.application.task import interfaces
+from htimer.domain import entities
 import infrastructure.policy.task.exceptions as exceptions
 
 
@@ -11,7 +11,7 @@ class TaskAuthorizationPolicyImpl(interfaces.TaskAuthorizationPolicy):
             return None
 
         if decision is entities.UserDecisions.CreateTaskDecision.FORBIDDEN_FOR_NON_MEMBER:
-            return exceptions.UserNotProjectMemberError("Пользователь не является участником проекта и не может создать задачу.")
+            return exceptions.UserNotProjectMemberError("Недостаточно прав: пользователь не является участником проекта.")
 
         return None
 
@@ -22,7 +22,7 @@ class TaskAuthorizationPolicyImpl(interfaces.TaskAuthorizationPolicy):
             return None
 
         if decision is entities.UserDecisions.UpdateTaskDecision.FORBIDDEN_FOR_NON_MEMBER:
-            return exceptions.UserNotProjectMemberError("Пользователь не имеет прав обновлять задачу.")
+            return exceptions.UserNotProjectMemberError("Недостаточно прав: обновление задачи доступно только участнику проекта.")
 
         return None
 
@@ -34,7 +34,7 @@ class TaskAuthorizationPolicyImpl(interfaces.TaskAuthorizationPolicy):
             return None
 
         if decision is entities.UserDecisions.GetTaskDecision.FORBIDDEN_FOR_NON_MEMBER:
-            return exceptions.UserNotProjectMemberError("Пользователь не является участником проекта и не может получить задачу.")
+            return exceptions.UserNotProjectMemberError("Недостаточно прав: просмотр задачи доступен только участнику проекта.")
 
         return None
 
@@ -45,6 +45,6 @@ class TaskAuthorizationPolicyImpl(interfaces.TaskAuthorizationPolicy):
             return None
 
         if decision is entities.UserDecisions.DeleteTaskDecision.FORBIDDEN_FOR_NON_MEMBER:
-            return exceptions.UserNotProjectMemberError("Пользователь не имеет прав удалять задачу.")
+            return exceptions.UserNotProjectMemberError("Недостаточно прав: удаление задачи доступно только участнику проекта.")
 
         return None
