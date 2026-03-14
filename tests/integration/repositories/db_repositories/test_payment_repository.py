@@ -2,9 +2,10 @@ from uuid import uuid4
 
 import pytest
 
-from htimer.infrastructure.repositories import exceptions as repo_exceptions, interfaces as repository_interfaces
 from htimer.domain import entities
 from htimer.infrastructure.db import models
+from htimer.infrastructure.repositories import exceptions as repo_exceptions
+from htimer.infrastructure.repositories import interfaces as repository_interfaces
 from tests.integration import factories
 
 
@@ -134,6 +135,8 @@ async def test_update_payment_success(
 async def test_update_payment_not_found(
     payment_repository: repository_interfaces.DBPaymentRepository,
 ):
-    result = await payment_repository.update(uuid4(), {"status": models.PaymentStatus.COMPLETED})
+    result = await payment_repository.update(
+        uuid4(), {"status": models.PaymentStatus.COMPLETED}
+    )
 
     assert isinstance(result, repo_exceptions.PaymentNotFoundError)

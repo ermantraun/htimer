@@ -1,4 +1,3 @@
-from typing import List
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -7,10 +6,12 @@ class LoggerConfig(BaseSettings):
 
     format: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 
+
 class ClockConfig(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="CLOCK_")
 
     timezone: str = "UTC"
+
 
 # -------------------- Postgres --------------------
 class PostgresConfig(BaseSettings):
@@ -25,17 +26,20 @@ class PostgresConfig(BaseSettings):
     db: str = "htimer"
     debug: bool = False
 
+
 class HostInfoConfig(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="HOST_INFO_")
 
     host_name: str = "localhost"
     http_secure: bool = False
 
+
 class SecureConfig(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="SECURE_")
 
     secret_key: str = "your_secret_key"
     hash_method: str = "sha256"
+
 
 # -------------------- FastAPI --------------------
 class FastApiConfig(BaseSettings):
@@ -44,16 +48,16 @@ class FastApiConfig(BaseSettings):
     title: str = "Videoscop"
     version: str = "1.0"
     description: str = "Videoscop API"
-    allow_origins: List[str] = ["*"]
+    allow_origins: list[str] = ["*"]
     allow_credentials: bool = True
-    allow_methods: List[str] = ["*"]
-    allow_headers: List[str] = ["*"]
+    allow_methods: list[str] = ["*"]
+    allow_headers: list[str] = ["*"]
 
 
 # -------------------- JWT --------------------
 class JWTConfig(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="JWT_")
-    algorithm: str = 'HS256'
+    algorithm: str = "HS256"
     secret_key: str = "default"
     expiration_days: int = 30
 
@@ -62,9 +66,9 @@ class JWTConfig(BaseSettings):
 class MinioConfig(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="MINIO_")
 
-    access_key: str = 'YhHA9P9tsiMLuJnVIwes'
-    secret_key: str = 'Zrr3xg6nrSpd3plpPFB3Bjj3iSAeml7kzzhni9bU'
-    bucket_name: str = 'htimer-files'
+    access_key: str = "YhHA9P9tsiMLuJnVIwes"
+    secret_key: str = "Zrr3xg6nrSpd3plpPFB3Bjj3iSAeml7kzzhni9bU"
+    bucket_name: str = "htimer-files"
     host: str = "127.0.0.1"
     port: int = 9000
 
@@ -85,7 +89,6 @@ class RabbitMQConfig(BaseSettings):
     socket_timeout: int = 30
     prefetch_count: int = 1
     retry_count: int = 3
-    
 
 
 class YooKassaConfig(BaseSettings):
@@ -94,6 +97,7 @@ class YooKassaConfig(BaseSettings):
     shop_id: str = "your_shop_id"
     secret_key: str = "your_secret_key"
     confirmation_uri: str = "/payment/confirmation"
+
 
 # -------------------- Root config --------------------
 class Config(BaseSettings):

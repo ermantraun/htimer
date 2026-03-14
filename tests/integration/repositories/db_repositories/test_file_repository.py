@@ -3,7 +3,8 @@ from uuid import uuid4
 import pytest
 
 from htimer.domain import entities
-from htimer.infrastructure.repositories import exceptions as repo_exceptions, interfaces as repository_interfaces
+from htimer.infrastructure.repositories import exceptions as repo_exceptions
+from htimer.infrastructure.repositories import interfaces as repository_interfaces
 from tests.integration import factories
 
 
@@ -12,10 +13,14 @@ async def _prepare_daily_log(
     project_repository: repository_interfaces.DBProjectRepository,
     daily_log_repository: repository_interfaces.DBDailyLogRepository,
 ) -> entities.DailyLog:
-    owner = await user_repository.create(factories.make_user_entity(role=entities.UserRole.ADMIN))
+    owner = await user_repository.create(
+        factories.make_user_entity(role=entities.UserRole.ADMIN)
+    )
     assert isinstance(owner, entities.User)
 
-    project = await project_repository.create(factories.make_project_entity(creator=owner))
+    project = await project_repository.create(
+        factories.make_project_entity(creator=owner)
+    )
     assert isinstance(project, entities.Project)
 
     daily_log = await daily_log_repository.create(
@@ -33,7 +38,9 @@ async def test_create_file_success(
     daily_log_repository: repository_interfaces.DBDailyLogRepository,
     db_file_repository: repository_interfaces.DBFileRepository,
 ):
-    daily_log = await _prepare_daily_log(user_repository, project_repository, daily_log_repository)
+    daily_log = await _prepare_daily_log(
+        user_repository, project_repository, daily_log_repository
+    )
     file = factories.make_file_entity(daily_log=daily_log)
 
     result = await db_file_repository.create(file)
@@ -50,7 +57,9 @@ async def test_create_file_duplicate_name(
     daily_log_repository: repository_interfaces.DBDailyLogRepository,
     db_file_repository: repository_interfaces.DBFileRepository,
 ):
-    daily_log = await _prepare_daily_log(user_repository, project_repository, daily_log_repository)
+    daily_log = await _prepare_daily_log(
+        user_repository, project_repository, daily_log_repository
+    )
     first_file = factories.make_file_entity(daily_log=daily_log, filename="dup-name")
     await db_file_repository.create(first_file)
 
@@ -67,7 +76,9 @@ async def test_get_file_success(
     daily_log_repository: repository_interfaces.DBDailyLogRepository,
     db_file_repository: repository_interfaces.DBFileRepository,
 ):
-    daily_log = await _prepare_daily_log(user_repository, project_repository, daily_log_repository)
+    daily_log = await _prepare_daily_log(
+        user_repository, project_repository, daily_log_repository
+    )
     file = factories.make_file_entity(daily_log=daily_log)
     created = await db_file_repository.create(file)
     assert isinstance(created, entities.DailyLogFile)
@@ -94,7 +105,9 @@ async def test_remove_file_success(
     daily_log_repository: repository_interfaces.DBDailyLogRepository,
     db_file_repository: repository_interfaces.DBFileRepository,
 ):
-    daily_log = await _prepare_daily_log(user_repository, project_repository, daily_log_repository)
+    daily_log = await _prepare_daily_log(
+        user_repository, project_repository, daily_log_repository
+    )
     file = factories.make_file_entity(daily_log=daily_log)
     created = await db_file_repository.create(file)
     assert isinstance(created, entities.DailyLogFile)
@@ -115,7 +128,9 @@ async def test_get_list_success(
     daily_log_repository: repository_interfaces.DBDailyLogRepository,
     db_file_repository: repository_interfaces.DBFileRepository,
 ):
-    daily_log = await _prepare_daily_log(user_repository, project_repository, daily_log_repository)
+    daily_log = await _prepare_daily_log(
+        user_repository, project_repository, daily_log_repository
+    )
     first = factories.make_file_entity(daily_log=daily_log)
     second = factories.make_file_entity(daily_log=daily_log)
 

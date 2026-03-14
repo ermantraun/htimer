@@ -1,13 +1,16 @@
+from dishka import Provider, Scope, provide, provide_all  # type: ignore
+
 from htimer.application.task import interactors, interfaces
-from dishka import Provider, Scope, provide_all, provide  # type: ignore
 from htimer.infrastructure.policy.task import policy
+
 
 class PolicyProvider(Provider):
     task_authorization_policy = provide(
         policy.TaskAuthorizationPolicyImpl,
         scope=Scope.REQUEST,
-        provides=interfaces.TaskAuthorizationPolicy
+        provides=interfaces.TaskAuthorizationPolicy,
     )
+
 
 class InteractorProvider(Provider):
     interactors = provide_all(
@@ -15,10 +18,9 @@ class InteractorProvider(Provider):
         interactors.UpdateTaskInteractor,
         interactors.DeleteTaskInteractor,
         interactors.GetTaskListInteractor,
-        scope=Scope.REQUEST
+        scope=Scope.REQUEST,
     )
+
 
 class TaskProvider(PolicyProvider, InteractorProvider):
     pass
-
-

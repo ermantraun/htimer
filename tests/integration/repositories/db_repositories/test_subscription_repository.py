@@ -2,8 +2,9 @@ from uuid import uuid4
 
 import pytest
 
-from htimer.infrastructure.repositories import exceptions as repo_exceptions, interfaces as repository_interfaces
 from htimer.domain import entities
+from htimer.infrastructure.repositories import exceptions as repo_exceptions
+from htimer.infrastructure.repositories import interfaces as repository_interfaces
 from tests.integration import factories
 
 

@@ -1,140 +1,142 @@
 class InvalidToken(Exception):
-	"""Ошибка: токен недействителен."""
+    """Ошибка: токен недействителен."""
 
 
 class RepositoryError(Exception):
-	"""Общая ошибка репозитория."""
+    """Общая ошибка репозитория."""
 
 
 class UserRepositoryError(RepositoryError):
-	"""Ошибка репозитория пользователей."""
+    """Ошибка репозитория пользователей."""
 
 
 class EmailAlreadyExistsError(UserRepositoryError):
-	"""Пользователь с таким email уже существует."""
+    """Пользователь с таким email уже существует."""
 
 
 class UserNotFoundError(UserRepositoryError):
-	"""Пользователь не найден."""
+    """Пользователь не найден."""
 
 
 class ProjectRepositoryError(RepositoryError):
-	"""Ошибка репозитория проектов."""
+    """Ошибка репозитория проектов."""
 
 
 class UserAlreadyHasProjectError(ProjectRepositoryError):
-	"""У пользователя уже есть проект с таким именем."""
+    """У пользователя уже есть проект с таким именем."""
 
 
 class ProjectNotFoundError(ProjectRepositoryError):
-	"""Проект не найден."""
+    """Проект не найден."""
 
 
 class MemberNotFound(ProjectRepositoryError):
-	"""Участник проекта не найден."""
+    """Участник проекта не найден."""
 
 
 class UserAlreadyProjectMemberError(ProjectRepositoryError):
-	"""Пользователь уже является участником проекта."""
+    """Пользователь уже является участником проекта."""
 
 
 class StageRepositoryError(RepositoryError):
-	"""Ошибка репозитория этапов."""
+    """Ошибка репозитория этапов."""
 
 
 class StageNotFoundError(StageRepositoryError):
-	"""Этап не найден."""
+    """Этап не найден."""
 
 
 class StageAlreadyExistsError(StageRepositoryError):
-	"""Этап уже существует."""
+    """Этап уже существует."""
 
 
 class ParentStageAlreadyHasMainSubStageError(StageRepositoryError):
-	"""У родительского этапа уже есть основной подэтап."""
+    """У родительского этапа уже есть основной подэтап."""
 
 
 class DailyLogRepositoryError(RepositoryError):
-	"""Ошибка репозитория записей дня."""
+    """Ошибка репозитория записей дня."""
 
 
 class DailyLogAlreadyExistsError(DailyLogRepositoryError):
-	"""Запись дня с заданными параметрами уже существует."""
+    """Запись дня с заданными параметрами уже существует."""
 
 
 class DailyLogNotFoundError(DailyLogRepositoryError):
-	"""Запись дня не найдена."""
+    """Запись дня не найдена."""
 
 
 class TaskRepositoryError(RepositoryError):
-	"""Ошибка репозитория задач."""
+    """Ошибка репозитория задач."""
 
 
 class TaskNotFoundError(TaskRepositoryError):
-	"""Задача не найдена."""
+    """Задача не найдена."""
 
 
 class TaskAlreadyExistsError(TaskRepositoryError):
-	"""Задача уже существует."""
+    """Задача уже существует."""
 
 
 class InvalidDate(Exception):
-	"""Передана некорректная дата."""
+    """Передана некорректная дата."""
 
 
 class PaymentRepositoryError(RepositoryError):
-	"""Ошибка репозитория платежей."""
+    """Ошибка репозитория платежей."""
 
 
 class PaymentNotFoundError(PaymentRepositoryError):
-	"""Платёж не найден."""
+    """Платёж не найден."""
 
 
 class SubscriptionRepositoryError(RepositoryError):
-	"""Ошибка репозитория подписок."""
+    """Ошибка репозитория подписок."""
 
 
 class SubscriptionNotFoundError(SubscriptionRepositoryError):
-	"""Подписка не найдена."""
+    """Подписка не найдена."""
 
 
 class SubscriptionAlreadyExistsError(SubscriptionRepositoryError):
-	"""Подписка уже существует."""
+    """Подписка уже существует."""
 
 
 class PaymentGatewayError(Exception):
-	"""Ошибка платёжного шлюза."""
+    """Ошибка платёжного шлюза."""
 
 
 class PaymentFailedError(PaymentGatewayError):
-	"""Ошибка выполнения платежа через шлюз."""
+    """Ошибка выполнения платежа через шлюз."""
 
 
 class PaymentNotComplete(PaymentGatewayError):
-	"""Платёж не завершён успешно."""
+    """Платёж не завершён успешно."""
 
 
 class PaymentNotExistsError(PaymentGatewayError):
-	"""Платёж не существует."""
+    """Платёж не существует."""
 
 
 class PaymentRefundFailedError(PaymentGatewayError):
-	"""Ошибка возврата платежа."""
+    """Ошибка возврата платежа."""
 
 
 class FileRepositoryError(RepositoryError):
-	"""Ошибка репозитория файлов."""
+    """Ошибка репозитория файлов."""
 
 
 class FileAlreadyExistsError(FileRepositoryError):
-	"""Файл уже существует."""
+    """Файл уже существует."""
 
 
 class FileNotFoundError(FileRepositoryError):
-	"""Файл не найден."""
+    """Файл не найден."""
+
 
 class ReportRepositoryError(RepositoryError):
-	"""Ошибка репозитория отчётов."""
+    """Ошибка репозитория отчётов."""
+
 
 class ReportNotFoundError(ReportRepositoryError):
-	"""Отчёт не найден."""
+    """Отчёт не найден."""

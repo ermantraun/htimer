@@ -1,10 +1,9 @@
 from uuid import uuid4
+
+from htimer.application import common_exceptions, common_interfaces
 from htimer.domain import entities
-from htimer.application import common_interfaces, common_exceptions
-from . import interfaces
-from . import validators
-from . import dto
-from . import exceptions
+
+from . import dto, exceptions, interfaces, validators
 
 
 class CreateUserInteractor:
@@ -27,7 +26,7 @@ class CreateUserInteractor:
         self.policy = user_policy
         self.clock = clock
         self.logger = logger
-        
+
     async def execute(self, data: dto.CreateUserInDTO) -> dto.CreateUserOutDTO:
         """Создаёт пользователя.
 
@@ -64,12 +63,9 @@ class CreateUserInteractor:
         if validation_error is not None:
             raise validation_error
 
-
         auth_error = self.policy.decide_create_user(current_user)
         if auth_error is not None:
             raise auth_error
-
-
 
         password_hash = self.hash_generator.generate(data.password)
 
@@ -91,11 +87,12 @@ class CreateUserInteractor:
 
         await self.session.commit()
 
-        await self.logger.info(operation='CreateUser', message=f'User {created_user.uuid} created by {current_user.uuid}')
-        
-        return dto.CreateUserOutDTO(
-            user_uuid=created_user.uuid)
+        await self.logger.info(
+            operation="CreateUser",
+            message=f"User {created_user.uuid} created by {current_user.uuid}",
+        )
 
+        return dto.CreateUserOutDTO(user_uuid=created_user.uuid)
 
 
 class GetUsersListInteractor:
@@ -145,7 +142,14 @@ class GetUsersListInteractor:
             raise current_user
 
         user_projects = await self.user_repository.get_projects(current_user_uuid)
-        if isinstance(user_projects, (common_exceptions.UserNotFoundError, common_exceptions.ProjectNotFoundError, common_exceptions.RepositoryError)):
+        if isinstance(
+            user_projects,
+            (
+                common_exceptions.UserNotFoundError,
+                common_exceptions.ProjectNotFoundError,
+                common_exceptions.RepositoryError,
+            ),
+        ):
             raise user_projects
 
         user_projects_names = {p.name for p in user_projects}
@@ -162,21 +166,21 @@ class GetUsersListInteractor:
         if validation_error is not None:
             raise validation_error
 
-        projects_uuid = (
-            [project.uuid for project in user_projects]
-        )
+        projects_uuid = [project.uuid for project in user_projects]
 
         users = await self.project_repository.get_members(
             projects_uuid=projects_uuid,
             is_active=data.is_active if data.is_active is not None else False,
         )
 
-        if isinstance(users, (common_exceptions.ProjectNotFoundError, common_exceptions.RepositoryError)):
+        if isinstance(
+            users,
+            (common_exceptions.ProjectNotFoundError, common_exceptions.RepositoryError),
+        ):
             raise users
 
-        return dto.GetUserListOutDTO(
-            users=users
-        )
+        return dto.GetUserListOutDTO(users=users)
+
 
 class LoginUserInteractor:
     def __init__(
@@ -198,7 +202,7 @@ class LoginUserInteractor:
         self.token_generator = token_generator
         self.clock = clock
         self.logger = logger
-        
+
     async def execute(self, data: dto.LoginUserInDTO) -> dto.LoginUserOutDTO:
         """Аутентифицирует пользователя и выдаёт токен.
 
@@ -232,24 +236,30 @@ class LoginUserInteractor:
         if not self.hash_generator.verify(data.password, user.password_hash):
             raise exceptions.InvalidCredentialsError("Неверные учетные данные.")
 
-        updated_user = await self.user_repository.update(user.uuid, {
-            'last_login': self.clock.now_date(),
-        })
+        updated_user = await self.user_repository.update(
+            user.uuid,
+            {
+                "last_login": self.clock.now_date(),
+            },
+        )
         if isinstance(updated_user, common_exceptions.EmailAlreadyExistsError):
             raise updated_user
         if isinstance(updated_user, common_exceptions.UserNotFoundError):
             raise updated_user
         if isinstance(updated_user, common_exceptions.RepositoryError):
             raise updated_user
-        
+
         await self.session.commit()
-        
-        await self.logger.info(operation='LoginUser', message=f'User {user.uuid} logged in')
-        
+
+        await self.logger.info(
+            operation="LoginUser", message=f"User {user.uuid} logged in"
+        )
+
         return dto.LoginUserOutDTO(
             token=await self.token_generator.generate(user.uuid),
             user_uuid=user.uuid,
         )
+
 
 class ResetUserPasswordInteractor:
     def __init__(
@@ -260,7 +270,6 @@ class ResetUserPasswordInteractor:
         hash_generator: interfaces.HashGenerator,
         validator: validators.ResetUserPasswordValidator,
         user_policy: interfaces.UserAuthorizationPolicy,
-        
     ):
         self.session = session
         self.user_repository = user_repository
@@ -268,7 +277,7 @@ class ResetUserPasswordInteractor:
         self.hash_generator = hash_generator
         self.validator = validator
         self.policy = user_policy
-        
+
     async def execute(self, data: dto.ResetUserPasswordInDTO) -> None:
         """Сбрасывает пароль пользователя.
 
@@ -290,37 +299,42 @@ class ResetUserPasswordInteractor:
         """
         target_user = None
         current_user = None
-        
+
         current_user_uuid = self.user_context.get_current_user_uuid()
         if isinstance(current_user_uuid, common_exceptions.InvalidTokenError):
             raise current_user_uuid
 
-        current_user = await self.user_repository.get_by_uuid(current_user_uuid, lock_record=True)
+        current_user = await self.user_repository.get_by_uuid(
+            current_user_uuid, lock_record=True
+        )
         if isinstance(current_user, common_exceptions.UserNotFoundError):
             raise current_user
         if isinstance(current_user, common_exceptions.RepositoryError):
             raise current_user
-        
+
         if data.user_uuid is None:
             target_user = current_user
-        
+
         else:
-            target_user = await self.user_repository.get_by_uuid(data.user_uuid, lock_record=True)
+            target_user = await self.user_repository.get_by_uuid(
+                data.user_uuid, lock_record=True
+            )
             if isinstance(target_user, common_exceptions.UserNotFoundError):
                 raise target_user
             if isinstance(target_user, common_exceptions.RepositoryError):
                 raise target_user
 
         auth_error = self.policy.decide_reset_user_password(
-            actor=current_user, # type: ignore
-            target=target_user,)
-        
+            actor=current_user,  # type: ignore
+            target=target_user,
+        )
+
         if auth_error is not None:
             raise auth_error
 
-        if error := current_user.ensure_reset_password(target_user): # type: ignore
+        if error := current_user.ensure_reset_password(target_user):  # type: ignore
             raise exceptions.CantResetPasswordError(error)
-        
+
         validation_error = self.validator.validate(data)
         if validation_error is not None:
             raise validation_error
@@ -328,16 +342,19 @@ class ResetUserPasswordInteractor:
         hashed_password = self.hash_generator.generate(data.new_password)
 
         updated_user = await self.user_repository.update(
-            target_user.uuid, {
+            target_user.uuid,
+            {
                 "uuid": str(data.user_uuid),
                 "password": hashed_password,
-            })
+            },
+        )
         if isinstance(updated_user, common_exceptions.UserNotFoundError):
             raise updated_user
         if isinstance(updated_user, common_exceptions.RepositoryError):
             raise updated_user
-        
+
         await self.session.commit()
+
 
 class UpdateUserInteractor:
     def __init__(
@@ -355,7 +372,7 @@ class UpdateUserInteractor:
         self.session = session
         self.policy = user_policy
         self.logger = logger
-        
+
     async def execute(self, data: dto.UpdateUserInDTO) -> dto.UpdateUserOutDTO:
         """Обновляет пользователя.
 
@@ -383,18 +400,20 @@ class UpdateUserInteractor:
         """
         target_user = None
         current_user = None
-        
+
         current_user_uuid = self.user_context.get_current_user_uuid()
         if isinstance(current_user_uuid, common_exceptions.InvalidTokenError):
             raise current_user_uuid
-        
+
         if data.uuid is None:
-            current_user = await self.user_repository.get_by_uuid(current_user_uuid, lock_record=True)
+            current_user = await self.user_repository.get_by_uuid(
+                current_user_uuid, lock_record=True
+            )
             if isinstance(current_user, common_exceptions.UserNotFoundError):
                 raise current_user
             if isinstance(current_user, common_exceptions.RepositoryError):
                 raise current_user
-            
+
             target_user = current_user
 
             auth_error = self.policy.decide_update_user(
@@ -405,14 +424,15 @@ class UpdateUserInteractor:
                 raise auth_error
 
         else:
-            
             current_user = await self.user_repository.get_by_uuid(current_user_uuid)
             if isinstance(current_user, common_exceptions.UserNotFoundError):
                 raise current_user
             if isinstance(current_user, common_exceptions.RepositoryError):
                 raise current_user
-            
-            target_user = await self.user_repository.get_by_uuid(data.uuid, lock_record=True)
+
+            target_user = await self.user_repository.get_by_uuid(
+                data.uuid, lock_record=True
+            )
             if isinstance(target_user, common_exceptions.UserNotFoundError):
                 raise target_user
             if isinstance(target_user, common_exceptions.RepositoryError):
@@ -425,19 +445,20 @@ class UpdateUserInteractor:
             if auth_error is not None:
                 raise auth_error
 
-
         if error := current_user.ensure_update(
             target=target_user,
             change_role=data.role is not None,
             change_status=data.status is not None,
         ):
             raise exceptions.CantUpdateError(error)
-        
+
         validation_error = self.validator.validate(data)
         if validation_error is not None:
             raise validation_error
 
-        updated_user = await self.user_repository.update(target_user.uuid, {k: v for k, v in data.__dict__.items() if v is not None})
+        updated_user = await self.user_repository.update(
+            target_user.uuid, {k: v for k, v in data.__dict__.items() if v is not None}
+        )
         if isinstance(updated_user, common_exceptions.UserNotFoundError):
             raise updated_user
         if isinstance(updated_user, common_exceptions.EmailAlreadyExistsError):
@@ -447,8 +468,9 @@ class UpdateUserInteractor:
 
         await self.session.commit()
 
-        await self.logger.info(operation='UpdateUser', message=f'User {updated_user.uuid} updated by {current_user.uuid}')    
-        
+        await self.logger.info(
+            operation="UpdateUser",
+            message=f"User {updated_user.uuid} updated by {current_user.uuid}",
+        )
+
         return dto.UpdateUserOutDTO(user=updated_user)
-
-

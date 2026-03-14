@@ -2,8 +2,9 @@ from uuid import uuid4
 
 import pytest
 
-from htimer.infrastructure.repositories import exceptions as repo_exceptions, interfaces as repository_interfaces
 from htimer.domain import entities
+from htimer.infrastructure.repositories import exceptions as repo_exceptions
+from htimer.infrastructure.repositories import interfaces as repository_interfaces
 from tests.integration import factories
 
 
@@ -191,7 +192,9 @@ async def test_get_by_name_success(
     )
     assert isinstance(project, entities.Project)
     stage = await stage_repository.create(
-        factories.make_stage_entity(creator=owner, project=project, name="Stage", main_path=True)
+        factories.make_stage_entity(
+            creator=owner, project=project, name="Stage", main_path=True
+        )
     )
     assert isinstance(stage, entities.Stage)
 

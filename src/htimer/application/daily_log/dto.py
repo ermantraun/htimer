@@ -1,8 +1,10 @@
-from datetime import date
 from dataclasses import dataclass
+from datetime import date
 from uuid import UUID
+
+from htimer.application.common_interfaces import ActionLink
 from htimer.domain import entities
-from htimer.application.common_interfaces import ActionLink 
+
 
 @dataclass
 class CreateDailyLogInDTO:
@@ -13,7 +15,8 @@ class CreateDailyLogInDTO:
     hours_spent: float = 0.0
     description: str = ""
     substage_uuid: UUID | None = None
-    
+
+
 @dataclass
 class CreateDailyLogOutDTO:
     daily_log: entities.DailyLog
@@ -94,6 +97,3 @@ class GetDailyLogListInDTO:
 @dataclass
 class GetDailyLogListOutDTO:
     daily_logs: list[entities.DailyLog]
-
-
-

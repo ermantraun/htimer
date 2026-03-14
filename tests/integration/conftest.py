@@ -1,29 +1,28 @@
 # pyright: reportUnusedFunction=false
-from typing import Any, AsyncGenerator
+from collections.abc import AsyncGenerator
+from typing import Any
+
 import dishka
-from dishka import AsyncContainer, Provider, Scope, provide  # type: ignore
 import pytest_asyncio
+from dishka import AsyncContainer  # type: ignore
 from sqlalchemy import event
 from sqlalchemy.exc import ResourceClosedError
-from sqlalchemy.ext.asyncio import AsyncSession, AsyncEngine
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from sqlalchemy.orm import Session, SessionTransaction
-import htimer #type: ignore
-from htimer.infrastructure.db.models import Base
-from htimer.infrastructure.db import repositories as db_repositories
-from htimer.infrastructure.repositories import interfaces as repository_interfaces
+
 from htimer.application import common_interfaces
 from htimer.application.user import interfaces as user_interfaces
 from htimer.config import Config, PostgresConfig
+from htimer.infrastructure.db import repositories as db_repositories
+from htimer.infrastructure.db.models import Base
+from htimer.infrastructure.repositories import interfaces as repository_interfaces
 from htimer.ioc import common, user
-
-
 
 
 @pytest_asyncio.fixture(scope="session")
 async def test_config() -> Config:
     config = Config()
     config.postgres = PostgresConfig(
-
         user="admin",
         password="899595",
         host="localhost",
@@ -31,16 +30,16 @@ async def test_config() -> Config:
         db="test_db",
         debug=True,
     )
-    
-    return config 
+
+    return config
+
 
 @pytest_asyncio.fixture(scope="session")
-async def app_container(test_config: Config) -> AsyncGenerator[AsyncContainer, None]:
+async def app_container(test_config: Config) -> AsyncGenerator[AsyncContainer]:
     config = test_config
     container = dishka.make_async_container(
-        common.CommonProvider(),
-        user.SecurityProvider(),
-        context={Config: config})
+        common.CommonProvider(), user.SecurityProvider(), context={Config: config}
+    )
     try:
         yield container
     finally:
@@ -48,7 +47,7 @@ async def app_container(test_config: Config) -> AsyncGenerator[AsyncContainer, N
 
 
 @pytest_asyncio.fixture(scope="session", autouse=True)
-async def init_db(app_container: AsyncContainer) -> AsyncGenerator[None, None]:
+async def init_db(app_container: AsyncContainer) -> AsyncGenerator[None]:
     engine = await app_container.get(AsyncEngine)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
@@ -56,13 +55,12 @@ async def init_db(app_container: AsyncContainer) -> AsyncGenerator[None, None]:
     yield
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
-    
 
 
 @pytest_asyncio.fixture(scope="function")
 async def request_container(
     app_container: AsyncContainer,
-) -> AsyncGenerator[Any, None]:
+) -> AsyncGenerator[Any]:
     async with app_container() as scope:
         yield scope
 
@@ -70,7 +68,7 @@ async def request_container(
 @pytest_asyncio.fixture(scope="function")
 async def db_session(
     request_container: Any,
-) -> AsyncGenerator[AsyncSession, None]:
+) -> AsyncGenerator[AsyncSession]:
     session = await request_container.get(AsyncSession)
     trans = await session.begin()
     await session.begin_nested()

@@ -1,16 +1,22 @@
-from htimer.domain import entities
-from htimer.application.user import interfaces
 import infrastructure.policy.user.user_exceptions as user_exceptions
 
-class UserAuthorizationPolicyImpl(interfaces.UserAuthorizationPolicy):
+from htimer.application.user import interfaces
+from htimer.domain import entities
 
-    def decide_create_user(self, actor: entities.User) -> user_exceptions.UserAuthorizationError | None:
+
+class UserAuthorizationPolicyImpl(interfaces.UserAuthorizationPolicy):
+    def decide_create_user(
+        self, actor: entities.User
+    ) -> user_exceptions.UserAuthorizationError | None:
         decision = actor.decide_create_users()
 
         if decision is entities.UserDecisions.CreateUserDecision.ALLOWED:
             return None
 
-        if decision is entities.UserDecisions.CreateUserDecision.FORBIDDEN_FOR_NON_ADMIN:
+        if (
+            decision
+            is entities.UserDecisions.CreateUserDecision.FORBIDDEN_FOR_NON_ADMIN
+        ):
             return user_exceptions.UserCannotCreateUsersError(
                 "Недостаточно прав: создание пользователей доступно только администратору."
             )
@@ -24,12 +30,10 @@ class UserAuthorizationPolicyImpl(interfaces.UserAuthorizationPolicy):
     ) -> user_exceptions.UserAuthorizationError | None:
         decision = actor.decide_update_user(
             target,
-
         )
 
         if decision is entities.UserDecisions.UpdateUserDecision.ALLOWED:
             return None
-
 
         if decision in {
             entities.UserDecisions.UpdateUserDecision.FORBIDDEN_FOR_NON_CREATOR,
@@ -54,13 +58,16 @@ class UserAuthorizationPolicyImpl(interfaces.UserAuthorizationPolicy):
         if decision is entities.UserDecisions.ListUsersDecision.ALLOWED:
             return None
 
-        if decision is entities.UserDecisions.ListUsersDecision.FORBIDDEN_FOR_NON_PROJECT_ADMIN:
+        if (
+            decision
+            is entities.UserDecisions.ListUsersDecision.FORBIDDEN_FOR_NON_PROJECT_ADMIN
+        ):
             return user_exceptions.AdminIsNotProjectOwner(
                 "Недостаточно прав: запрошены проекты, к которым нет доступа."
             )
 
         return None
-    
+
     def decide_reset_user_password(
         self,
         actor: entities.User,
@@ -73,10 +80,12 @@ class UserAuthorizationPolicyImpl(interfaces.UserAuthorizationPolicy):
         if decision is entities.UserDecisions.ResetUserPasswordDecision.ALLOWED:
             return None
 
-
-        if decision is entities.UserDecisions.ResetUserPasswordDecision.FORBIDDEN_FOR_NON_CREATOR:
+        if (
+            decision
+            is entities.UserDecisions.ResetUserPasswordDecision.FORBIDDEN_FOR_NON_CREATOR
+        ):
             return user_exceptions.UserCannotResetPasswordError(
                 "Недостаточно прав: сброс пароля целевого пользователя запрещён."
             )
-            
+
         return None

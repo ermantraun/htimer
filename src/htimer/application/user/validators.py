@@ -1,20 +1,23 @@
-from . import exceptions
-from . import dto
 import re
+
+from . import dto, exceptions
 
 
 class CreateUserValidator:
     """Validator for CreateUser DTO - only checks data format/constraints."""
 
-    def validate(self, dto_data: dto.CreateUserInDTO) -> exceptions.UserValidationError | None:
+    def validate(
+        self, dto_data: dto.CreateUserInDTO
+    ) -> exceptions.UserValidationError | None:
         return _validate_common_create(dto_data)
-
 
 
 class UpdateUserValidator:
     """Validator for UpdateUser DTO - only checks data format/constraints."""
 
-    def validate(self, dto_data: dto.UpdateUserInDTO) -> exceptions.UserValidationError | None:
+    def validate(
+        self, dto_data: dto.UpdateUserInDTO
+    ) -> exceptions.UserValidationError | None:
         if dto_data.name is not None:
             if (err := _validate_name(dto_data.name)) is not None:
                 return err
@@ -29,19 +32,25 @@ class UpdateUserValidator:
 
         return None
 
+
 class ResetUserPasswordValidator:
     """Validator for ResetPassword DTO - only checks data format/constraints."""
 
-    def validate(self, dto_data: dto.ResetUserPasswordInDTO) -> exceptions.UserValidationError | None:
+    def validate(
+        self, dto_data: dto.ResetUserPasswordInDTO
+    ) -> exceptions.UserValidationError | None:
         if (err := _validate_password(dto_data.new_password)) is not None:
             return err
 
         return None
 
+
 class LoginUserValidator:
     """Validator for LoginUser DTO - only checks data format/constraints."""
 
-    def validate(self, dto_data: dto.LoginUserInDTO) -> exceptions.UserValidationError | None:
+    def validate(
+        self, dto_data: dto.LoginUserInDTO
+    ) -> exceptions.UserValidationError | None:
         if (err := _validate_email(dto_data.email)) is not None:
             return err
 
@@ -50,17 +59,19 @@ class LoginUserValidator:
 
         return None
 
+
 class GetUsersListValidator:
     """Validator for GetUsersList DTO - only checks data format/constraints."""
 
-    def validate(self, dto_data: dto.GetUserListInDTO) -> exceptions.UserValidationError | None:
+    def validate(
+        self, dto_data: dto.GetUserListInDTO
+    ) -> exceptions.UserValidationError | None:
         return None
 
 
-
-
-
-def _validate_common_create(dto_data: dto.CreateUserInDTO) -> exceptions.UserValidationError | None:
+def _validate_common_create(
+    dto_data: dto.CreateUserInDTO,
+) -> exceptions.UserValidationError | None:
     if (err := _validate_name(dto_data.name)) is not None:
         return err
 
@@ -71,6 +82,7 @@ def _validate_common_create(dto_data: dto.CreateUserInDTO) -> exceptions.UserVal
         return err
 
     return None
+
 
 def _validate_name(name: str) -> exceptions.UserValidationError | None:
     if not name or not name.strip():
@@ -95,5 +107,7 @@ def _validate_password(password: str | None) -> exceptions.UserValidationError |
     if password is None:
         return exceptions.InvalidPasswordError("Некорректный пароль.")
     if len(password) < 8:
-        return exceptions.InvalidPasswordError("Пароль должен быть не менее 8 символов.")
+        return exceptions.InvalidPasswordError(
+            "Пароль должен быть не менее 8 символов."
+        )
     return None

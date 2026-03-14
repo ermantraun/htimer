@@ -1,29 +1,32 @@
-from sqlalchemy.ext.asyncio import  AsyncSession, async_sessionmaker
-import minio
+from collections.abc import AsyncGenerator
+
 import aio_pika
-from dishka import Provider, provide, Scope, from_context, AnyOf # type: ignore
-from typing import AsyncGenerator
+import minio
+from dishka import AnyOf, Provider, Scope, from_context, provide  # type: ignore
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
 from htimer.application import common_interfaces
-from htimer.infrastructure.db import repositories as db_repositories
-from htimer.infrastructure import text_normalizer
-from htimer.infrastructure import clock
-from htimer.infrastructure.repositories import repositories
+from htimer.config import ClockConfig, Config
+from htimer.infrastructure import clock, text_normalizer
 from htimer.infrastructure.auth import auth
-from htimer.infrastructure.repositories import interfaces as repository_interfaces
-from htimer.infrastructure.db import database
-from htimer.infrastructure.logger import logger, interfaces as logger_interfaces
 from htimer.infrastructure.auth import interfaces as auth_interfaces
+from htimer.infrastructure.db import database
+from htimer.infrastructure.db import repositories as db_repositories
 from htimer.infrastructure.file_storage import storage
+from htimer.infrastructure.logger import interfaces as logger_interfaces
+from htimer.infrastructure.logger import logger
 from htimer.infrastructure.payment_gateway import gateway as payment_gateway
-from htimer.infrastructure.file_storage import storage
-from htimer.config import Config, ClockConfig
+from htimer.infrastructure.repositories import interfaces as repository_interfaces
+from htimer.infrastructure.repositories import repositories
+
 
 class ConfigProvider(Provider):
-    config = from_context( scope=Scope.APP, provides=Config)
+    config = from_context(scope=Scope.APP, provides=Config)
 
     @provide(scope=Scope.APP, provides=ClockConfig)
     def clock_config(self, config: Config) -> ClockConfig:
         return config.clock_config
+
 
 class StorageProvider(Provider):
     @provide(scope=Scope.REQUEST, provides=minio.Minio)
@@ -34,59 +37,164 @@ class StorageProvider(Provider):
             secret_key=config.minio.secret_key,
             secure=False,
         )
-    
-    storage = provide(storage.Storage, scope=Scope.REQUEST, provides=common_interfaces.FileStorage)
-    
-class DBProvider(Provider):
-    
-    engine = provide(staticmethod(database.new_engine), scope=Scope.APP, provides=database.AsyncEngine)
 
-    sessionmaker = provide(staticmethod(database.new_session_maker), scope=Scope.APP, provides=async_sessionmaker[AsyncSession])
-    
+    storage = provide(
+        storage.Storage, scope=Scope.REQUEST, provides=common_interfaces.FileStorage
+    )
+
+
+class DBProvider(Provider):
+    engine = provide(
+        staticmethod(database.new_engine),
+        scope=Scope.APP,
+        provides=database.AsyncEngine,
+    )
+
+    sessionmaker = provide(
+        staticmethod(database.new_session_maker),
+        scope=Scope.APP,
+        provides=async_sessionmaker[AsyncSession],
+    )
+
     @provide(scope=Scope.REQUEST, provides=AsyncSession)
-    async def session(self, async_sessionmaker: async_sessionmaker[AsyncSession]) -> AsyncGenerator[AsyncSession, None]:
+    async def session(
+        self, async_sessionmaker: async_sessionmaker[AsyncSession]
+    ) -> AsyncGenerator[AsyncSession]:
         async with async_sessionmaker() as session:
             yield session
-class RepositoryProvider(Provider):
-    
-    db_user_repository = provide(db_repositories.UserRepository, scope=Scope.REQUEST, provides=repository_interfaces.DBUserRepository)
-    db_project_repository = provide(db_repositories.ProjectRepository, scope=Scope.REQUEST, provides=repository_interfaces.DBProjectRepository)
-    db_stage_repository = provide(db_repositories.StageRepository, scope=Scope.REQUEST, provides=repository_interfaces.DBStageRepository)
-    db_daily_log_repository = provide(db_repositories.DailyLogRepository, scope=Scope.REQUEST, provides=repository_interfaces.DBDailyLogRepository)
-    db_task_repository = provide(db_repositories.TaskRepository, scope=Scope.REQUEST, provides=repository_interfaces.DBTaskRepository)
-    db_subscription_repository = provide(db_repositories.SubscriptionRepository, scope=Scope.REQUEST, provides=repository_interfaces.DBSubscriptionRepository)
-    db_payment_repository = provide(db_repositories.PaymentRepository, scope=Scope.REQUEST, provides=repository_interfaces.DBPaymentRepository)
-    db_file_repository = provide(db_repositories.FileRepository, scope=Scope.REQUEST, provides=repository_interfaces.DBFileRepository)
-    db_report_repository = provide(db_repositories.ReportRepository, scope=Scope.REQUEST, provides=repository_interfaces.DBReportRepository)
 
-    user_repository = provide(repositories.UserRepository, scope=Scope.REQUEST, provides=common_interfaces.UserRepository)
-    project_repository = provide(repositories.ProjectRepository, scope=Scope.REQUEST, provides=common_interfaces.ProjectRepository)
-    stage_repository = provide(repositories.StageRepository, scope=Scope.REQUEST, provides=common_interfaces.StageRepository)
-    daily_log_repository = provide(repositories.DailyLogRepository, scope=Scope.REQUEST, provides=common_interfaces.DailyLogRepository)
-    task_repository = provide(repositories.TaskRepository, scope=Scope.REQUEST, provides=common_interfaces.TaskRepository)
-    subscription_repository = provide(repositories.SubscriptionRepository, scope=Scope.REQUEST, provides=common_interfaces.SubscriptionRepository)
-    payment_repository = provide(repositories.PaymentRepository, scope=Scope.REQUEST, provides=common_interfaces.PaymentRepository)
-    file_repository = provide(repositories.FileRepository, scope=Scope.REQUEST, provides=common_interfaces.FileRepository)
-    report_repository = provide(repositories.ReportRepository, scope=Scope.REQUEST, provides=common_interfaces.ReportRepository)
+
+class RepositoryProvider(Provider):
+    db_user_repository = provide(
+        db_repositories.UserRepository,
+        scope=Scope.REQUEST,
+        provides=repository_interfaces.DBUserRepository,
+    )
+    db_project_repository = provide(
+        db_repositories.ProjectRepository,
+        scope=Scope.REQUEST,
+        provides=repository_interfaces.DBProjectRepository,
+    )
+    db_stage_repository = provide(
+        db_repositories.StageRepository,
+        scope=Scope.REQUEST,
+        provides=repository_interfaces.DBStageRepository,
+    )
+    db_daily_log_repository = provide(
+        db_repositories.DailyLogRepository,
+        scope=Scope.REQUEST,
+        provides=repository_interfaces.DBDailyLogRepository,
+    )
+    db_task_repository = provide(
+        db_repositories.TaskRepository,
+        scope=Scope.REQUEST,
+        provides=repository_interfaces.DBTaskRepository,
+    )
+    db_subscription_repository = provide(
+        db_repositories.SubscriptionRepository,
+        scope=Scope.REQUEST,
+        provides=repository_interfaces.DBSubscriptionRepository,
+    )
+    db_payment_repository = provide(
+        db_repositories.PaymentRepository,
+        scope=Scope.REQUEST,
+        provides=repository_interfaces.DBPaymentRepository,
+    )
+    db_file_repository = provide(
+        db_repositories.FileRepository,
+        scope=Scope.REQUEST,
+        provides=repository_interfaces.DBFileRepository,
+    )
+    db_report_repository = provide(
+        db_repositories.ReportRepository,
+        scope=Scope.REQUEST,
+        provides=repository_interfaces.DBReportRepository,
+    )
+
+    user_repository = provide(
+        repositories.UserRepository,
+        scope=Scope.REQUEST,
+        provides=common_interfaces.UserRepository,
+    )
+    project_repository = provide(
+        repositories.ProjectRepository,
+        scope=Scope.REQUEST,
+        provides=common_interfaces.ProjectRepository,
+    )
+    stage_repository = provide(
+        repositories.StageRepository,
+        scope=Scope.REQUEST,
+        provides=common_interfaces.StageRepository,
+    )
+    daily_log_repository = provide(
+        repositories.DailyLogRepository,
+        scope=Scope.REQUEST,
+        provides=common_interfaces.DailyLogRepository,
+    )
+    task_repository = provide(
+        repositories.TaskRepository,
+        scope=Scope.REQUEST,
+        provides=common_interfaces.TaskRepository,
+    )
+    subscription_repository = provide(
+        repositories.SubscriptionRepository,
+        scope=Scope.REQUEST,
+        provides=common_interfaces.SubscriptionRepository,
+    )
+    payment_repository = provide(
+        repositories.PaymentRepository,
+        scope=Scope.REQUEST,
+        provides=common_interfaces.PaymentRepository,
+    )
+    file_repository = provide(
+        repositories.FileRepository,
+        scope=Scope.REQUEST,
+        provides=common_interfaces.FileRepository,
+    )
+    report_repository = provide(
+        repositories.ReportRepository,
+        scope=Scope.REQUEST,
+        provides=common_interfaces.ReportRepository,
+    )
 
 
 class PaymentGatewayProvider(Provider):
-    payment_gateway = provide(payment_gateway.YooKassaGateway, scope=Scope.REQUEST, provides=common_interfaces.PaymentGateway)
+    payment_gateway = provide(
+        payment_gateway.YooKassaGateway,
+        scope=Scope.REQUEST,
+        provides=common_interfaces.PaymentGateway,
+    )
+
 
 class LogerProvider(Provider):
-    logger = provide(logger.Logger, scope=Scope.REQUEST, provides=common_interfaces.Logger)
-    
+    logger = provide(
+        logger.Logger, scope=Scope.REQUEST, provides=common_interfaces.Logger
+    )
+
+
 class ClockProvider(Provider):
-    clock = provide(clock.SystemClock, scope=Scope.REQUEST, provides=AnyOf[common_interfaces.Clock, logger_interfaces.Clock, auth_interfaces.Clock])
+    clock = provide(
+        clock.SystemClock,
+        scope=Scope.REQUEST,
+        provides=AnyOf[
+            common_interfaces.Clock, logger_interfaces.Clock, auth_interfaces.Clock
+        ],
+    )
+
 
 class TextNormalizerProvider(Provider):
-    text_normalizer = provide(text_normalizer.TextNormalizer, scope=Scope.REQUEST, provides=common_interfaces.TextNormalizer)
-    
+    text_normalizer = provide(
+        text_normalizer.TextNormalizer,
+        scope=Scope.REQUEST,
+        provides=common_interfaces.TextNormalizer,
+    )
+
+
 class Auth(Provider):
     auth = provide(auth.Auth, scope=Scope.REQUEST, provides=common_interfaces.Context)
 
-class RabbitMQProvider(Provider):
 
+class RabbitMQProvider(Provider):
     @provide(scope=Scope.APP, provides=aio_pika.abc.AbstractConnection)
     async def connection(self, config: Config) -> aio_pika.abc.AbstractConnection:
         return await aio_pika.connect(
@@ -98,17 +206,28 @@ class RabbitMQProvider(Provider):
             blocked_connection_timeout=config.rabbitmq.blocked_connection_timeout,
             connection_attempts=config.rabbitmq.connection_attempts,
             retry_delay=config.rabbitmq.retry_delay,
-            socket_timeout=config.rabbitmq.socket_timeout
+            socket_timeout=config.rabbitmq.socket_timeout,
         )
-    
+
     @provide(scope=Scope.REQUEST, provides=aio_pika.abc.AbstractChannel)
-    async def channel(self, connection: aio_pika.abc.AbstractConnection, config: Config) -> aio_pika.abc.AbstractChannel:
+    async def channel(
+        self, connection: aio_pika.abc.AbstractConnection, config: Config
+    ) -> aio_pika.abc.AbstractChannel:
         async with connection:
             channel = await connection.channel()
             await channel.set_qos(prefetch_count=config.rabbitmq.prefetch_count)
             return channel
 
-class CommonProvider(ConfigProvider, StorageProvider, DBProvider, RepositoryProvider, PaymentGatewayProvider, LogerProvider, ClockProvider, TextNormalizerProvider, Auth):
+
+class CommonProvider(
+    ConfigProvider,
+    StorageProvider,
+    DBProvider,
+    RepositoryProvider,
+    PaymentGatewayProvider,
+    LogerProvider,
+    ClockProvider,
+    TextNormalizerProvider,
+    Auth,
+):
     pass
-
-

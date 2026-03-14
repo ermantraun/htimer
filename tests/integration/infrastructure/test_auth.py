@@ -1,11 +1,11 @@
-from uuid import uuid4
 from typing import Any, cast
+from uuid import uuid4
 
 import jwt
 
 from htimer.application import common_interfaces
-from htimer.application.user import interfaces as user_interfaces
 from htimer.application.common_exceptions import InvalidTokenError
+from htimer.application.user import interfaces as user_interfaces
 from htimer.config import Config
 
 
@@ -17,7 +17,9 @@ async def test_generate_token_success(
 
     token = await infra_auth_token_generator.generate(user_uuid)
 
-    decoded = jwt.decode(token, test_config.jwt.secret_key, algorithms=[test_config.jwt.algorithm]) # type: ignore
+    decoded = jwt.decode(
+        token, test_config.jwt.secret_key, algorithms=[test_config.jwt.algorithm]
+    )  # type: ignore
     assert decoded["sub"] == str(user_uuid)
 
 

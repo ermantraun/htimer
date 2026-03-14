@@ -1,6 +1,6 @@
 from abc import abstractmethod
-from typing import Protocol
 from datetime import date
+from typing import Protocol
 
 
 class Clock(Protocol):

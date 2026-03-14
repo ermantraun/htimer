@@ -1,7 +1,7 @@
-from unittest.mock import AsyncMock
 from typing import Any, cast
+from unittest.mock import AsyncMock
 from uuid import uuid4
-import htimer #type: ignore
+
 import pytest
 
 from htimer.application import common_exceptions, common_interfaces
@@ -41,7 +41,9 @@ async def test_user_repository_maps_exception(
 ):
     repository = cast(Any, main_user_repository)
     repository._db_rep = AsyncMock()
-    repository._db_rep.get_by_uuid.return_value = repo_exceptions.UserNotFoundError("missing")
+    repository._db_rep.get_by_uuid.return_value = repo_exceptions.UserNotFoundError(
+        "missing"
+    )
 
     result = await repository.get_by_uuid(uuid4())
 
@@ -69,7 +71,9 @@ async def test_stage_repository_maps_exception(
 ):
     repository = cast(Any, main_stage_repository)
     repository._db_rep = AsyncMock()
-    repository._db_rep.get_by_name.return_value = repo_exceptions.StageNotFoundError("missing")
+    repository._db_rep.get_by_name.return_value = repo_exceptions.StageNotFoundError(
+        "missing"
+    )
 
     result = await repository.get_by_name(uuid4(), "missing")
 
@@ -97,7 +101,9 @@ async def test_task_repository_maps_exception(
 ):
     repository = cast(Any, main_task_repository)
     repository._db_rep = AsyncMock()
-    repository._db_rep.get_by_uuid.return_value = repo_exceptions.TaskNotFoundError("missing")
+    repository._db_rep.get_by_uuid.return_value = repo_exceptions.TaskNotFoundError(
+        "missing"
+    )
 
     result = await repository.get_by_uuid(uuid4())
 
@@ -125,7 +131,9 @@ async def test_subscription_repository_maps_exception(
 ):
     repository = cast(Any, main_subscription_repository)
     repository._db_rep = AsyncMock()
-    repository._db_rep.get_by_project_uuid.return_value = repo_exceptions.SubscriptionNotFoundError("missing")
+    repository._db_rep.get_by_project_uuid.return_value = (
+        repo_exceptions.SubscriptionNotFoundError("missing")
+    )
 
     result = await repository.get_by_project_uuid(uuid4())
 

@@ -1,6 +1,7 @@
+from datetime import datetime
+
 from htimer.application import common_interfaces
 from htimer.application.common_exceptions import InvalidDate
-from datetime import datetime
 
 
 async def test_now_date_returns_datetime(

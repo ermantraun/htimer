@@ -1,6 +1,4 @@
-from fastapi import APIRouter
-from fastapi import HTTPException
-
+from fastapi import APIRouter, HTTPException
 
 routers: list[APIRouter] = []
 

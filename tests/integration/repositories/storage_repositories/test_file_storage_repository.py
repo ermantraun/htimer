@@ -1,10 +1,10 @@
 from datetime import date
 from typing import cast
-from uuid import uuid4
 from unittest.mock import Mock
+from uuid import uuid4
 
-import pytest
 import minio
+import pytest
 from minio.error import S3Error
 from urllib3.response import BaseHTTPResponse
 
@@ -46,10 +46,14 @@ async def test_get_upload_link_success():
     file = _build_file_entity()
 
     class _Client:
-        def presigned_put_object(self, bucket_name: str, object_name: str, expires: object) -> str:
+        def presigned_put_object(
+            self, bucket_name: str, object_name: str, expires: object
+        ) -> str:
             return f"https://storage/{bucket_name}/{object_name}?upload=1"
 
-    repository = storage_repositories.FileRepository(cast(minio.Minio, _Client()), config)
+    repository = storage_repositories.FileRepository(
+        cast(minio.Minio, _Client()), config
+    )
 
     result = await repository.get_upload_link(file)
 
@@ -63,10 +67,14 @@ async def test_get_unload_link_not_found():
     file = _build_file_entity()
 
     class _Client:
-        def presigned_get_object(self, bucket_name: str, object_name: str, expires: object) -> str:
+        def presigned_get_object(
+            self, bucket_name: str, object_name: str, expires: object
+        ) -> str:
             raise _s3_error("NoSuchKey", "missing")
 
-    repository = storage_repositories.FileRepository(cast(minio.Minio, _Client()), config)
+    repository = storage_repositories.FileRepository(
+        cast(minio.Minio, _Client()), config
+    )
 
     result = await repository.get_unload_link(file)
 
@@ -80,10 +88,14 @@ async def test_get_unload_link_list_success():
     file2 = _build_file_entity()
 
     class _Client:
-        def presigned_get_object(self, bucket_name: str, object_name: str, expires: object) -> str:
+        def presigned_get_object(
+            self, bucket_name: str, object_name: str, expires: object
+        ) -> str:
             return f"https://storage/{bucket_name}/{object_name}?download=1"
 
-    repository = storage_repositories.FileRepository(cast(minio.Minio, _Client()), config)
+    repository = storage_repositories.FileRepository(
+        cast(minio.Minio, _Client()), config
+    )
 
     result = await repository.get_unload_link_list([file1, file2])
 
@@ -101,7 +113,9 @@ async def test_get_remove_link_not_found():
         def remove_object(self, bucket_name: str, object_name: str) -> None:
             raise _s3_error("NoSuchKey", "missing")
 
-    repository = storage_repositories.FileRepository(cast(minio.Minio, _Client()), config)
+    repository = storage_repositories.FileRepository(
+        cast(minio.Minio, _Client()), config
+    )
 
     result = await repository.get_remove_link(file)
 

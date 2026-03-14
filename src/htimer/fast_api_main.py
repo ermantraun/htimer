@@ -1,10 +1,11 @@
 import dishka
-from dishka.integrations.fastapi import setup_dishka
 import fastapi
+from dishka.integrations.fastapi import setup_dishka
 from fastapi.middleware.cors import CORSMiddleware
-from htimer.handlers.api.v1 import routers, exception_handlers
-from htimer.ioc import AppProvider
+
 from htimer.config import Config
+from htimer.handlers.api.v1 import exception_handlers, routers
+from htimer.ioc import AppProvider
 from htimer.utils import MessageBrokerInitializer
 
 
@@ -14,7 +15,7 @@ def fast_api_app() -> fastapi.FastAPI:
         title=Config.fastapi.title,
         version=Config.fastapi.version,
         description=Config.fastapi.description,
-        on_startup=[MessageBrokerInitializer(Config()).init]
+        on_startup=[MessageBrokerInitializer(Config()).init],
     )
 
     app.add_middleware(
@@ -30,6 +31,7 @@ def fast_api_app() -> fastapi.FastAPI:
     app.exception_handlers.update(*exception_handlers)
 
     return app
+
 
 def create_app() -> fastapi.FastAPI:
     api_app = fastapi.FastAPI()

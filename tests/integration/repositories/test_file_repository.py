@@ -6,8 +6,8 @@ import pytest
 from htimer.application import common_exceptions, common_interfaces
 from htimer.domain import entities
 from htimer.infrastructure.db import repositories as db_repositories
-from htimer.infrastructure.repositories import repositories as common_repositories
 from htimer.infrastructure.repositories import exceptions as repo_exceptions
+from htimer.infrastructure.repositories import repositories as common_repositories
 from tests.integration import factories
 
 
@@ -49,7 +49,9 @@ async def test_create_rollbacks_on_storage_error():
     db_rep.create.return_value = file
 
     storage_rep = AsyncMock()
-    storage_rep.get_upload_link.return_value = repo_exceptions.FileRepositoryError("failed")
+    storage_rep.get_upload_link.return_value = repo_exceptions.FileRepositoryError(
+        "failed"
+    )
 
     repository = common_repositories.FileRepository(session, db_rep, storage_rep)
 
@@ -109,7 +111,9 @@ async def test_remove_storage_error_rollbacks():
     db_rep.remove.return_value = file
 
     storage_rep = AsyncMock()
-    storage_rep.get_remove_link.return_value = repo_exceptions.FileRepositoryError("failed")
+    storage_rep.get_remove_link.return_value = repo_exceptions.FileRepositoryError(
+        "failed"
+    )
 
     repository = common_repositories.FileRepository(session, db_rep, storage_rep)
 

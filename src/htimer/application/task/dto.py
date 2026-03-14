@@ -1,12 +1,15 @@
 from dataclasses import dataclass
 from uuid import UUID
+
 from htimer.domain import entities
+
 
 @dataclass
 class CreateTaskInDTO:
     name: str
     description: str
     substage_uuid: UUID
+
 
 @dataclass
 class CreateTaskOutDTO:
@@ -16,6 +19,7 @@ class CreateTaskOutDTO:
 @dataclass
 class GetTaskInDTO:
     uuid: UUID
+
 
 @dataclass
 class GetTaskOutDTO:
@@ -29,6 +33,7 @@ class UpdateTaskInDTO:
     description: str | None = None
     substage_uuid: UUID | None = None
     completed: bool | None = None
+
 
 @dataclass
 class UpdateTaskOutDTO:

@@ -10,12 +10,12 @@ from infrastructure.file_storage.exceptions import NotFoundFileError, AlreadyExi
 # Этот хендлер срабатывает, когда возникает ошибка валидации данных.
 async def validation_exception_handler(request: Request, exc: AppValidationError | exceptions.RequestValidationError) -> JSONResponse:
     problem_fields = {error["loc"][-1]: error["msg"] for error in exc.errors()}
-    
+
     error_message = {
         "message": "Conflict field/fields",
         "problem_fields": problem_fields
     }
-    
+
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         content=error_message
@@ -41,7 +41,7 @@ async def integrity_error_handler(request: Request, exc: IntegrityError) -> JSON
         "message": "Conflict field/fields",
         "problem_fields": problem_fields
     }
-    
+
     return JSONResponse(
         status_code=status.HTTP_409_CONFLICT,
         content=error_message
@@ -100,7 +100,7 @@ async def default_exception_handler(request: Request, exc: Exception) -> JSONRes
         content={"message": "Internal server error"},
     )
 
-all_handlers = { 
+all_handlers = {
     IntegrityError: integrity_error_handler,
     jwt.ExpiredSignatureError: expired_token_handler,
     jwt.InvalidTokenError: invalid_token_handler,
@@ -114,22 +114,27 @@ all_handlers = {
     Exception: default_exception_handler,
 }"""
 
-
 from fastapi import Request, status
 from fastapi.responses import JSONResponse
+
 from htimer.application.common_exceptions import AuthorizationError
 
-#Authorization errors
-async def authorization_error_handler(request: Request, exc: AuthorizationError) -> JSONResponse:
+
+# Authorization errors
+async def authorization_error_handler(
+    request: Request, exc: AuthorizationError
+) -> JSONResponse:
     return JSONResponse(
         status_code=status.HTTP_403_FORBIDDEN,
         content={"message": str(exc)},
     )
 
-#infrastructure exceptions
-async def invalid_token_error_handler(request: Request, exc: AuthorizationError) -> JSONResponse:
+
+# infrastructure exceptions
+async def invalid_token_error_handler(
+    request: Request, exc: AuthorizationError
+) -> JSONResponse:
     return JSONResponse(
         status_code=status.HTTP_401_UNAUTHORIZED,
         content={"message": str(exc)},
     )
-

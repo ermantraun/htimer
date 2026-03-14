@@ -3,8 +3,9 @@ from uuid import uuid4
 
 import pytest
 
-from htimer.infrastructure.repositories import exceptions as repo_exceptions, interfaces as repository_interfaces
 from htimer.domain import entities
+from htimer.infrastructure.repositories import exceptions as repo_exceptions
+from htimer.infrastructure.repositories import interfaces as repository_interfaces
 from tests.integration import factories
 
 
@@ -85,7 +86,9 @@ async def test_create_daily_log_stage_not_found(
     )
     assert isinstance(project, entities.Project)
 
-    missing_stage = factories.make_stage_entity(creator=owner, project=project, main_path=True)
+    missing_stage = factories.make_stage_entity(
+        creator=owner, project=project, main_path=True
+    )
     daily_log = factories.make_daily_log_entity(
         creator=owner, project=project, substage=missing_stage
     )
@@ -141,7 +144,9 @@ async def test_update_daily_log_success(
     )
     assert isinstance(daily_log, entities.DailyLog)
 
-    result = await daily_log_repository.update(daily_log.uuid, {"description": "Updated"})
+    result = await daily_log_repository.update(
+        daily_log.uuid, {"description": "Updated"}
+    )
 
     assert isinstance(result, entities.DailyLog)
     assert result.description == "Updated"
@@ -215,7 +220,9 @@ async def test_get_list_success(
     )
     assert isinstance(second_creator, entities.User)
 
-    second_entity = factories.make_daily_log_entity(creator=second_creator, project=project)
+    second_entity = factories.make_daily_log_entity(
+        creator=second_creator, project=project
+    )
     second_entity.draft = True
     second = await daily_log_repository.create(second_entity)
     assert isinstance(second, entities.DailyLog)
@@ -224,7 +231,9 @@ async def test_get_list_success(
     assert isinstance(result_all, list)
     assert len(result_all) >= 2
 
-    result_draft = await daily_log_repository.get_list(project.uuid, date.today(), draft=True)
+    result_draft = await daily_log_repository.get_list(
+        project.uuid, date.today(), draft=True
+    )
     assert isinstance(result_draft, list)
     assert len(result_draft) == 1
     assert result_draft[0].uuid == second.uuid

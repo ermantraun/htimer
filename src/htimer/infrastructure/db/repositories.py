@@ -1,19 +1,21 @@
-from typing import Any, Awaitable, Callable, TypeVar, cast
-from uuid import UUID
 import asyncio
+from collections.abc import Awaitable, Callable
 from datetime import date
+from typing import Any, TypeVar, cast
+from uuid import UUID
 
+import psycopg.errors
 import sqlalchemy as sq
-from sqlalchemy import select, insert,delete, and_
+from sqlalchemy import and_, delete, insert, select
 from sqlalchemy.exc import DBAPIError, IntegrityError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-import psycopg.errors
 
-from htimer.domain import entities
 from htimer.config import Config
+from htimer.domain import entities
 from htimer.infrastructure.repositories import exceptions as repo_exceptions
 from htimer.infrastructure.repositories import interfaces as repository_interfaces
+
 from . import models
 
 TExc = TypeVar("TExc", bound=Exception)
@@ -54,28 +56,29 @@ class _RepositoryDebugMixin:
 
         return type(exc)(f"{exc}. Details: {self._exc_details(cause)}")
 
-async def _execute_idempotent(
-        session: AsyncSession,
-        idempotent_retries: int,
-        base_backoff: float,
-        operation: Callable[[], Awaitable[Any]],
-        *,
-        error_message: str,
-        exception: type[Exception]
-    ):
-        attempt = 0
-        while True:
-            try:
-                return await operation()
-            except (OperationalError, DBAPIError) as exc:
-                if isinstance(exc, IntegrityError):
-                    raise
-                await session.rollback()
-                if attempt >= idempotent_retries:
-                    raise exception(error_message) from exc
 
-                attempt += 1
-                await asyncio.sleep(base_backoff * (attempt + 1))
+async def _execute_idempotent(
+    session: AsyncSession,
+    idempotent_retries: int,
+    base_backoff: float,
+    operation: Callable[[], Awaitable[Any]],
+    *,
+    error_message: str,
+    exception: type[Exception],
+):
+    attempt = 0
+    while True:
+        try:
+            return await operation()
+        except (OperationalError, DBAPIError) as exc:
+            if isinstance(exc, IntegrityError):
+                raise
+            await session.rollback()
+            if attempt >= idempotent_retries:
+                raise exception(error_message) from exc
+
+            attempt += 1
+            await asyncio.sleep(base_backoff * (attempt + 1))
 
 
 async def _execute_statement_idempotent(
@@ -99,6 +102,7 @@ async def _execute_statement_idempotent(
         exception=exception,
     )
 
+
 class UserRepository(_RepositoryDebugMixin, repository_interfaces.DBUserRepository):
     def __init__(self, session: AsyncSession, config: Config):
         self.session = session
@@ -106,15 +110,22 @@ class UserRepository(_RepositoryDebugMixin, repository_interfaces.DBUserReposito
         self._base_backoff = 0.1
         self._init_debug(config)
 
-    async def create(self, data: entities.User) -> entities.User | repo_exceptions.EmailAlreadyExistsError | repo_exceptions.RepositoryError:
+    async def create(
+        self, data: entities.User
+    ) -> (
+        entities.User
+        | repo_exceptions.EmailAlreadyExistsError
+        | repo_exceptions.RepositoryError
+    ):
         try:
-
             new_user = models.User(
                 uuid=data.uuid,
                 name=data.name,
                 email=data.email,
                 password_hash=data.password_hash,
-                creator_uuid=data.creator.uuid if getattr(data, "creator", None) else None,
+                creator_uuid=data.creator.uuid
+                if getattr(data, "creator", None)
+                else None,
                 role=self.map_role_to_model(data.role),
                 status=self.map_status_to_model(data.status),
                 created_at=data.created_at,
@@ -122,22 +133,25 @@ class UserRepository(_RepositoryDebugMixin, repository_interfaces.DBUserReposito
             )
 
             self.session.add(new_user)
-            
+
             async def _op():
                 await self.session.flush()
-            
+
             await _execute_idempotent(
                 self.session,
                 self._idempotent_retries,
                 self._base_backoff,
                 _op,
                 error_message="Не удалось создать пользователя",
-                exception=repo_exceptions.UserRepositoryError
+                exception=repo_exceptions.UserRepositoryError,
             )
 
             loaded_user = await self._get_user_model(new_user.uuid)
             if loaded_user is None:
-                return self._build_error(repo_exceptions.UserRepositoryError, "Не удалось создать пользователя")
+                return self._build_error(
+                    repo_exceptions.UserRepositoryError,
+                    "Не удалось создать пользователя",
+                )
 
             return self.map_user_to_entity(loaded_user)
         except IntegrityError:
@@ -150,12 +164,23 @@ class UserRepository(_RepositoryDebugMixin, repository_interfaces.DBUserReposito
             return self._enrich_error(exc)
         except (TimeoutError, DBAPIError) as exc:
             await self.session.rollback()
-            return self._build_error(repo_exceptions.UserRepositoryError, "Не удалось создать пользователя", exc)
+            return self._build_error(
+                repo_exceptions.UserRepositoryError,
+                "Не удалось создать пользователя",
+                exc,
+            )
 
-    async def update(self, user_uuid: UUID, data: dict[str, Any]) -> entities.User | repo_exceptions.EmailAlreadyExistsError | repo_exceptions.UserNotFoundError | repo_exceptions.RepositoryError:
+    async def update(
+        self, user_uuid: UUID, data: dict[str, Any]
+    ) -> (
+        entities.User
+        | repo_exceptions.EmailAlreadyExistsError
+        | repo_exceptions.UserNotFoundError
+        | repo_exceptions.RepositoryError
+    ):
         try:
             user_model = await self._get_user_model(user_uuid, lock_record=True)
-            
+
             if user_model is None:
                 return repo_exceptions.UserNotFoundError("Пользователь не найден")
 
@@ -163,14 +188,14 @@ class UserRepository(_RepositoryDebugMixin, repository_interfaces.DBUserReposito
 
             async def _op():
                 await self.session.flush()
-            
+
             await _execute_idempotent(
                 self.session,
                 self._idempotent_retries,
                 self._base_backoff,
                 _op,
                 error_message="Не удалось обновить пользователя",
-                exception=repo_exceptions.UserRepositoryError
+                exception=repo_exceptions.UserRepositoryError,
             )
 
             loaded_user = await self._get_user_model(user_uuid)
@@ -188,76 +213,138 @@ class UserRepository(_RepositoryDebugMixin, repository_interfaces.DBUserReposito
             return self._enrich_error(exc)
         except (TimeoutError, DBAPIError) as exc:
             await self.session.rollback()
-            return self._build_error(repo_exceptions.UserRepositoryError, "Не удалось обновить пользователя", exc)
+            return self._build_error(
+                repo_exceptions.UserRepositoryError,
+                "Не удалось обновить пользователя",
+                exc,
+            )
 
-    async def get_by_email(self, email: str) -> entities.User | repo_exceptions.UserNotFoundError | repo_exceptions.RepositoryError:
+    async def get_by_email(
+        self, email: str
+    ) -> (
+        entities.User
+        | repo_exceptions.UserNotFoundError
+        | repo_exceptions.RepositoryError
+    ):
         try:
+
             async def _op():
                 return await self._fetch_user_by_email(email)
-            
-            return await _execute_idempotent(self.session, self._idempotent_retries, self._base_backoff,
+
+            return await _execute_idempotent(
+                self.session,
+                self._idempotent_retries,
+                self._base_backoff,
                 _op,
                 error_message="Не удалось получить пользователя по email",
-                exception=repo_exceptions.UserRepositoryError
+                exception=repo_exceptions.UserRepositoryError,
             )
         except repo_exceptions.UserRepositoryError as exc:
             return self._enrich_error(exc)
-        
-        except (TimeoutError, DBAPIError) as exc:
-            return self._build_error(repo_exceptions.UserRepositoryError, "Не удалось получить пользователя по email", exc)
 
-    async def get_by_uuid(self, user_uuid: UUID, lock_record: bool = False) -> entities.User | repo_exceptions.UserNotFoundError | repo_exceptions.RepositoryError:
+        except (TimeoutError, DBAPIError) as exc:
+            return self._build_error(
+                repo_exceptions.UserRepositoryError,
+                "Не удалось получить пользователя по email",
+                exc,
+            )
+
+    async def get_by_uuid(
+        self, user_uuid: UUID, lock_record: bool = False
+    ) -> (
+        entities.User
+        | repo_exceptions.UserNotFoundError
+        | repo_exceptions.RepositoryError
+    ):
         try:
+
             async def _op():
-                return await self._fetch_user_by_uuid(user_uuid, lock_record=lock_record)
-            
-            return await _execute_idempotent(self.session, self._idempotent_retries, self._base_backoff,
+                return await self._fetch_user_by_uuid(
+                    user_uuid, lock_record=lock_record
+                )
+
+            return await _execute_idempotent(
+                self.session,
+                self._idempotent_retries,
+                self._base_backoff,
                 _op,
                 error_message="Не удалось получить пользователя по uuid",
-                exception=repo_exceptions.UserRepositoryError
+                exception=repo_exceptions.UserRepositoryError,
             )
-            
-        
+
         except repo_exceptions.UserRepositoryError as exc:
             return self._enrich_error(exc)
 
         except (TimeoutError, DBAPIError) as exc:
-            return self._build_error(repo_exceptions.UserRepositoryError, "Не удалось получить пользователя по uuid", exc)
+            return self._build_error(
+                repo_exceptions.UserRepositoryError,
+                "Не удалось получить пользователя по uuid",
+                exc,
+            )
 
-    async def get_list(self, users_uuid: list[UUID]) -> list[entities.User] | repo_exceptions.UserNotFoundError | repo_exceptions.RepositoryError:
+    async def get_list(
+        self, users_uuid: list[UUID]
+    ) -> (
+        list[entities.User]
+        | repo_exceptions.UserNotFoundError
+        | repo_exceptions.RepositoryError
+    ):
         try:
             stmt = (
-                    select(models.User)
-                    .options(selectinload(models.User.creator))
-                    .where(models.User.uuid.in_(users_uuid))
-                )
+                select(models.User)
+                .options(selectinload(models.User.creator))
+                .where(models.User.uuid.in_(users_uuid))
+            )
+
             async def _op():
 
-                
                 result = await self.session.execute(stmt)
                 result = result.scalars().all()
 
                 return result
-            
-            users = await _execute_idempotent(self.session, self._idempotent_retries, self._base_backoff, _op, error_message="Не удалось получить список пользователей", exception=repo_exceptions.UserRepositoryError)
+
+            users = await _execute_idempotent(
+                self.session,
+                self._idempotent_retries,
+                self._base_backoff,
+                _op,
+                error_message="Не удалось получить список пользователей",
+                exception=repo_exceptions.UserRepositoryError,
+            )
 
             users = [self.map_user_to_entity(user) for user in users]
-            
-            if len(users) != len(users_uuid):
-                return repo_exceptions.UserNotFoundError("Один или несколько пользователей не найдены")
 
-            
+            if len(users) != len(users_uuid):
+                return repo_exceptions.UserNotFoundError(
+                    "Один или несколько пользователей не найдены"
+                )
+
             return users
-        
+
         except repo_exceptions.UserRepositoryError as exc:
             return self._enrich_error(exc)
         except (TimeoutError, DBAPIError) as exc:
-            return self._build_error(repo_exceptions.UserRepositoryError, "Не удалось получить список пользователей", exc)
-        
-        
-    async def get_projects(self, user_uuid: UUID | None) -> list[entities.Project] | repo_exceptions.UserNotFoundError | repo_exceptions.ProjectNotFoundError | repo_exceptions.RepositoryError:
+            return self._build_error(
+                repo_exceptions.UserRepositoryError,
+                "Не удалось получить список пользователей",
+                exc,
+            )
+
+    async def get_projects(
+        self, user_uuid: UUID | None
+    ) -> (
+        list[entities.Project]
+        | repo_exceptions.UserNotFoundError
+        | repo_exceptions.ProjectNotFoundError
+        | repo_exceptions.RepositoryError
+    ):
         try:
-            async def _op() -> list[entities.Project] | repo_exceptions.UserNotFoundError | repo_exceptions.ProjectNotFoundError:
+
+            async def _op() -> (
+                list[entities.Project]
+                | repo_exceptions.UserNotFoundError
+                | repo_exceptions.ProjectNotFoundError
+            ):
                 if user_uuid is None:
                     return []
 
@@ -265,32 +352,56 @@ class UserRepository(_RepositoryDebugMixin, repository_interfaces.DBUserReposito
                 if user_model is None:
                     return repo_exceptions.UserNotFoundError("Пользователь не найден")
 
-                owned_stmt = select(models.Project).where(
-                    models.Project.creator_uuid == user_uuid
-                ).options(selectinload(models.Project.creator))
+                owned_stmt = (
+                    select(models.Project)
+                    .where(models.Project.creator_uuid == user_uuid)
+                    .options(selectinload(models.Project.creator))
+                )
                 member_stmt = (
                     select(models.Project)
                     .options(selectinload(models.Project.creator))
-                    .join(models.MemberShip, models.MemberShip.project_uuid == models.Project.uuid)
+                    .join(
+                        models.MemberShip,
+                        models.MemberShip.project_uuid == models.Project.uuid,
+                    )
                     .where(models.MemberShip.user_uuid == user_uuid)
                 )
 
                 owned_projects_result = await self.session.execute(owned_stmt)
                 member_projects_result = await self.session.execute(member_stmt)
 
-                projects_models = {project.uuid: project for project in owned_projects_result.scalars().all()}
+                projects_models = {
+                    project.uuid: project
+                    for project in owned_projects_result.scalars().all()
+                }
                 for proj in member_projects_result.scalars().all():
                     projects_models.setdefault(proj.uuid, proj)
 
-                return [ProjectRepository.map_project_to_entity(project) for project in projects_models.values()]
+                return [
+                    ProjectRepository.map_project_to_entity(project)
+                    for project in projects_models.values()
+                ]
 
-            return await _execute_idempotent(self.session, self._idempotent_retries, self._base_backoff, _op, error_message="Не удалось получить проекты пользователя", exception=repo_exceptions.UserRepositoryError)
+            return await _execute_idempotent(
+                self.session,
+                self._idempotent_retries,
+                self._base_backoff,
+                _op,
+                error_message="Не удалось получить проекты пользователя",
+                exception=repo_exceptions.UserRepositoryError,
+            )
         except repo_exceptions.UserRepositoryError as exc:
             return self._enrich_error(exc)
         except (TimeoutError, DBAPIError) as exc:
-            return self._build_error(repo_exceptions.UserRepositoryError, "Не удалось получить проекты пользователя", exc)
-    
-    def _apply_user_updates(self, user_model: models.User, data: dict[str, Any]) -> None:
+            return self._build_error(
+                repo_exceptions.UserRepositoryError,
+                "Не удалось получить проекты пользователя",
+                exc,
+            )
+
+    def _apply_user_updates(
+        self, user_model: models.User, data: dict[str, Any]
+    ) -> None:
         if "name" in data:
             user_model.name = data["name"]
         if "email" in data:
@@ -306,7 +417,9 @@ class UserRepository(_RepositoryDebugMixin, repository_interfaces.DBUserReposito
         if "last_login" in data:
             user_model.last_login = data["last_login"]
 
-    async def _fetch_user_by_email(self, email: str) -> entities.User | repo_exceptions.UserNotFoundError:
+    async def _fetch_user_by_email(
+        self, email: str
+    ) -> entities.User | repo_exceptions.UserNotFoundError:
         stmt = (
             select(models.User)
             .options(selectinload(models.User.creator))
@@ -337,26 +450,38 @@ class UserRepository(_RepositoryDebugMixin, repository_interfaces.DBUserReposito
         self, user_uuid: UUID, *, lock_record: bool = False
     ) -> models.User | None:
         stmt = (
-                select(models.User)
+            select(models.User)
             .options(selectinload(models.User.creator))
-                .where(models.User.uuid == user_uuid)
-            )
+            .where(models.User.uuid == user_uuid)
+        )
         if lock_record:
             stmt = stmt.with_for_update()
 
         def _op():
             return self.session.execute(stmt)
-        result = await _execute_idempotent(self.session, self._idempotent_retries, self._base_backoff, _op, error_message="Не удалось получить пользователя по uuid", exception=repo_exceptions.UserRepositoryError)
+
+        result = await _execute_idempotent(
+            self.session,
+            self._idempotent_retries,
+            self._base_backoff,
+            _op,
+            error_message="Не удалось получить пользователя по uuid",
+            exception=repo_exceptions.UserRepositoryError,
+        )
         return result.scalar_one_or_none()
 
     @classmethod
-    def map_user_to_entity(cls, user_model: models.User, creators_level: int = 1) -> entities.User:
-        
+    def map_user_to_entity(
+        cls, user_model: models.User, creators_level: int = 1
+    ) -> entities.User:
+
         if creators_level == 0 or user_model.creator_uuid is None:
             creator_entity: entities.User | None = None
         else:
             creator_entity = (
-                cls.map_user_to_entity(user_model.creator, creators_level=creators_level - 1)
+                cls.map_user_to_entity(
+                    user_model.creator, creators_level=creators_level - 1
+                )
                 if user_model.creator is not None
                 else None
             )
@@ -373,15 +498,21 @@ class UserRepository(_RepositoryDebugMixin, repository_interfaces.DBUserReposito
             last_login=user_model.last_login,
         )
 
-
-
     @classmethod
     def map_role_to_domain(cls, role: models.UserRole) -> entities.UserRole:
-        return entities.UserRole.ADMIN if role is models.UserRole.ADMIN else entities.UserRole.EXECUTOR
+        return (
+            entities.UserRole.ADMIN
+            if role is models.UserRole.ADMIN
+            else entities.UserRole.EXECUTOR
+        )
 
     @classmethod
     def map_role_to_model(cls, role: entities.UserRole) -> models.UserRole:
-        return models.UserRole.ADMIN if role is entities.UserRole.ADMIN else models.UserRole.USER
+        return (
+            models.UserRole.ADMIN
+            if role is entities.UserRole.ADMIN
+            else models.UserRole.USER
+        )
 
     @classmethod
     def map_status_to_domain(cls, status: models.UserStatus) -> entities.UserStatus:
@@ -402,16 +533,24 @@ class UserRepository(_RepositoryDebugMixin, repository_interfaces.DBUserReposito
         return mapping[status]
 
 
-
-class ProjectRepository(_RepositoryDebugMixin, repository_interfaces.DBProjectRepository):
+class ProjectRepository(
+    _RepositoryDebugMixin, repository_interfaces.DBProjectRepository
+):
     def __init__(self, session: AsyncSession, config: Config):
         self.session = session
         self._idempotent_retries = 2
         self._base_backoff = 0.1
         self._init_debug(config)
-        
-    async def create(self, data: entities.Project) -> entities.Project | repo_exceptions.UserAlreadyHasProjectError | repo_exceptions.UserNotFoundError | repo_exceptions.RepositoryError:
-        try: 
+
+    async def create(
+        self, data: entities.Project
+    ) -> (
+        entities.Project
+        | repo_exceptions.UserAlreadyHasProjectError
+        | repo_exceptions.UserNotFoundError
+        | repo_exceptions.RepositoryError
+    ):
+        try:
             project = models.Project(
                 uuid=data.uuid,
                 name=data.name,
@@ -422,45 +561,63 @@ class ProjectRepository(_RepositoryDebugMixin, repository_interfaces.DBProjectRe
                 status=self.map_project_status_to_model(data.status),
                 created_at=data.created_at,
             )
-            
+
             self.session.add(project)
-            
+
             async def _op():
                 await self.session.flush()
-            
-            await _execute_idempotent(self.session, self._idempotent_retries, self._base_backoff,
-                                    _op,
-                                    error_message="Не удалось создать проект",
-                                    exception=repo_exceptions.ProjectRepositoryError
+
+            await _execute_idempotent(
+                self.session,
+                self._idempotent_retries,
+                self._base_backoff,
+                _op,
+                error_message="Не удалось создать проект",
+                exception=repo_exceptions.ProjectRepositoryError,
             )
 
             loaded_project = await self._get_project_model(project.uuid)
             if loaded_project is None:
-                return self._build_error(repo_exceptions.ProjectRepositoryError, "Не удалось создать проект")
+                return self._build_error(
+                    repo_exceptions.ProjectRepositoryError, "Не удалось создать проект"
+                )
 
             return self.map_project_to_entity(loaded_project)
-        
+
         except IntegrityError as exc:
             await self.session.rollback()
             if isinstance(exc.orig, psycopg.errors.ForeignKeyViolation):
                 return repo_exceptions.UserNotFoundError("Пользователь не найден")
-            elif isinstance(exc.orig, psycopg.errors.UniqueViolation):
-                return repo_exceptions.UserAlreadyHasProjectError("Проект с таким именем уже существует")
-            else:
-                return self._build_error(repo_exceptions.ProjectRepositoryError, "Не удалось создать проект", exc)
+            if isinstance(exc.orig, psycopg.errors.UniqueViolation):
+                return repo_exceptions.UserAlreadyHasProjectError(
+                    "Проект с таким именем уже существует"
+                )
+            return self._build_error(
+                repo_exceptions.ProjectRepositoryError, "Не удалось создать проект", exc
+            )
         except repo_exceptions.ProjectRepositoryError as exc:
             await self.session.rollback()
             return self._enrich_error(exc)
-        
-        
+
         except (TimeoutError, DBAPIError) as exc:
             await self.session.rollback()
-            return self._build_error(repo_exceptions.ProjectRepositoryError, "Не удалось создать проект", exc)
-        
-    async def update(self, project_uuid: UUID, data: dict[str, Any]) -> entities.Project | repo_exceptions.ProjectNotFoundError | repo_exceptions.UserAlreadyHasProjectError | repo_exceptions.RepositoryError:
+            return self._build_error(
+                repo_exceptions.ProjectRepositoryError, "Не удалось создать проект", exc
+            )
+
+    async def update(
+        self, project_uuid: UUID, data: dict[str, Any]
+    ) -> (
+        entities.Project
+        | repo_exceptions.ProjectNotFoundError
+        | repo_exceptions.UserAlreadyHasProjectError
+        | repo_exceptions.RepositoryError
+    ):
         try:
-            project_model = await self._get_project_model(project_uuid, lock_record=True)
-            
+            project_model = await self._get_project_model(
+                project_uuid, lock_record=True
+            )
+
             if project_model is None:
                 return repo_exceptions.ProjectNotFoundError("Проект не найден")
 
@@ -468,14 +625,14 @@ class ProjectRepository(_RepositoryDebugMixin, repository_interfaces.DBProjectRe
 
             async def _op():
                 await self.session.flush()
-            
+
             await _execute_idempotent(
                 self.session,
                 self._idempotent_retries,
                 self._base_backoff,
                 _op,
                 error_message="Не удалось обновить проект",
-                exception=repo_exceptions.ProjectRepositoryError
+                exception=repo_exceptions.ProjectRepositoryError,
             )
 
             loaded_project = await self._get_project_model(project_model.uuid)
@@ -483,10 +640,12 @@ class ProjectRepository(_RepositoryDebugMixin, repository_interfaces.DBProjectRe
                 return repo_exceptions.ProjectNotFoundError("Проект не найден")
 
             return self.map_project_to_entity(loaded_project)
-        
+
         except IntegrityError:
             await self.session.rollback()
-            return repo_exceptions.UserAlreadyHasProjectError("Проект с таким именем уже существует")
+            return repo_exceptions.UserAlreadyHasProjectError(
+                "Проект с таким именем уже существует"
+            )
 
         except repo_exceptions.ProjectRepositoryError as exc:
             await self.session.rollback()
@@ -494,31 +653,57 @@ class ProjectRepository(_RepositoryDebugMixin, repository_interfaces.DBProjectRe
 
         except (TimeoutError, DBAPIError) as exc:
             await self.session.rollback()
-            return self._build_error(repo_exceptions.ProjectRepositoryError, "Не удалось обновить проект", exc)
-    
-    async def get_by_uuid(self, project_uuid: UUID, lock_record: bool = False) -> entities.Project | repo_exceptions.ProjectNotFoundError | repo_exceptions.RepositoryError:
-        
-        try: 
+            return self._build_error(
+                repo_exceptions.ProjectRepositoryError,
+                "Не удалось обновить проект",
+                exc,
+            )
+
+    async def get_by_uuid(
+        self, project_uuid: UUID, lock_record: bool = False
+    ) -> (
+        entities.Project
+        | repo_exceptions.ProjectNotFoundError
+        | repo_exceptions.RepositoryError
+    ):
+
+        try:
             project = await self._get_project_model(project_uuid, lock_record)
-            
-            if project is None: 
+
+            if project is None:
                 return repo_exceptions.ProjectNotFoundError("Проект не найден")
-            
+
             return self.map_project_to_entity(project)
 
         except repo_exceptions.ProjectRepositoryError as exc:
             return self._enrich_error(exc)
         except (TimeoutError, DBAPIError) as exc:
-            return self._build_error(repo_exceptions.ProjectRepositoryError, "Не удалось получить проект", exc)
-            
-        
-    async def get_by_name(self, user_uuid: UUID, project_name: str) -> entities.Project | repo_exceptions.ProjectNotFoundError | repo_exceptions.RepositoryError:
+            return self._build_error(
+                repo_exceptions.ProjectRepositoryError,
+                "Не удалось получить проект",
+                exc,
+            )
+
+    async def get_by_name(
+        self, user_uuid: UUID, project_name: str
+    ) -> (
+        entities.Project
+        | repo_exceptions.ProjectNotFoundError
+        | repo_exceptions.RepositoryError
+    ):
         try:
             stmt = (
                 select(models.Project)
                 .options(selectinload(models.Project.creator))
-                .join(models.User, models.Project.creator_uuid == models.User.uuid)  # 2 аргумента: таблица и onclause
-                .where(and_(models.Project.name == project_name, models.User.uuid == user_uuid))
+                .join(
+                    models.User, models.Project.creator_uuid == models.User.uuid
+                )  # 2 аргумента: таблица и onclause
+                .where(
+                    and_(
+                        models.Project.name == project_name,
+                        models.User.uuid == user_uuid,
+                    )
+                )
                 .limit(1)
             )
 
@@ -538,15 +723,26 @@ class ProjectRepository(_RepositoryDebugMixin, repository_interfaces.DBProjectRe
             if project_model is None:
                 return repo_exceptions.ProjectNotFoundError("Проект не найден")
 
-            return self.map_project_to_entity(project_model) 
+            return self.map_project_to_entity(project_model)
         except repo_exceptions.ProjectRepositoryError as exc:
             return self._enrich_error(exc)
         except (TimeoutError, DBAPIError) as exc:
-            return self._build_error(repo_exceptions.ProjectRepositoryError, "Не удалось получить проект", exc)
-    
-    async def add_members(self, members: list[entities.MemberShip]) -> list[entities.MemberShip] | repo_exceptions.ProjectNotFoundError | repo_exceptions.UserNotFoundError | repo_exceptions.UserAlreadyProjectMemberError | repo_exceptions.RepositoryError:
-        try: 
-            
+            return self._build_error(
+                repo_exceptions.ProjectRepositoryError,
+                "Не удалось получить проект",
+                exc,
+            )
+
+    async def add_members(
+        self, members: list[entities.MemberShip]
+    ) -> (
+        list[entities.MemberShip]
+        | repo_exceptions.ProjectNotFoundError
+        | repo_exceptions.UserNotFoundError
+        | repo_exceptions.UserAlreadyProjectMemberError
+        | repo_exceptions.RepositoryError
+    ):
+        try:
             members_values: list[dict[str, Any]] = [
                 {
                     "uuid": membership.uuid,
@@ -559,10 +755,10 @@ class ProjectRepository(_RepositoryDebugMixin, repository_interfaces.DBProjectRe
             ]
 
             insert_members_stmt = insert(models.MemberShip).values(members_values)
-            
+
             async def _op() -> None:
                 await self.session.execute(insert_members_stmt)
-            
+
             await _execute_idempotent(
                 self.session,
                 self._idempotent_retries,
@@ -571,10 +767,9 @@ class ProjectRepository(_RepositoryDebugMixin, repository_interfaces.DBProjectRe
                 error_message="Не удалось добавить пользователей",
                 exception=repo_exceptions.ProjectRepositoryError,
             )
-        
 
             return members
-        
+
         except IntegrityError as exc:
             await self.session.rollback()
             if isinstance(exc.orig, psycopg.errors.ForeignKeyViolation):
@@ -582,70 +777,140 @@ class ProjectRepository(_RepositoryDebugMixin, repository_interfaces.DBProjectRe
                 if constraint_name:
                     if "memberships_project_uuid_fkey" in constraint_name:
                         return repo_exceptions.ProjectNotFoundError("Проект не найден")
-                    elif "memberships_user_uuid_fkey" in constraint_name:
-                        return repo_exceptions.UserNotFoundError("Пользователь не найден")
+                    if "memberships_user_uuid_fkey" in constraint_name:
+                        return repo_exceptions.UserNotFoundError(
+                            "Пользователь не найден"
+                        )
             elif isinstance(exc.orig, psycopg.errors.UniqueViolation):
-                return repo_exceptions.UserAlreadyProjectMemberError("Пользователь уже является участником проекта")
-            return self._build_error(repo_exceptions.ProjectRepositoryError, "Не удалось добавить пользователей", exc)
+                return repo_exceptions.UserAlreadyProjectMemberError(
+                    "Пользователь уже является участником проекта"
+                )
+            return self._build_error(
+                repo_exceptions.ProjectRepositoryError,
+                "Не удалось добавить пользователей",
+                exc,
+            )
         except repo_exceptions.ProjectRepositoryError as exc:
             await self.session.rollback()
             return self._enrich_error(exc)
         except (TimeoutError, DBAPIError) as exc:
             await self.session.rollback()
-            return self._build_error(repo_exceptions.ProjectRepositoryError, "Не удалось добавить пользователей", exc)
+            return self._build_error(
+                repo_exceptions.ProjectRepositoryError,
+                "Не удалось добавить пользователей",
+                exc,
+            )
 
-        
-    
-    async def remove_members(self, project_uuid: UUID, members_uuids: list[UUID]) -> None | repo_exceptions.MemberNotFound | repo_exceptions.RepositoryError:
-        
-        try: 
-            exist_stmt = select(sq.func.count(models.MemberShip.user_uuid)).where(sq.and_(models.MemberShip.project_uuid == project_uuid, models.MemberShip.user_uuid.in_(members_uuids)))
-            
-            async def _op(): #type: ignore
+    async def remove_members(
+        self, project_uuid: UUID, members_uuids: list[UUID]
+    ) -> None | repo_exceptions.MemberNotFound | repo_exceptions.RepositoryError:
+
+        try:
+            exist_stmt = select(sq.func.count(models.MemberShip.user_uuid)).where(
+                sq.and_(
+                    models.MemberShip.project_uuid == project_uuid,
+                    models.MemberShip.user_uuid.in_(members_uuids),
+                )
+            )
+
+            async def _op():  # type: ignore
                 result = await self.session.execute(exist_stmt)
                 return result.scalar()
-            
-            result = await _execute_idempotent(self.session, self._idempotent_retries, self._base_backoff, _op, error_message='Не удалось удалить участников проекта', exception=repo_exceptions.RepositoryError )
-        
+
+            result = await _execute_idempotent(
+                self.session,
+                self._idempotent_retries,
+                self._base_backoff,
+                _op,
+                error_message="Не удалось удалить участников проекта",
+                exception=repo_exceptions.RepositoryError,
+            )
+
             if result == 0:
                 return repo_exceptions.MemberNotFound()
-            
-            delete_stmt = delete(models.MemberShip).where(sq.and_(models.MemberShip.project_uuid == project_uuid, models.MemberShip.user_uuid.in_(members_uuids)))
+
+            delete_stmt = delete(models.MemberShip).where(
+                sq.and_(
+                    models.MemberShip.project_uuid == project_uuid,
+                    models.MemberShip.user_uuid.in_(members_uuids),
+                )
+            )
 
             async def _op():
                 await self.session.execute(delete_stmt)
-            
-            
-            await _execute_idempotent(self.session, self._idempotent_retries, self._base_backoff, _op, error_message='Не удалось удалить участников проекта', exception=repo_exceptions.RepositoryError )
-                        
+
+            await _execute_idempotent(
+                self.session,
+                self._idempotent_retries,
+                self._base_backoff,
+                _op,
+                error_message="Не удалось удалить участников проекта",
+                exception=repo_exceptions.RepositoryError,
+            )
+
         except repo_exceptions.RepositoryError as exc:
             await self.session.rollback()
             return self._enrich_error(exc)
         except (TimeoutError, DBAPIError) as exc:
             await self.session.rollback()
-            return self._build_error(repo_exceptions.RepositoryError, "Не удалось удалить участников проекта", exc)
-    
-    async def get_members(self, projects_uuid: list[UUID], is_active: bool = True) -> list[entities.User] | repo_exceptions.RepositoryError | repo_exceptions.ProjectNotFoundError:
+            return self._build_error(
+                repo_exceptions.RepositoryError,
+                "Не удалось удалить участников проекта",
+                exc,
+            )
+
+    async def get_members(
+        self, projects_uuid: list[UUID], is_active: bool = True
+    ) -> (
+        list[entities.User]
+        | repo_exceptions.RepositoryError
+        | repo_exceptions.ProjectNotFoundError
+    ):
         try:
-            
-            project_exist_stmt = select(sq.func.count(models.Project.uuid)).where(models.Project.uuid.in_(projects_uuid))
-            
-            async def _op(): #type: ignore
+            project_exist_stmt = select(sq.func.count(models.Project.uuid)).where(
+                models.Project.uuid.in_(projects_uuid)
+            )
+
+            async def _op():  # type: ignore
                 result = await self.session.execute(project_exist_stmt)
                 return result.scalar_one_or_none()
-            
-            project_count = await _execute_idempotent(self.session, self._idempotent_retries, self._base_backoff, _op, error_message='Не удалось проверить существование проекта', exception=repo_exceptions.RepositoryError )
+
+            project_count = await _execute_idempotent(
+                self.session,
+                self._idempotent_retries,
+                self._base_backoff,
+                _op,
+                error_message="Не удалось проверить существование проекта",
+                exception=repo_exceptions.RepositoryError,
+            )
             if project_count != len(projects_uuid):
                 return repo_exceptions.ProjectNotFoundError("Проект не найден")
-            
-            stmt = select(models.MemberShip).join(models.User, onclause=models.MemberShip.user_uuid == models.User.uuid).where(models.MemberShip.project_uuid.in_(projects_uuid))
-            stmt = stmt.options(selectinload(models.MemberShip.user).selectinload(models.User.creator))
+
+            stmt = (
+                select(models.MemberShip)
+                .join(
+                    models.User,
+                    onclause=models.MemberShip.user_uuid == models.User.uuid,
+                )
+                .where(models.MemberShip.project_uuid.in_(projects_uuid))
+            )
+            stmt = stmt.options(
+                selectinload(models.MemberShip.user).selectinload(models.User.creator)
+            )
             if is_active:
                 stmt = stmt.where(models.User.status == models.UserStatus.ACTIVE)
-                
+
             async def _op():
                 return await self.session.execute(stmt)
-            result = await _execute_idempotent(self.session, self._idempotent_retries, self._base_backoff, _op, error_message='Не удалось получить участников проекта', exception=repo_exceptions.RepositoryError )
+
+            result = await _execute_idempotent(
+                self.session,
+                self._idempotent_retries,
+                self._base_backoff,
+                _op,
+                error_message="Не удалось получить участников проекта",
+                exception=repo_exceptions.RepositoryError,
+            )
             members_models = result.scalars().all()
             return [
                 UserRepository.map_user_to_entity(member.user)
@@ -654,65 +919,110 @@ class ProjectRepository(_RepositoryDebugMixin, repository_interfaces.DBProjectRe
         except repo_exceptions.RepositoryError as exc:
             return self._enrich_error(exc)
         except (TimeoutError, DBAPIError) as exc:
-            return self._build_error(repo_exceptions.RepositoryError, "Не удалось получить участников проекта", exc)
-    
-    async def get_current_subscription(self, project_uuid: UUID) -> entities.Subscription | repo_exceptions.SubscriptionNotFoundError | repo_exceptions.ProjectNotFoundError | repo_exceptions.RepositoryError:
+            return self._build_error(
+                repo_exceptions.RepositoryError,
+                "Не удалось получить участников проекта",
+                exc,
+            )
+
+    async def get_current_subscription(
+        self, project_uuid: UUID
+    ) -> (
+        entities.Subscription
+        | repo_exceptions.SubscriptionNotFoundError
+        | repo_exceptions.ProjectNotFoundError
+        | repo_exceptions.RepositoryError
+    ):
         try:
-            project_exist_stmt = select(sq.func.count(models.Project.uuid)).where(models.Project.uuid == project_uuid)
-            
-            async def _op(): #type: ignore
+            project_exist_stmt = select(sq.func.count(models.Project.uuid)).where(
+                models.Project.uuid == project_uuid
+            )
+
+            async def _op():  # type: ignore
                 result = await self.session.execute(project_exist_stmt)
                 return result.scalar_one_or_none()
-            
-            project_count = await _execute_idempotent(self.session, self._idempotent_retries, self._base_backoff, _op, error_message='Не удалось проверить существование проекта', exception=repo_exceptions.RepositoryError )
+
+            project_count = await _execute_idempotent(
+                self.session,
+                self._idempotent_retries,
+                self._base_backoff,
+                _op,
+                error_message="Не удалось проверить существование проекта",
+                exception=repo_exceptions.RepositoryError,
+            )
             if project_count == 0:
                 return repo_exceptions.ProjectNotFoundError("Проект не найден")
-            
-            stmt = select(models.Subscription).where(models.Subscription.project_uuid == project_uuid).order_by(models.Subscription.end_date.desc()).limit(1)
+
+            stmt = (
+                select(models.Subscription)
+                .where(models.Subscription.project_uuid == project_uuid)
+                .order_by(models.Subscription.end_date.desc())
+                .limit(1)
+            )
             stmt = stmt.options(
-                selectinload(models.Subscription.project).selectinload(models.Project.creator)
+                selectinload(models.Subscription.project).selectinload(
+                    models.Project.creator
+                )
             )
 
             async def _op():
                 result = await self.session.execute(stmt)
                 return result.scalar_one_or_none()
-            
-            subscription_model = await _execute_idempotent(self.session, self._idempotent_retries, self._base_backoff, _op, error_message='Не удалось получить подписку проекта', exception=repo_exceptions.RepositoryError )
-            
+
+            subscription_model = await _execute_idempotent(
+                self.session,
+                self._idempotent_retries,
+                self._base_backoff,
+                _op,
+                error_message="Не удалось получить подписку проекта",
+                exception=repo_exceptions.RepositoryError,
+            )
+
             if subscription_model is None or subscription_model.end_date < date.today():
                 return repo_exceptions.SubscriptionNotFoundError("Подписка не найдена")
-            
+
             return SubscriptionRepository.map_subscription_to_entity(subscription_model)
         except repo_exceptions.RepositoryError as exc:
             return self._enrich_error(exc)
         except (TimeoutError, DBAPIError) as exc:
-            return self._build_error(repo_exceptions.RepositoryError, "Не удалось получить подписку проекта", exc)
-    
+            return self._build_error(
+                repo_exceptions.RepositoryError,
+                "Не удалось получить подписку проекта",
+                exc,
+            )
+
     @classmethod
-    def map_members_entities_to_models(cls, memberships: list[entities.MemberShip]) -> list[models.MemberShip]:
+    def map_members_entities_to_models(
+        cls, memberships: list[entities.MemberShip]
+    ) -> list[models.MemberShip]:
         return [
             models.MemberShip(
                 uuid=membership.uuid,
                 project_uuid=membership.project.uuid,
                 user_uuid=membership.user.uuid,
                 assigned_by_uuid=membership.assigned_by.uuid,
-                joined_at=membership.joined_at
-            ) for membership in memberships
+                joined_at=membership.joined_at,
+            )
+            for membership in memberships
         ]
-        
+
     @classmethod
-    def map_members_models_to_entities(cls, memberships: list[models.MemberShip]) -> list[entities.MemberShip]:
+    def map_members_models_to_entities(
+        cls, memberships: list[models.MemberShip]
+    ) -> list[entities.MemberShip]:
         return [
             entities.MemberShip(
                 uuid=membership.uuid,
                 project=ProjectRepository.map_project_to_entity(membership.project),
                 user=UserRepository.map_user_to_entity(membership.user),
-                assigned_by=UserRepository.map_user_to_entity(membership.assigned_by_user),
+                assigned_by=UserRepository.map_user_to_entity(
+                    membership.assigned_by_user
+                ),
                 joined_at=membership.joined_at,
             )
             for membership in memberships
         ]
-    
+
     @classmethod
     def map_project_to_model(cls, entitie: entities.Project) -> models.Project:
         return models.Project(
@@ -738,8 +1048,10 @@ class ProjectRepository(_RepositoryDebugMixin, repository_interfaces.DBProjectRe
             start_date=model.start_date,
             end_date=model.end_date,
         )
-    
-    async def _get_project_model(self, project_uuid: UUID, lock_record: bool = False) -> models.Project | None:
+
+    async def _get_project_model(
+        self, project_uuid: UUID, lock_record: bool = False
+    ) -> models.Project | None:
         stmt = (
             select(models.Project)
             .options(selectinload(models.Project.creator))
@@ -752,9 +1064,18 @@ class ProjectRepository(_RepositoryDebugMixin, repository_interfaces.DBProjectRe
             result = await self.session.execute(stmt)
             return result.scalar_one_or_none()
 
-        return await _execute_idempotent(self.session, self._idempotent_retries, self._base_backoff, _op, error_message="Не удалось получить проект по uuid", exception=repo_exceptions.ProjectRepositoryError)
-    
-    def _apply_project_updates(self, project_model: models.Project, data: dict[str, Any]) -> None:
+        return await _execute_idempotent(
+            self.session,
+            self._idempotent_retries,
+            self._base_backoff,
+            _op,
+            error_message="Не удалось получить проект по uuid",
+            exception=repo_exceptions.ProjectRepositoryError,
+        )
+
+    def _apply_project_updates(
+        self, project_model: models.Project, data: dict[str, Any]
+    ) -> None:
         if "name" in data:
             project_model.name = data["name"]
         if "description" in data:
@@ -765,9 +1086,11 @@ class ProjectRepository(_RepositoryDebugMixin, repository_interfaces.DBProjectRe
             project_model.start_date = data["start_date"]
         if "end_date" in data:
             project_model.end_date = data["end_date"]
-    
+
     @classmethod
-    def map_project_status_to_model(cls, status: entities.ProjectStatus) -> models.ProjectStatus:
+    def map_project_status_to_model(
+        cls, status: entities.ProjectStatus
+    ) -> models.ProjectStatus:
         mapping = {
             entities.ProjectStatus.ACTIVE: models.ProjectStatus.ACTIVE,
             entities.ProjectStatus.ARCHIVED: models.ProjectStatus.ARCHIVED,
@@ -777,7 +1100,9 @@ class ProjectRepository(_RepositoryDebugMixin, repository_interfaces.DBProjectRe
         return mapping[status]
 
     @classmethod
-    def map_project_status_to_domain(cls, status: models.ProjectStatus) -> entities.ProjectStatus:
+    def map_project_status_to_domain(
+        cls, status: models.ProjectStatus
+    ) -> entities.ProjectStatus:
         mapping = {
             models.ProjectStatus.ACTIVE: entities.ProjectStatus.ACTIVE,
             models.ProjectStatus.ARCHIVED: entities.ProjectStatus.ARCHIVED,
@@ -800,35 +1125,57 @@ class ProjectRepository(_RepositoryDebugMixin, repository_interfaces.DBProjectRe
         )
 
 
-
 class StageRepository(_RepositoryDebugMixin, repository_interfaces.DBStageRepository):
     def __init__(self, session: AsyncSession, config: Config):
         self.session = session
         self._idempotent_retries = 2
         self._base_backoff = 0.1
         self._init_debug(config)
-        
 
-    async def create(self, data: entities.Stage) -> entities.Stage | repo_exceptions.StageAlreadyExistsError | repo_exceptions.ParentStageAlreadyHasMainSubStageError | repo_exceptions.UserNotFoundError | repo_exceptions.ProjectNotFoundError | repo_exceptions.RepositoryError:
-        
-        try: 
+    async def create(
+        self, data: entities.Stage
+    ) -> (
+        entities.Stage
+        | repo_exceptions.StageAlreadyExistsError
+        | repo_exceptions.ParentStageAlreadyHasMainSubStageError
+        | repo_exceptions.UserNotFoundError
+        | repo_exceptions.ProjectNotFoundError
+        | repo_exceptions.RepositoryError
+    ):
+
+        try:
             stage = self.map_entity_to_stage(data)
-            
+
             self.session.add(stage)
-            
+
             async def _op():
                 return await self.session.flush()
-            
-            await _execute_idempotent(self.session, self._idempotent_retries, self._base_backoff, _op, error_message='Не удалось создать этап', exception=repo_exceptions.RepositoryError)
+
+            await _execute_idempotent(
+                self.session,
+                self._idempotent_retries,
+                self._base_backoff,
+                _op,
+                error_message="Не удалось создать этап",
+                exception=repo_exceptions.RepositoryError,
+            )
 
             loaded_stage_stmt = (
                 select(models.Stage)
                 .options(
-                    selectinload(models.Stage.creator).selectinload(models.User.creator),
-                    selectinload(models.Stage.project).selectinload(models.Project.creator),
+                    selectinload(models.Stage.creator).selectinload(
+                        models.User.creator
+                    ),
+                    selectinload(models.Stage.project).selectinload(
+                        models.Project.creator
+                    ),
                     selectinload(models.Stage.parent),
-                    selectinload(models.Stage.parent).selectinload(models.Stage.creator).selectinload(models.User.creator),
-                    selectinload(models.Stage.parent).selectinload(models.Stage.project).selectinload(models.Project.creator),
+                    selectinload(models.Stage.parent)
+                    .selectinload(models.Stage.creator)
+                    .selectinload(models.User.creator),
+                    selectinload(models.Stage.parent)
+                    .selectinload(models.Stage.project)
+                    .selectinload(models.Project.creator),
                 )
                 .where(models.Stage.uuid == data.uuid)
             )
@@ -842,81 +1189,145 @@ class StageRepository(_RepositoryDebugMixin, repository_interfaces.DBStageReposi
             )
             loaded_stage = loaded_stage_result.scalar_one_or_none()
             if loaded_stage is None:
-                return self._build_error(repo_exceptions.RepositoryError, "Не удалось создать этап")
+                return self._build_error(
+                    repo_exceptions.RepositoryError, "Не удалось создать этап"
+                )
 
             return self.map_stage_to_entity(loaded_stage)
-        
+
         except IntegrityError as e:
             await self.session.rollback()
             if isinstance(e.orig, psycopg.errors.ForeignKeyViolation):
-                constraint_name = getattr(getattr(e.orig, "diag", None), "constraint_name", None)
+                constraint_name = getattr(
+                    getattr(e.orig, "diag", None), "constraint_name", None
+                )
                 if constraint_name and "stages_project_uuid_fkey" in constraint_name:
                     return repo_exceptions.ProjectNotFoundError("Проект не найден")
                 if constraint_name and "stages_creator_uuid_fkey" in constraint_name:
                     return repo_exceptions.UserNotFoundError("Пользователь не найден")
             if isinstance(e.orig, psycopg.errors.UniqueViolation):
-                return repo_exceptions.StageAlreadyExistsError("Этап с таким именем уже существует")
+                return repo_exceptions.StageAlreadyExistsError(
+                    "Этап с таким именем уже существует"
+                )
             if isinstance(e.orig, psycopg.errors.UniqueViolation):
-                return repo_exceptions.ParentStageAlreadyHasMainSubStageError("Главный подэтап уже существует")
-            constraint_name = getattr(getattr(e.orig, "diag", None), "constraint_name", None)
+                return repo_exceptions.ParentStageAlreadyHasMainSubStageError(
+                    "Главный подэтап уже существует"
+                )
+            constraint_name = getattr(
+                getattr(e.orig, "diag", None), "constraint_name", None
+            )
 
             if constraint_name:
-                return self._build_error(repo_exceptions.RepositoryError, "Не удалось создать этап", e)
+                return self._build_error(
+                    repo_exceptions.RepositoryError, "Не удалось создать этап", e
+                )
 
-            return self._build_error(repo_exceptions.RepositoryError, "Не удалось создать этап", e)
-            
+            return self._build_error(
+                repo_exceptions.RepositoryError, "Не удалось создать этап", e
+            )
+
         except repo_exceptions.RepositoryError as e:
             await self.session.rollback()
             return self._enrich_error(e)
-    
+
         except (DBAPIError, TimeoutError) as e:
             await self.session.rollback()
-            return self._build_error(repo_exceptions.RepositoryError, "Не удалось создать этап", e)
-    
-    async def get_list(self, project_uuid: UUID) -> list[entities.Stage] | repo_exceptions.ProjectNotFoundError | repo_exceptions.RepositoryError:
+            return self._build_error(
+                repo_exceptions.RepositoryError, "Не удалось создать этап", e
+            )
+
+    async def get_list(
+        self, project_uuid: UUID
+    ) -> (
+        list[entities.Stage]
+        | repo_exceptions.ProjectNotFoundError
+        | repo_exceptions.RepositoryError
+    ):
         try:
-            project_exist_stmt = select(sq.exists().where(models.Project.uuid == project_uuid))
+            project_exist_stmt = select(
+                sq.exists().where(models.Project.uuid == project_uuid)
+            )
+
             async def _op():
                 result = await self.session.execute(project_exist_stmt)
                 return result.scalar_one_or_none()
-            
-            project_exist = await _execute_idempotent(self.session, self._idempotent_retries, self._base_backoff, _op, error_message='Не удалось проверить существование проекта', exception=repo_exceptions.RepositoryError )
+
+            project_exist = await _execute_idempotent(
+                self.session,
+                self._idempotent_retries,
+                self._base_backoff,
+                _op,
+                error_message="Не удалось проверить существование проекта",
+                exception=repo_exceptions.RepositoryError,
+            )
             if not project_exist:
                 return repo_exceptions.ProjectNotFoundError("Проект не найден")
-            
+
             stages_stmt = (
                 select(models.Stage)
                 .options(
-                    selectinload(models.Stage.creator).selectinload(models.User.creator),
-                    selectinload(models.Stage.project).selectinload(models.Project.creator),
+                    selectinload(models.Stage.creator).selectinload(
+                        models.User.creator
+                    ),
+                    selectinload(models.Stage.project).selectinload(
+                        models.Project.creator
+                    ),
                     selectinload(models.Stage.parent),
-                    selectinload(models.Stage.parent).selectinload(models.Stage.creator).selectinload(models.User.creator),
-                    selectinload(models.Stage.parent).selectinload(models.Stage.project).selectinload(models.Project.creator),
+                    selectinload(models.Stage.parent)
+                    .selectinload(models.Stage.creator)
+                    .selectinload(models.User.creator),
+                    selectinload(models.Stage.parent)
+                    .selectinload(models.Stage.project)
+                    .selectinload(models.Project.creator),
                 )
                 .where(models.Stage.project_uuid == project_uuid)
             )
+
             async def _op_stages():
                 result = await self.session.execute(stages_stmt)
                 return result.scalars().all()
-            
-            stages = await _execute_idempotent(self.session, self._idempotent_retries, self._base_backoff, _op_stages, error_message='Не удалось получить этапы проекта', exception=repo_exceptions.RepositoryError )
+
+            stages = await _execute_idempotent(
+                self.session,
+                self._idempotent_retries,
+                self._base_backoff,
+                _op_stages,
+                error_message="Не удалось получить этапы проекта",
+                exception=repo_exceptions.RepositoryError,
+            )
             return [self.map_stage_to_entity(stage) for stage in stages]
-        
+
         except repo_exceptions.RepositoryError as e:
             return self._enrich_error(e)
         except (DBAPIError, TimeoutError) as e:
-            return self._build_error(repo_exceptions.RepositoryError, "Не удалось получить этапы проекта", e)
-    
-    async def update(self, stage_uuid: UUID, data: dict[str, Any]) -> entities.Stage | repo_exceptions.StageNotFoundError | repo_exceptions.RepositoryError:
+            return self._build_error(
+                repo_exceptions.RepositoryError, "Не удалось получить этапы проекта", e
+            )
+
+    async def update(
+        self, stage_uuid: UUID, data: dict[str, Any]
+    ) -> (
+        entities.Stage
+        | repo_exceptions.StageNotFoundError
+        | repo_exceptions.RepositoryError
+    ):
         try:
             stmt = (
                 select(models.Stage)
                 .options(
-                    selectinload(models.Stage.creator).selectinload(models.User.creator),
-                    selectinload(models.Stage.project).selectinload(models.Project.creator),
+                    selectinload(models.Stage.creator).selectinload(
+                        models.User.creator
+                    ),
+                    selectinload(models.Stage.project).selectinload(
+                        models.Project.creator
+                    ),
                     selectinload(models.Stage.parent),
-                    selectinload(models.Stage.parent).selectinload(models.Stage.creator).selectinload(models.User.creator),
-                    selectinload(models.Stage.parent).selectinload(models.Stage.project).selectinload(models.Project.creator),
+                    selectinload(models.Stage.parent)
+                    .selectinload(models.Stage.creator)
+                    .selectinload(models.User.creator),
+                    selectinload(models.Stage.parent)
+                    .selectinload(models.Stage.project)
+                    .selectinload(models.Project.creator),
                 )
                 .where(models.Stage.uuid == stage_uuid)
             )
@@ -933,20 +1344,35 @@ class StageRepository(_RepositoryDebugMixin, repository_interfaces.DBStageReposi
                 return repo_exceptions.StageNotFoundError("Этап не найден")
             for key, value in data.items():
                 setattr(stage, key, value)
-            
+
             async def _op():
                 await self.session.flush()
-            
-            await _execute_idempotent(self.session, self._idempotent_retries, self._base_backoff, _op, error_message='Не удалось обновить этап', exception=repo_exceptions.RepositoryError )
+
+            await _execute_idempotent(
+                self.session,
+                self._idempotent_retries,
+                self._base_backoff,
+                _op,
+                error_message="Не удалось обновить этап",
+                exception=repo_exceptions.RepositoryError,
+            )
 
             loaded_stage_stmt = (
                 select(models.Stage)
                 .options(
-                    selectinload(models.Stage.creator).selectinload(models.User.creator),
-                    selectinload(models.Stage.project).selectinload(models.Project.creator),
+                    selectinload(models.Stage.creator).selectinload(
+                        models.User.creator
+                    ),
+                    selectinload(models.Stage.project).selectinload(
+                        models.Project.creator
+                    ),
                     selectinload(models.Stage.parent),
-                    selectinload(models.Stage.parent).selectinload(models.Stage.creator).selectinload(models.User.creator),
-                    selectinload(models.Stage.parent).selectinload(models.Stage.project).selectinload(models.Project.creator),
+                    selectinload(models.Stage.parent)
+                    .selectinload(models.Stage.creator)
+                    .selectinload(models.User.creator),
+                    selectinload(models.Stage.parent)
+                    .selectinload(models.Stage.project)
+                    .selectinload(models.Project.creator),
                 )
                 .where(models.Stage.uuid == stage_uuid)
             )
@@ -963,155 +1389,251 @@ class StageRepository(_RepositoryDebugMixin, repository_interfaces.DBStageReposi
                 return repo_exceptions.StageNotFoundError("Этап не найден")
 
             return self.map_stage_to_entity(loaded_stage)
-        
+
         except repo_exceptions.RepositoryError as e:
             await self.session.rollback()
             return self._enrich_error(e)
-        
+
         except (DBAPIError, TimeoutError) as e:
             await self.session.rollback()
-            return self._build_error(repo_exceptions.RepositoryError, "Не удалось обновить этап", e)
-    
-    async def delete(self, stage_uuid: UUID) -> None | repo_exceptions.StageNotFoundError | repo_exceptions.RepositoryError:
+            return self._build_error(
+                repo_exceptions.RepositoryError, "Не удалось обновить этап", e
+            )
+
+    async def delete(
+        self, stage_uuid: UUID
+    ) -> None | repo_exceptions.StageNotFoundError | repo_exceptions.RepositoryError:
         try:
             stage = await self.session.get(models.Stage, stage_uuid)
             if stage is None:
                 return repo_exceptions.StageNotFoundError("Этап не найден")
-            
+
             stmt = delete(models.Stage).where(models.Stage.uuid == stage_uuid)
-            
+
             async def _op():
                 await self.session.execute(stmt)
-                
-            await _execute_idempotent(self.session, self._idempotent_retries, self._base_backoff, _op, error_message='Не удалось удалить этап', exception=repo_exceptions.RepositoryError )
-            
+
+            await _execute_idempotent(
+                self.session,
+                self._idempotent_retries,
+                self._base_backoff,
+                _op,
+                error_message="Не удалось удалить этап",
+                exception=repo_exceptions.RepositoryError,
+            )
+
         except repo_exceptions.RepositoryError as e:
             await self.session.rollback()
             return self._enrich_error(e)
-            
+
         except (DBAPIError, TimeoutError) as e:
             await self.session.rollback()
-            return self._build_error(repo_exceptions.RepositoryError, "Не удалось удалить этап", e)
-    
-    async def get_by_name(self, project_uuid: UUID, stage_name: str, lock_record: bool = False) -> entities.Stage | repo_exceptions.StageNotFoundError | repo_exceptions.RepositoryError:
+            return self._build_error(
+                repo_exceptions.RepositoryError, "Не удалось удалить этап", e
+            )
+
+    async def get_by_name(
+        self, project_uuid: UUID, stage_name: str, lock_record: bool = False
+    ) -> (
+        entities.Stage
+        | repo_exceptions.StageNotFoundError
+        | repo_exceptions.RepositoryError
+    ):
         try:
             stmt = (
                 select(models.Stage)
                 .options(
-                    selectinload(models.Stage.creator).selectinload(models.User.creator),
-                    selectinload(models.Stage.project).selectinload(models.Project.creator),
+                    selectinload(models.Stage.creator).selectinload(
+                        models.User.creator
+                    ),
+                    selectinload(models.Stage.project).selectinload(
+                        models.Project.creator
+                    ),
                     selectinload(models.Stage.parent),
-                    selectinload(models.Stage.parent).selectinload(models.Stage.creator).selectinload(models.User.creator),
-                    selectinload(models.Stage.parent).selectinload(models.Stage.project).selectinload(models.Project.creator),
+                    selectinload(models.Stage.parent)
+                    .selectinload(models.Stage.creator)
+                    .selectinload(models.User.creator),
+                    selectinload(models.Stage.parent)
+                    .selectinload(models.Stage.project)
+                    .selectinload(models.Project.creator),
                 )
-                .where(models.Stage.project_uuid == project_uuid, models.Stage.name == stage_name)
+                .where(
+                    models.Stage.project_uuid == project_uuid,
+                    models.Stage.name == stage_name,
+                )
             )
-            
+
             async def _op():
                 return await self.session.execute(stmt)
-            
-            result = await _execute_idempotent(self.session, self._idempotent_retries, self._base_backoff, _op, error_message='Не удалось получить этап', exception=repo_exceptions.RepositoryError )
-            
+
+            result = await _execute_idempotent(
+                self.session,
+                self._idempotent_retries,
+                self._base_backoff,
+                _op,
+                error_message="Не удалось получить этап",
+                exception=repo_exceptions.RepositoryError,
+            )
+
             stage = result.scalar_one_or_none()
             if stage is None:
                 return repo_exceptions.StageNotFoundError("Этап не найден")
             return self.map_stage_to_entity(stage)
-        
+
         except repo_exceptions.RepositoryError as e:
             return self._enrich_error(e)
-        
+
         except (DBAPIError, TimeoutError) as e:
-            return self._build_error(repo_exceptions.RepositoryError, "Не удалось получить этап", e)
-    
-    async def get_by_uuid(self, stage_uuid: UUID, lock_record: bool = False) -> entities.Stage | repo_exceptions.StageNotFoundError | repo_exceptions.RepositoryError:
+            return self._build_error(
+                repo_exceptions.RepositoryError, "Не удалось получить этап", e
+            )
+
+    async def get_by_uuid(
+        self, stage_uuid: UUID, lock_record: bool = False
+    ) -> (
+        entities.Stage
+        | repo_exceptions.StageNotFoundError
+        | repo_exceptions.RepositoryError
+    ):
         try:
             stmt = (
                 select(models.Stage)
                 .options(
-                    selectinload(models.Stage.creator).selectinload(models.User.creator),
-                    selectinload(models.Stage.project).selectinload(models.Project.creator),
+                    selectinload(models.Stage.creator).selectinload(
+                        models.User.creator
+                    ),
+                    selectinload(models.Stage.project).selectinload(
+                        models.Project.creator
+                    ),
                     selectinload(models.Stage.parent),
-                    selectinload(models.Stage.parent).selectinload(models.Stage.creator).selectinload(models.User.creator),
-                    selectinload(models.Stage.parent).selectinload(models.Stage.project).selectinload(models.Project.creator),
+                    selectinload(models.Stage.parent)
+                    .selectinload(models.Stage.creator)
+                    .selectinload(models.User.creator),
+                    selectinload(models.Stage.parent)
+                    .selectinload(models.Stage.project)
+                    .selectinload(models.Project.creator),
                 )
                 .where(models.Stage.uuid == stage_uuid)
             )
-            
+
             if lock_record:
                 stmt = stmt.with_for_update()
-            
+
             async def _op():
                 return await self.session.execute(stmt)
-            
-            
-            
-            result = await _execute_idempotent(self.session, self._idempotent_retries, self._base_backoff, _op, error_message='Не удалось получить этап', exception=repo_exceptions.RepositoryError )
+
+            result = await _execute_idempotent(
+                self.session,
+                self._idempotent_retries,
+                self._base_backoff,
+                _op,
+                error_message="Не удалось получить этап",
+                exception=repo_exceptions.RepositoryError,
+            )
             stage = result.scalar_one_or_none()
             if stage is None:
                 return repo_exceptions.StageNotFoundError("Этап не найден")
             return self.map_stage_to_entity(stage)
-        
+
         except repo_exceptions.RepositoryError as e:
             return self._enrich_error(e)
-        
+
         except (DBAPIError, TimeoutError) as e:
-            return self._build_error(repo_exceptions.RepositoryError, "Не удалось получить этап", e)
-    
-    async def get_children(self, stage_uuid: UUID) -> list[entities.Stage] | repo_exceptions.StageNotFoundError | repo_exceptions.RepositoryError:
+            return self._build_error(
+                repo_exceptions.RepositoryError, "Не удалось получить этап", e
+            )
+
+    async def get_children(
+        self, stage_uuid: UUID
+    ) -> (
+        list[entities.Stage]
+        | repo_exceptions.StageNotFoundError
+        | repo_exceptions.RepositoryError
+    ):
         try:
-            parent_exist_stmt = select(sq.exists().where(models.Stage.uuid == stage_uuid))
-            
-            async def _op(): #type: ignore
+            parent_exist_stmt = select(
+                sq.exists().where(models.Stage.uuid == stage_uuid)
+            )
+
+            async def _op():  # type: ignore
                 result = await self.session.execute(parent_exist_stmt)
                 return result.scalar_one_or_none()
-            
-            parent_exist = await _execute_idempotent(self.session, self._idempotent_retries, self._base_backoff, _op, error_message='Не удалось проверить существование родительского этапа', exception=repo_exceptions.RepositoryError )
+
+            parent_exist = await _execute_idempotent(
+                self.session,
+                self._idempotent_retries,
+                self._base_backoff,
+                _op,
+                error_message="Не удалось проверить существование родительского этапа",
+                exception=repo_exceptions.RepositoryError,
+            )
             if not parent_exist:
                 return repo_exceptions.StageNotFoundError("Родительский этап не найден")
-            
+
             stmt = (
                 select(models.Stage)
                 .options(
-                    selectinload(models.Stage.creator).selectinload(models.User.creator),
-                    selectinload(models.Stage.project).selectinload(models.Project.creator),
+                    selectinload(models.Stage.creator).selectinload(
+                        models.User.creator
+                    ),
+                    selectinload(models.Stage.project).selectinload(
+                        models.Project.creator
+                    ),
                     selectinload(models.Stage.parent),
-                    selectinload(models.Stage.parent).selectinload(models.Stage.creator).selectinload(models.User.creator),
-                    selectinload(models.Stage.parent).selectinload(models.Stage.project).selectinload(models.Project.creator),
+                    selectinload(models.Stage.parent)
+                    .selectinload(models.Stage.creator)
+                    .selectinload(models.User.creator),
+                    selectinload(models.Stage.parent)
+                    .selectinload(models.Stage.project)
+                    .selectinload(models.Project.creator),
                 )
                 .where(models.Stage.parent_uuid == stage_uuid)
             )
-            
+
             async def _op():
                 return await self.session.execute(stmt)
-            
-            result = await _execute_idempotent(self.session, self._idempotent_retries, self._base_backoff, _op, error_message='Не удалось получить дочерние этапы', exception=repo_exceptions.RepositoryError )
+
+            result = await _execute_idempotent(
+                self.session,
+                self._idempotent_retries,
+                self._base_backoff,
+                _op,
+                error_message="Не удалось получить дочерние этапы",
+                exception=repo_exceptions.RepositoryError,
+            )
             stages = result.scalars().all()
             return [self.map_stage_to_entity(stage) for stage in stages]
-        
+
         except repo_exceptions.RepositoryError as e:
             return self._enrich_error(e)
-        
+
         except (DBAPIError, TimeoutError) as e:
-            return self._build_error(repo_exceptions.RepositoryError, "Не удалось получить дочерние этапы", e)
+            return self._build_error(
+                repo_exceptions.RepositoryError, "Не удалось получить дочерние этапы", e
+            )
 
     @classmethod
-    def map_stage_status_to_model(cls, status: entities.StageStatus) -> models.StageStatus:
+    def map_stage_status_to_model(
+        cls, status: entities.StageStatus
+    ) -> models.StageStatus:
         mapping = {
             entities.StageStatus.ACTIVE: models.StageStatus.ACTIVE,
             entities.StageStatus.ARCHIVED: models.StageStatus.ARCHIVED,
             entities.StageStatus.COMPLETED: models.StageStatus.COMPLETED,
         }
         return mapping[status]
-    
+
     @classmethod
-    def map_stage_status_to_domain(cls, status: models.StageStatus) -> entities.StageStatus:
+    def map_stage_status_to_domain(
+        cls, status: models.StageStatus
+    ) -> entities.StageStatus:
         mapping = {
             models.StageStatus.ACTIVE: entities.StageStatus.ACTIVE,
             models.StageStatus.ARCHIVED: entities.StageStatus.ARCHIVED,
             models.StageStatus.COMPLETED: entities.StageStatus.COMPLETED,
         }
         return mapping[status]
-    
+
     @classmethod
     def map_entity_to_stage(cls, stage_entity: entities.Stage) -> models.Stage:
         return models.Stage(
@@ -1119,20 +1641,26 @@ class StageRepository(_RepositoryDebugMixin, repository_interfaces.DBStageReposi
             name=stage_entity.name,
             creator_uuid=stage_entity.creator.uuid,
             project_uuid=stage_entity.project.uuid,
-            parent_uuid=stage_entity.parent.uuid if stage_entity.parent is not None else None,
+            parent_uuid=stage_entity.parent.uuid
+            if stage_entity.parent is not None
+            else None,
             description=stage_entity.description,
             created_at=stage_entity.created_at,
             main_path=stage_entity.main_path,
-            status=cls.map_stage_status_to_model(stage_entity.status)
+            status=cls.map_stage_status_to_model(stage_entity.status),
         )
-    
+
     @classmethod
-    def map_stage_to_entity(cls, stage_model: models.Stage, parents_level: int = 1) -> entities.Stage:
+    def map_stage_to_entity(
+        cls, stage_model: models.Stage, parents_level: int = 1
+    ) -> entities.Stage:
         if parents_level == 0 or stage_model.parent_uuid is None:
             parent_entity: entities.Stage | None = None
         else:
             parent_entity = (
-                cls.map_stage_to_entity(stage_model.parent, parents_level=parents_level - 1)
+                cls.map_stage_to_entity(
+                    stage_model.parent, parents_level=parents_level - 1
+                )
                 if stage_model.parent is not None
                 else None
             )
@@ -1145,38 +1673,71 @@ class StageRepository(_RepositoryDebugMixin, repository_interfaces.DBStageReposi
             created_at=stage_model.created_at,
             parent=parent_entity,
             main_path=stage_model.main_path,
-            status=cls.map_stage_status_to_domain(stage_model.status)
+            status=cls.map_stage_status_to_domain(stage_model.status),
         )
-        
 
-class DailyLogRepository(_RepositoryDebugMixin, repository_interfaces.DBDailyLogRepository):
+
+class DailyLogRepository(
+    _RepositoryDebugMixin, repository_interfaces.DBDailyLogRepository
+):
     def __init__(self, session: AsyncSession, config: Config):
         self.session = session
         self._idempotent_retries = 2
         self._base_backoff = 0.1
         self._init_debug(config)
-        
-        
-    async def create(self, data: entities.DailyLog) -> entities.DailyLog | repo_exceptions.DailyLogAlreadyExistsError | repo_exceptions.UserNotFoundError | repo_exceptions.StageNotFoundError | repo_exceptions.ProjectNotFoundError | repo_exceptions.RepositoryError:
-        try: 
+
+    async def create(
+        self, data: entities.DailyLog
+    ) -> (
+        entities.DailyLog
+        | repo_exceptions.DailyLogAlreadyExistsError
+        | repo_exceptions.UserNotFoundError
+        | repo_exceptions.StageNotFoundError
+        | repo_exceptions.ProjectNotFoundError
+        | repo_exceptions.RepositoryError
+    ):
+        try:
             daily_log = self.map_entity_to_daily_log(data)
             self.session.add(daily_log)
-            
+
             async def _op():
                 return await self.session.flush()
-            
-            await _execute_idempotent(self.session, self._idempotent_retries, self._base_backoff, _op, error_message='Не удалось создать ежедневный отчет', exception=repo_exceptions.RepositoryError)
+
+            await _execute_idempotent(
+                self.session,
+                self._idempotent_retries,
+                self._base_backoff,
+                _op,
+                error_message="Не удалось создать ежедневный отчет",
+                exception=repo_exceptions.RepositoryError,
+            )
 
             loaded_daily_log_stmt = (
                 select(models.DailyLog)
                 .options(
-                    selectinload(models.DailyLog.creator).selectinload(models.User.creator),
-                    selectinload(models.DailyLog.project).selectinload(models.Project.creator),
-                    selectinload(models.DailyLog.substage).selectinload(models.Stage.creator).selectinload(models.User.creator),
-                    selectinload(models.DailyLog.substage).selectinload(models.Stage.project).selectinload(models.Project.creator),
-                    selectinload(models.DailyLog.substage).selectinload(models.Stage.parent),
-                    selectinload(models.DailyLog.substage).selectinload(models.Stage.parent).selectinload(models.Stage.creator).selectinload(models.User.creator),
-                    selectinload(models.DailyLog.substage).selectinload(models.Stage.parent).selectinload(models.Stage.project).selectinload(models.Project.creator),
+                    selectinload(models.DailyLog.creator).selectinload(
+                        models.User.creator
+                    ),
+                    selectinload(models.DailyLog.project).selectinload(
+                        models.Project.creator
+                    ),
+                    selectinload(models.DailyLog.substage)
+                    .selectinload(models.Stage.creator)
+                    .selectinload(models.User.creator),
+                    selectinload(models.DailyLog.substage)
+                    .selectinload(models.Stage.project)
+                    .selectinload(models.Project.creator),
+                    selectinload(models.DailyLog.substage).selectinload(
+                        models.Stage.parent
+                    ),
+                    selectinload(models.DailyLog.substage)
+                    .selectinload(models.Stage.parent)
+                    .selectinload(models.Stage.creator)
+                    .selectinload(models.User.creator),
+                    selectinload(models.DailyLog.substage)
+                    .selectinload(models.Stage.parent)
+                    .selectinload(models.Stage.project)
+                    .selectinload(models.Project.creator),
                 )
                 .where(models.DailyLog.uuid == data.uuid)
             )
@@ -1190,42 +1751,88 @@ class DailyLogRepository(_RepositoryDebugMixin, repository_interfaces.DBDailyLog
             )
             loaded_daily_log = loaded_daily_log_result.scalar_one_or_none()
             if loaded_daily_log is None:
-                return self._build_error(repo_exceptions.RepositoryError, "Не удалось создать ежедневный отчет")
+                return self._build_error(
+                    repo_exceptions.RepositoryError,
+                    "Не удалось создать ежедневный отчет",
+                )
 
             return self.map_daily_log_to_entity(loaded_daily_log)
-            
+
         except IntegrityError as e:
             await self.session.rollback()
             if isinstance(e.orig, psycopg.errors.ForeignKeyViolation):
-                constraint_name = getattr(getattr(e.orig, "diag", None), "constraint_name", None)
-                if constraint_name and "daily_logs_substage_uuid_fkey" in constraint_name:
+                constraint_name = getattr(
+                    getattr(e.orig, "diag", None), "constraint_name", None
+                )
+                if (
+                    constraint_name
+                    and "daily_logs_substage_uuid_fkey" in constraint_name
+                ):
                     return repo_exceptions.StageNotFoundError("Этап не найден")
-                if constraint_name and "daily_logs_creator_uuid_fkey" in constraint_name:
+                if (
+                    constraint_name
+                    and "daily_logs_creator_uuid_fkey" in constraint_name
+                ):
                     return repo_exceptions.UserNotFoundError("Пользователь не найден")
-                if constraint_name and "daily_logs_project_uuid_fkey" in constraint_name:
+                if (
+                    constraint_name
+                    and "daily_logs_project_uuid_fkey" in constraint_name
+                ):
                     return repo_exceptions.ProjectNotFoundError("Проект не найден")
             if isinstance(e.orig, psycopg.errors.UniqueViolation):
-                return repo_exceptions.DailyLogAlreadyExistsError("Ежедневный отчет уже существует")
-            return self._build_error(repo_exceptions.RepositoryError, "Не удалось создать ежедневный отчет", e)
+                return repo_exceptions.DailyLogAlreadyExistsError(
+                    "Ежедневный отчет уже существует"
+                )
+            return self._build_error(
+                repo_exceptions.RepositoryError,
+                "Не удалось создать ежедневный отчет",
+                e,
+            )
         except repo_exceptions.RepositoryError as e:
             await self.session.rollback()
             return self._enrich_error(e)
         except (DBAPIError, TimeoutError) as e:
             await self.session.rollback()
-            return self._build_error(repo_exceptions.RepositoryError, "Не удалось создать ежедневный отчет", e)
-        
-    async def update(self, day_uuid: UUID, data: dict[str, Any]) -> entities.DailyLog | repo_exceptions.DailyLogNotFoundError | repo_exceptions.RepositoryError:
+            return self._build_error(
+                repo_exceptions.RepositoryError,
+                "Не удалось создать ежедневный отчет",
+                e,
+            )
+
+    async def update(
+        self, day_uuid: UUID, data: dict[str, Any]
+    ) -> (
+        entities.DailyLog
+        | repo_exceptions.DailyLogNotFoundError
+        | repo_exceptions.RepositoryError
+    ):
         try:
             stmt = (
                 select(models.DailyLog)
                 .options(
-                    selectinload(models.DailyLog.creator).selectinload(models.User.creator),
-                    selectinload(models.DailyLog.project).selectinload(models.Project.creator),
-                    selectinload(models.DailyLog.substage).selectinload(models.Stage.creator).selectinload(models.User.creator),
-                    selectinload(models.DailyLog.substage).selectinload(models.Stage.project).selectinload(models.Project.creator),
-                    selectinload(models.DailyLog.substage).selectinload(models.Stage.parent),
-                    selectinload(models.DailyLog.substage).selectinload(models.Stage.parent).selectinload(models.Stage.creator).selectinload(models.User.creator),
-                    selectinload(models.DailyLog.substage).selectinload(models.Stage.parent).selectinload(models.Stage.project).selectinload(models.Project.creator),
+                    selectinload(models.DailyLog.creator).selectinload(
+                        models.User.creator
+                    ),
+                    selectinload(models.DailyLog.project).selectinload(
+                        models.Project.creator
+                    ),
+                    selectinload(models.DailyLog.substage)
+                    .selectinload(models.Stage.creator)
+                    .selectinload(models.User.creator),
+                    selectinload(models.DailyLog.substage)
+                    .selectinload(models.Stage.project)
+                    .selectinload(models.Project.creator),
+                    selectinload(models.DailyLog.substage).selectinload(
+                        models.Stage.parent
+                    ),
+                    selectinload(models.DailyLog.substage)
+                    .selectinload(models.Stage.parent)
+                    .selectinload(models.Stage.creator)
+                    .selectinload(models.User.creator),
+                    selectinload(models.DailyLog.substage)
+                    .selectinload(models.Stage.parent)
+                    .selectinload(models.Stage.project)
+                    .selectinload(models.Project.creator),
                 )
                 .where(models.DailyLog.uuid == day_uuid)
             )
@@ -1239,24 +1846,50 @@ class DailyLogRepository(_RepositoryDebugMixin, repository_interfaces.DBDailyLog
             )
             daily_log = result.scalar_one_or_none()
             if daily_log is None:
-                return repo_exceptions.DailyLogNotFoundError("Ежедневный отчет не найден")
+                return repo_exceptions.DailyLogNotFoundError(
+                    "Ежедневный отчет не найден"
+                )
             for key, value in data.items():
                 setattr(daily_log, key, value)
-            
+
             async def _op():
                 await self.session.flush()
-            await _execute_idempotent(self.session, self._idempotent_retries, self._base_backoff, _op, error_message='Не удалось обновить ежедневный отчет', exception=repo_exceptions.RepositoryError )
+
+            await _execute_idempotent(
+                self.session,
+                self._idempotent_retries,
+                self._base_backoff,
+                _op,
+                error_message="Не удалось обновить ежедневный отчет",
+                exception=repo_exceptions.RepositoryError,
+            )
 
             loaded_daily_log_stmt = (
                 select(models.DailyLog)
                 .options(
-                    selectinload(models.DailyLog.creator).selectinload(models.User.creator),
-                    selectinload(models.DailyLog.project).selectinload(models.Project.creator),
-                    selectinload(models.DailyLog.substage).selectinload(models.Stage.creator).selectinload(models.User.creator),
-                    selectinload(models.DailyLog.substage).selectinload(models.Stage.project).selectinload(models.Project.creator),
-                    selectinload(models.DailyLog.substage).selectinload(models.Stage.parent),
-                    selectinload(models.DailyLog.substage).selectinload(models.Stage.parent).selectinload(models.Stage.creator).selectinload(models.User.creator),
-                    selectinload(models.DailyLog.substage).selectinload(models.Stage.parent).selectinload(models.Stage.project).selectinload(models.Project.creator),
+                    selectinload(models.DailyLog.creator).selectinload(
+                        models.User.creator
+                    ),
+                    selectinload(models.DailyLog.project).selectinload(
+                        models.Project.creator
+                    ),
+                    selectinload(models.DailyLog.substage)
+                    .selectinload(models.Stage.creator)
+                    .selectinload(models.User.creator),
+                    selectinload(models.DailyLog.substage)
+                    .selectinload(models.Stage.project)
+                    .selectinload(models.Project.creator),
+                    selectinload(models.DailyLog.substage).selectinload(
+                        models.Stage.parent
+                    ),
+                    selectinload(models.DailyLog.substage)
+                    .selectinload(models.Stage.parent)
+                    .selectinload(models.Stage.creator)
+                    .selectinload(models.User.creator),
+                    selectinload(models.DailyLog.substage)
+                    .selectinload(models.Stage.parent)
+                    .selectinload(models.Stage.project)
+                    .selectinload(models.Project.creator),
                 )
                 .where(models.DailyLog.uuid == day_uuid)
             )
@@ -1270,99 +1903,201 @@ class DailyLogRepository(_RepositoryDebugMixin, repository_interfaces.DBDailyLog
             )
             loaded_daily_log = loaded_daily_log_result.scalar_one_or_none()
             if loaded_daily_log is None:
-                return repo_exceptions.DailyLogNotFoundError("Ежедневный отчет не найден")
+                return repo_exceptions.DailyLogNotFoundError(
+                    "Ежедневный отчет не найден"
+                )
 
             return self.map_daily_log_to_entity(loaded_daily_log)
-        
+
         except repo_exceptions.RepositoryError as e:
             await self.session.rollback()
             return self._enrich_error(e)
-        
+
         except (DBAPIError, TimeoutError) as e:
             await self.session.rollback()
-            return self._build_error(repo_exceptions.RepositoryError, "Не удалось обновить ежедневный отчет", e)
-    
-    async def get_by_uuid(self, day_uuid: UUID, lock_record: bool = False) -> entities.DailyLog | repo_exceptions.DailyLogNotFoundError | repo_exceptions.RepositoryError:
+            return self._build_error(
+                repo_exceptions.RepositoryError,
+                "Не удалось обновить ежедневный отчет",
+                e,
+            )
+
+    async def get_by_uuid(
+        self, day_uuid: UUID, lock_record: bool = False
+    ) -> (
+        entities.DailyLog
+        | repo_exceptions.DailyLogNotFoundError
+        | repo_exceptions.RepositoryError
+    ):
         try:
             stmt = (
                 select(models.DailyLog)
                 .options(
-                    selectinload(models.DailyLog.creator).selectinload(models.User.creator),
-                    selectinload(models.DailyLog.project).selectinload(models.Project.creator),
-                    selectinload(models.DailyLog.substage).selectinload(models.Stage.creator).selectinload(models.User.creator),
-                    selectinload(models.DailyLog.substage).selectinload(models.Stage.project).selectinload(models.Project.creator),
-                    selectinload(models.DailyLog.substage).selectinload(models.Stage.parent),
-                    selectinload(models.DailyLog.substage).selectinload(models.Stage.parent).selectinload(models.Stage.creator).selectinload(models.User.creator),
-                    selectinload(models.DailyLog.substage).selectinload(models.Stage.parent).selectinload(models.Stage.project).selectinload(models.Project.creator),
+                    selectinload(models.DailyLog.creator).selectinload(
+                        models.User.creator
+                    ),
+                    selectinload(models.DailyLog.project).selectinload(
+                        models.Project.creator
+                    ),
+                    selectinload(models.DailyLog.substage)
+                    .selectinload(models.Stage.creator)
+                    .selectinload(models.User.creator),
+                    selectinload(models.DailyLog.substage)
+                    .selectinload(models.Stage.project)
+                    .selectinload(models.Project.creator),
+                    selectinload(models.DailyLog.substage).selectinload(
+                        models.Stage.parent
+                    ),
+                    selectinload(models.DailyLog.substage)
+                    .selectinload(models.Stage.parent)
+                    .selectinload(models.Stage.creator)
+                    .selectinload(models.User.creator),
+                    selectinload(models.DailyLog.substage)
+                    .selectinload(models.Stage.parent)
+                    .selectinload(models.Stage.project)
+                    .selectinload(models.Project.creator),
                 )
                 .where(models.DailyLog.uuid == day_uuid)
             )
-            
+
             if lock_record:
                 stmt = stmt.with_for_update()
-                
+
             async def _op():
                 result = await self.session.execute(stmt)
                 return result.scalar_one_or_none()
-            
-            daily_log = await _execute_idempotent(self.session, self._idempotent_retries, self._base_backoff, _op, error_message='Не удалось получить ежедневный отчет', exception=repo_exceptions.RepositoryError )
+
+            daily_log = await _execute_idempotent(
+                self.session,
+                self._idempotent_retries,
+                self._base_backoff,
+                _op,
+                error_message="Не удалось получить ежедневный отчет",
+                exception=repo_exceptions.RepositoryError,
+            )
             if daily_log is None:
-                return repo_exceptions.DailyLogNotFoundError("Ежедневный отчет не найден")
+                return repo_exceptions.DailyLogNotFoundError(
+                    "Ежедневный отчет не найден"
+                )
             return self.map_daily_log_to_entity(daily_log)
-        
+
         except repo_exceptions.RepositoryError as e:
             return self._enrich_error(e)
-        
+
         except (DBAPIError, TimeoutError) as e:
-            return self._build_error(repo_exceptions.RepositoryError, "Не удалось получить ежедневный отчет", e)
-    
-    async def get_list_by_project(self, project_uuid: UUID, start_date: date | None, end_date: date | None, users_uuid: list[UUID], draft: bool = False) -> list[entities.DailyLog] | repo_exceptions.ProjectNotFoundError | repo_exceptions.RepositoryError:
+            return self._build_error(
+                repo_exceptions.RepositoryError,
+                "Не удалось получить ежедневный отчет",
+                e,
+            )
+
+    async def get_list_by_project(
+        self,
+        project_uuid: UUID,
+        start_date: date | None,
+        end_date: date | None,
+        users_uuid: list[UUID],
+        draft: bool = False,
+    ) -> (
+        list[entities.DailyLog]
+        | repo_exceptions.ProjectNotFoundError
+        | repo_exceptions.RepositoryError
+    ):
         try:
-            project_exist_stmt = select(sq.exists().where(models.Project.uuid == project_uuid))
-            async def _op(): #type: ignore
+            project_exist_stmt = select(
+                sq.exists().where(models.Project.uuid == project_uuid)
+            )
+
+            async def _op():  # type: ignore
                 result = await self.session.execute(project_exist_stmt)
                 return result.scalar_one_or_none()
-            
-            project_exist = await _execute_idempotent(self.session, self._idempotent_retries, self._base_backoff, _op, error_message='Не удалось проверить существование проекта', exception=repo_exceptions.RepositoryError )
+
+            project_exist = await _execute_idempotent(
+                self.session,
+                self._idempotent_retries,
+                self._base_backoff,
+                _op,
+                error_message="Не удалось проверить существование проекта",
+                exception=repo_exceptions.RepositoryError,
+            )
             if not project_exist:
                 return repo_exceptions.ProjectNotFoundError("Проект не найден")
-            
+
             daily_log_list_stmt = (
                 select(models.DailyLog)
                 .options(
-                    selectinload(models.DailyLog.creator).selectinload(models.User.creator),
-                    selectinload(models.DailyLog.project).selectinload(models.Project.creator),
-                    selectinload(models.DailyLog.substage).selectinload(models.Stage.creator).selectinload(models.User.creator),
-                    selectinload(models.DailyLog.substage).selectinload(models.Stage.project).selectinload(models.Project.creator),
-                    selectinload(models.DailyLog.substage).selectinload(models.Stage.parent),
-                    selectinload(models.DailyLog.substage).selectinload(models.Stage.parent).selectinload(models.Stage.creator).selectinload(models.User.creator),
-                    selectinload(models.DailyLog.substage).selectinload(models.Stage.parent).selectinload(models.Stage.project).selectinload(models.Project.creator),
+                    selectinload(models.DailyLog.creator).selectinload(
+                        models.User.creator
+                    ),
+                    selectinload(models.DailyLog.project).selectinload(
+                        models.Project.creator
+                    ),
+                    selectinload(models.DailyLog.substage)
+                    .selectinload(models.Stage.creator)
+                    .selectinload(models.User.creator),
+                    selectinload(models.DailyLog.substage)
+                    .selectinload(models.Stage.project)
+                    .selectinload(models.Project.creator),
+                    selectinload(models.DailyLog.substage).selectinload(
+                        models.Stage.parent
+                    ),
+                    selectinload(models.DailyLog.substage)
+                    .selectinload(models.Stage.parent)
+                    .selectinload(models.Stage.creator)
+                    .selectinload(models.User.creator),
+                    selectinload(models.DailyLog.substage)
+                    .selectinload(models.Stage.parent)
+                    .selectinload(models.Stage.project)
+                    .selectinload(models.Project.creator),
                 )
-                .where(and_(models.DailyLog.project_uuid == models.Project.uuid, models.DailyLog.creator_uuid.in_(users_uuid)))
+                .where(
+                    and_(
+                        models.DailyLog.project_uuid == models.Project.uuid,
+                        models.DailyLog.creator_uuid.in_(users_uuid),
+                    )
+                )
             )
 
             if start_date:
-                daily_log_list_stmt = daily_log_list_stmt.where(models.DailyLog.created_at >= start_date)
+                daily_log_list_stmt = daily_log_list_stmt.where(
+                    models.DailyLog.created_at >= start_date
+                )
             if end_date:
-                daily_log_list_stmt = daily_log_list_stmt.where(models.DailyLog.created_at <= end_date)
+                daily_log_list_stmt = daily_log_list_stmt.where(
+                    models.DailyLog.created_at <= end_date
+                )
 
             if draft:
-                daily_log_list_stmt = daily_log_list_stmt.where(models.DailyLog.draft == draft)
+                daily_log_list_stmt = daily_log_list_stmt.where(
+                    models.DailyLog.draft == draft
+                )
 
             async def _op():
                 result = await self.session.execute(daily_log_list_stmt)
                 return result.scalars().all()
-            
-            daily_logs = await _execute_idempotent(self.session, self._idempotent_retries, self._base_backoff, _op, error_message='Не удалось получить ежедневные отчеты проекта', exception=repo_exceptions.RepositoryError )
+
+            daily_logs = await _execute_idempotent(
+                self.session,
+                self._idempotent_retries,
+                self._base_backoff,
+                _op,
+                error_message="Не удалось получить ежедневные отчеты проекта",
+                exception=repo_exceptions.RepositoryError,
+            )
             return [self.map_daily_log_to_entity(daily_log) for daily_log in daily_logs]
 
         except repo_exceptions.RepositoryError as e:
             return self._enrich_error(e)
         except (DBAPIError, TimeoutError) as e:
-            return self._build_error(repo_exceptions.RepositoryError, "Не удалось получить ежедневные отчеты проекта", e)
+            return self._build_error(
+                repo_exceptions.RepositoryError,
+                "Не удалось получить ежедневные отчеты проекта",
+                e,
+            )
 
-    @classmethod    
-    def map_daily_log_to_entity(cls, daily_log_model: models.DailyLog) -> entities.DailyLog:
+    @classmethod
+    def map_daily_log_to_entity(
+        cls, daily_log_model: models.DailyLog
+    ) -> entities.DailyLog:
         substage_entity = (
             StageRepository.map_stage_to_entity(daily_log_model.substage)
             if daily_log_model.substage is not None
@@ -1378,14 +2113,17 @@ class DailyLogRepository(_RepositoryDebugMixin, repository_interfaces.DBDailyLog
             created_at=daily_log_model.created_at,
             updated_at=daily_log_model.updated_at,
             draft=daily_log_model.draft,
-            
         )
-        
+
     @classmethod
-    def map_entity_to_daily_log(cls, daily_log_entity: entities.DailyLog) -> models.DailyLog:
+    def map_entity_to_daily_log(
+        cls, daily_log_entity: entities.DailyLog
+    ) -> models.DailyLog:
         return models.DailyLog(
             uuid=daily_log_entity.uuid,
-            substage_uuid=daily_log_entity.substage.uuid if daily_log_entity.substage is not None else None,
+            substage_uuid=daily_log_entity.substage.uuid
+            if daily_log_entity.substage is not None
+            else None,
             creator_uuid=daily_log_entity.creator.uuid,
             project_uuid=daily_log_entity.project.uuid,
             hours_spent=daily_log_entity.hours_spent,
@@ -1402,26 +2140,54 @@ class TaskRepository(_RepositoryDebugMixin, repository_interfaces.DBTaskReposito
         self._idempotent_retries = 2
         self._base_backoff = 0.1
         self._init_debug(config)
-        
-    async def create(self, data: entities.Task) -> entities.Task | repo_exceptions.TaskAlreadyExistsError | repo_exceptions.StageNotFoundError | repo_exceptions.UserNotFoundError | repo_exceptions.RepositoryError:
+
+    async def create(
+        self, data: entities.Task
+    ) -> (
+        entities.Task
+        | repo_exceptions.TaskAlreadyExistsError
+        | repo_exceptions.StageNotFoundError
+        | repo_exceptions.UserNotFoundError
+        | repo_exceptions.RepositoryError
+    ):
         try:
             task = self.map_entity_to_task(data)
-            
+
             self.session.add(task)
-            
+
             async def _op():
                 return await self.session.flush()
-            await _execute_idempotent(self.session, self._idempotent_retries, self._base_backoff, _op, error_message='Не удалось создать задачу', exception=repo_exceptions.RepositoryError)
+
+            await _execute_idempotent(
+                self.session,
+                self._idempotent_retries,
+                self._base_backoff,
+                _op,
+                error_message="Не удалось создать задачу",
+                exception=repo_exceptions.RepositoryError,
+            )
 
             loaded_task_stmt = (
                 select(models.Task)
                 .options(
                     selectinload(models.Task.creator).selectinload(models.User.creator),
-                    selectinload(models.Task.substage).selectinload(models.Stage.creator).selectinload(models.User.creator),
-                    selectinload(models.Task.substage).selectinload(models.Stage.project).selectinload(models.Project.creator),
-                    selectinload(models.Task.substage).selectinload(models.Stage.parent),
-                    selectinload(models.Task.substage).selectinload(models.Stage.parent).selectinload(models.Stage.creator).selectinload(models.User.creator),
-                    selectinload(models.Task.substage).selectinload(models.Stage.parent).selectinload(models.Stage.project).selectinload(models.Project.creator),
+                    selectinload(models.Task.substage)
+                    .selectinload(models.Stage.creator)
+                    .selectinload(models.User.creator),
+                    selectinload(models.Task.substage)
+                    .selectinload(models.Stage.project)
+                    .selectinload(models.Project.creator),
+                    selectinload(models.Task.substage).selectinload(
+                        models.Stage.parent
+                    ),
+                    selectinload(models.Task.substage)
+                    .selectinload(models.Stage.parent)
+                    .selectinload(models.Stage.creator)
+                    .selectinload(models.User.creator),
+                    selectinload(models.Task.substage)
+                    .selectinload(models.Stage.parent)
+                    .selectinload(models.Stage.project)
+                    .selectinload(models.Project.creator),
                 )
                 .where(models.Task.uuid == data.uuid)
             )
@@ -1435,110 +2201,203 @@ class TaskRepository(_RepositoryDebugMixin, repository_interfaces.DBTaskReposito
             )
             loaded_task = loaded_task_result.scalar_one_or_none()
             if loaded_task is None:
-                return self._build_error(repo_exceptions.RepositoryError, "Не удалось создать задачу")
+                return self._build_error(
+                    repo_exceptions.RepositoryError, "Не удалось создать задачу"
+                )
 
             return self.map_task_to_entity(loaded_task)
         except IntegrityError as e:
             await self.session.rollback()
             if isinstance(e.orig, psycopg.errors.ForeignKeyViolation):
-                constraint_name = getattr(getattr(e.orig, "diag", None), "constraint_name", None)
+                constraint_name = getattr(
+                    getattr(e.orig, "diag", None), "constraint_name", None
+                )
                 if constraint_name and "tasks_substage_uuid_fkey" in constraint_name:
                     return repo_exceptions.StageNotFoundError("Этап не найден")
                 if constraint_name and "tasks_creator_uuid_fkey" in constraint_name:
                     return repo_exceptions.UserNotFoundError("Пользователь не найден")
             if isinstance(e.orig, psycopg.errors.UniqueViolation):
-                return repo_exceptions.TaskAlreadyExistsError("Задача с таким именем уже существует")
-            return self._build_error(repo_exceptions.RepositoryError, "Не удалось создать задачу", e)
+                return repo_exceptions.TaskAlreadyExistsError(
+                    "Задача с таким именем уже существует"
+                )
+            return self._build_error(
+                repo_exceptions.RepositoryError, "Не удалось создать задачу", e
+            )
         except repo_exceptions.RepositoryError as e:
             await self.session.rollback()
             return self._enrich_error(e)
         except (DBAPIError, TimeoutError) as e:
             await self.session.rollback()
-            return self._build_error(repo_exceptions.RepositoryError, "Не удалось создать задачу", e)
-    
-    async def get_list_by_project(self, project_uuid: UUID) -> list[entities.Task] | repo_exceptions.ProjectNotFoundError | repo_exceptions.RepositoryError:
+            return self._build_error(
+                repo_exceptions.RepositoryError, "Не удалось создать задачу", e
+            )
+
+    async def get_list_by_project(
+        self, project_uuid: UUID
+    ) -> (
+        list[entities.Task]
+        | repo_exceptions.ProjectNotFoundError
+        | repo_exceptions.RepositoryError
+    ):
         try:
-            project_exist_stmt = select(sq.exists().where(models.Project.uuid == project_uuid))
-            
-            async def _op(): #type: ignore
+            project_exist_stmt = select(
+                sq.exists().where(models.Project.uuid == project_uuid)
+            )
+
+            async def _op():  # type: ignore
                 result = await self.session.execute(project_exist_stmt)
                 return result.scalar_one_or_none()
-            
-            project_exist = await _execute_idempotent(self.session, self._idempotent_retries, self._base_backoff, _op, error_message='Не удалось проверить существование проекта', exception=repo_exceptions.RepositoryError )
+
+            project_exist = await _execute_idempotent(
+                self.session,
+                self._idempotent_retries,
+                self._base_backoff,
+                _op,
+                error_message="Не удалось проверить существование проекта",
+                exception=repo_exceptions.RepositoryError,
+            )
             if not project_exist:
                 return repo_exceptions.ProjectNotFoundError("Проект не найден")
-            
+
             stmt = (
                 select(models.Task)
                 .join(models.Task.substage)
                 .options(
                     selectinload(models.Task.creator).selectinload(models.User.creator),
-                    selectinload(models.Task.substage).selectinload(models.Stage.creator).selectinload(models.User.creator),
-                    selectinload(models.Task.substage).selectinload(models.Stage.project).selectinload(models.Project.creator),
-                    selectinload(models.Task.substage).selectinload(models.Stage.parent),
-                    selectinload(models.Task.substage).selectinload(models.Stage.parent).selectinload(models.Stage.creator).selectinload(models.User.creator),
-                    selectinload(models.Task.substage).selectinload(models.Stage.parent).selectinload(models.Stage.project).selectinload(models.Project.creator),
+                    selectinload(models.Task.substage)
+                    .selectinload(models.Stage.creator)
+                    .selectinload(models.User.creator),
+                    selectinload(models.Task.substage)
+                    .selectinload(models.Stage.project)
+                    .selectinload(models.Project.creator),
+                    selectinload(models.Task.substage).selectinload(
+                        models.Stage.parent
+                    ),
+                    selectinload(models.Task.substage)
+                    .selectinload(models.Stage.parent)
+                    .selectinload(models.Stage.creator)
+                    .selectinload(models.User.creator),
+                    selectinload(models.Task.substage)
+                    .selectinload(models.Stage.parent)
+                    .selectinload(models.Stage.project)
+                    .selectinload(models.Project.creator),
                 )
                 .where(models.Stage.project_uuid == project_uuid)
             )
-            
+
             async def _op():
                 result = await self.session.execute(stmt)
                 return result.scalars().all()
-            
-            tasks = await _execute_idempotent(self.session, self._idempotent_retries, self._base_backoff, _op, error_message='Не удалось получить задачи проекта', exception=repo_exceptions.RepositoryError )
+
+            tasks = await _execute_idempotent(
+                self.session,
+                self._idempotent_retries,
+                self._base_backoff,
+                _op,
+                error_message="Не удалось получить задачи проекта",
+                exception=repo_exceptions.RepositoryError,
+            )
             return [self.map_task_to_entity(task) for task in tasks]
-        
+
         except repo_exceptions.RepositoryError as e:
             return self._enrich_error(e)
-        
-        except (DBAPIError, TimeoutError) as e:
-            return self._build_error(repo_exceptions.RepositoryError, "Не удалось получить задачи проекта", e)
 
-    async def get_by_uuid(self, task_uuid: UUID, lock_record: bool = False) -> entities.Task | repo_exceptions.TaskAlreadyExistsError | repo_exceptions.TaskNotFoundError | repo_exceptions.RepositoryError:
+        except (DBAPIError, TimeoutError) as e:
+            return self._build_error(
+                repo_exceptions.RepositoryError, "Не удалось получить задачи проекта", e
+            )
+
+    async def get_by_uuid(
+        self, task_uuid: UUID, lock_record: bool = False
+    ) -> (
+        entities.Task
+        | repo_exceptions.TaskAlreadyExistsError
+        | repo_exceptions.TaskNotFoundError
+        | repo_exceptions.RepositoryError
+    ):
         try:
             stmt = (
                 select(models.Task)
                 .options(
                     selectinload(models.Task.creator).selectinload(models.User.creator),
-                    selectinload(models.Task.substage).selectinload(models.Stage.creator).selectinload(models.User.creator),
-                    selectinload(models.Task.substage).selectinload(models.Stage.project).selectinload(models.Project.creator),
-                    selectinload(models.Task.substage).selectinload(models.Stage.parent),
-                    selectinload(models.Task.substage).selectinload(models.Stage.parent).selectinload(models.Stage.creator).selectinload(models.User.creator),
-                    selectinload(models.Task.substage).selectinload(models.Stage.parent).selectinload(models.Stage.project).selectinload(models.Project.creator),
+                    selectinload(models.Task.substage)
+                    .selectinload(models.Stage.creator)
+                    .selectinload(models.User.creator),
+                    selectinload(models.Task.substage)
+                    .selectinload(models.Stage.project)
+                    .selectinload(models.Project.creator),
+                    selectinload(models.Task.substage).selectinload(
+                        models.Stage.parent
+                    ),
+                    selectinload(models.Task.substage)
+                    .selectinload(models.Stage.parent)
+                    .selectinload(models.Stage.creator)
+                    .selectinload(models.User.creator),
+                    selectinload(models.Task.substage)
+                    .selectinload(models.Stage.parent)
+                    .selectinload(models.Stage.project)
+                    .selectinload(models.Project.creator),
                 )
                 .where(models.Task.uuid == task_uuid)
             )
-            
+
             if lock_record:
                 stmt = stmt.with_for_update()
-            
+
             async def _op():
                 result = await self.session.execute(stmt)
                 return result.scalar_one_or_none()
-            
-            task_model = await _execute_idempotent(self.session, self._idempotent_retries, self._base_backoff, _op, error_message='Не удалось получить задачу', exception=repo_exceptions.RepositoryError )
+
+            task_model = await _execute_idempotent(
+                self.session,
+                self._idempotent_retries,
+                self._base_backoff,
+                _op,
+                error_message="Не удалось получить задачу",
+                exception=repo_exceptions.RepositoryError,
+            )
             if task_model is None:
                 return repo_exceptions.TaskNotFoundError("Задача не найдена")
             return self.map_task_to_entity(task_model)
-        
+
         except repo_exceptions.RepositoryError as e:
             return self._enrich_error(e)
-        
+
         except (DBAPIError, TimeoutError) as e:
-            return self._build_error(repo_exceptions.RepositoryError, "Не удалось получить задачу", e)
-        
-    async def update(self, task_uuid: UUID, data: dict[str, Any]) -> entities.Task | repo_exceptions.TaskNotFoundError | repo_exceptions.TaskAlreadyExistsError | repo_exceptions.RepositoryError:
+            return self._build_error(
+                repo_exceptions.RepositoryError, "Не удалось получить задачу", e
+            )
+
+    async def update(
+        self, task_uuid: UUID, data: dict[str, Any]
+    ) -> (
+        entities.Task
+        | repo_exceptions.TaskNotFoundError
+        | repo_exceptions.TaskAlreadyExistsError
+        | repo_exceptions.RepositoryError
+    ):
         try:
             stmt = (
                 select(models.Task)
                 .options(
                     selectinload(models.Task.creator).selectinload(models.User.creator),
-                    selectinload(models.Task.substage).selectinload(models.Stage.creator).selectinload(models.User.creator),
-                    selectinload(models.Task.substage).selectinload(models.Stage.project).selectinload(models.Project.creator),
-                    selectinload(models.Task.substage).selectinload(models.Stage.parent),
-                    selectinload(models.Task.substage).selectinload(models.Stage.parent).selectinload(models.Stage.creator).selectinload(models.User.creator),
-                    selectinload(models.Task.substage).selectinload(models.Stage.parent).selectinload(models.Stage.project).selectinload(models.Project.creator),
+                    selectinload(models.Task.substage)
+                    .selectinload(models.Stage.creator)
+                    .selectinload(models.User.creator),
+                    selectinload(models.Task.substage)
+                    .selectinload(models.Stage.project)
+                    .selectinload(models.Project.creator),
+                    selectinload(models.Task.substage).selectinload(
+                        models.Stage.parent
+                    ),
+                    selectinload(models.Task.substage)
+                    .selectinload(models.Stage.parent)
+                    .selectinload(models.Stage.creator)
+                    .selectinload(models.User.creator),
+                    selectinload(models.Task.substage)
+                    .selectinload(models.Stage.parent)
+                    .selectinload(models.Stage.project)
+                    .selectinload(models.Project.creator),
                 )
                 .where(models.Task.uuid == task_uuid)
             )
@@ -1555,21 +2414,40 @@ class TaskRepository(_RepositoryDebugMixin, repository_interfaces.DBTaskReposito
                 return repo_exceptions.TaskNotFoundError("Задача не найдена")
             for key, value in data.items():
                 setattr(task, key, value)
-            
+
             async def _op():
                 await self.session.flush()
-            
-            await _execute_idempotent(self.session, self._idempotent_retries, self._base_backoff, _op, error_message='Не удалось обновить задачу', exception=repo_exceptions.RepositoryError )
+
+            await _execute_idempotent(
+                self.session,
+                self._idempotent_retries,
+                self._base_backoff,
+                _op,
+                error_message="Не удалось обновить задачу",
+                exception=repo_exceptions.RepositoryError,
+            )
 
             loaded_task_stmt = (
                 select(models.Task)
                 .options(
                     selectinload(models.Task.creator).selectinload(models.User.creator),
-                    selectinload(models.Task.substage).selectinload(models.Stage.creator).selectinload(models.User.creator),
-                    selectinload(models.Task.substage).selectinload(models.Stage.project).selectinload(models.Project.creator),
-                    selectinload(models.Task.substage).selectinload(models.Stage.parent),
-                    selectinload(models.Task.substage).selectinload(models.Stage.parent).selectinload(models.Stage.creator).selectinload(models.User.creator),
-                    selectinload(models.Task.substage).selectinload(models.Stage.parent).selectinload(models.Stage.project).selectinload(models.Project.creator),
+                    selectinload(models.Task.substage)
+                    .selectinload(models.Stage.creator)
+                    .selectinload(models.User.creator),
+                    selectinload(models.Task.substage)
+                    .selectinload(models.Stage.project)
+                    .selectinload(models.Project.creator),
+                    selectinload(models.Task.substage).selectinload(
+                        models.Stage.parent
+                    ),
+                    selectinload(models.Task.substage)
+                    .selectinload(models.Stage.parent)
+                    .selectinload(models.Stage.creator)
+                    .selectinload(models.User.creator),
+                    selectinload(models.Task.substage)
+                    .selectinload(models.Stage.parent)
+                    .selectinload(models.Stage.project)
+                    .selectinload(models.Project.creator),
                 )
                 .where(models.Task.uuid == task_uuid)
             )
@@ -1586,79 +2464,133 @@ class TaskRepository(_RepositoryDebugMixin, repository_interfaces.DBTaskReposito
                 return repo_exceptions.TaskNotFoundError("Задача не найдена")
 
             return self.map_task_to_entity(loaded_task)
-        
+
         except IntegrityError as e:
             await self.session.rollback()
             if isinstance(e.orig, psycopg.errors.UniqueViolation):
-                return repo_exceptions.TaskAlreadyExistsError("Задача с таким именем уже существует")
-            return self._build_error(repo_exceptions.RepositoryError, "Не удалось обновить задачу", e)
-        
+                return repo_exceptions.TaskAlreadyExistsError(
+                    "Задача с таким именем уже существует"
+                )
+            return self._build_error(
+                repo_exceptions.RepositoryError, "Не удалось обновить задачу", e
+            )
+
         except repo_exceptions.RepositoryError as e:
             await self.session.rollback()
             return self._enrich_error(e)
-        
+
         except (DBAPIError, TimeoutError) as e:
             await self.session.rollback()
-            return self._build_error(repo_exceptions.RepositoryError, "Не удалось обновить задачу", e)
-        
-    async def delete(self, task_uuid: UUID) -> None | repo_exceptions.TaskNotFoundError | repo_exceptions.RepositoryError:
+            return self._build_error(
+                repo_exceptions.RepositoryError, "Не удалось обновить задачу", e
+            )
+
+    async def delete(
+        self, task_uuid: UUID
+    ) -> None | repo_exceptions.TaskNotFoundError | repo_exceptions.RepositoryError:
         try:
             task = await self.session.get(models.Task, task_uuid)
             if task is None:
                 return repo_exceptions.TaskNotFoundError("Задача не найдена")
-            
+
             stmt = delete(models.Task).where(models.Task.uuid == task_uuid)
-            
+
             async def _op():
                 await self.session.execute(stmt)
-                
-            await _execute_idempotent(self.session, self._idempotent_retries, self._base_backoff, _op, error_message='Не удалось удалить задачу', exception=repo_exceptions.RepositoryError )
-            
+
+            await _execute_idempotent(
+                self.session,
+                self._idempotent_retries,
+                self._base_backoff,
+                _op,
+                error_message="Не удалось удалить задачу",
+                exception=repo_exceptions.RepositoryError,
+            )
+
         except repo_exceptions.RepositoryError as e:
             await self.session.rollback()
             return self._enrich_error(e)
-            
+
         except (DBAPIError, TimeoutError) as e:
             await self.session.rollback()
-            return self._build_error(repo_exceptions.RepositoryError, "Не удалось удалить задачу", e)
-        
-    async def get_list(self, substage_uuid: UUID) -> list[entities.Task] | repo_exceptions.StageNotFoundError | repo_exceptions.RepositoryError:
+            return self._build_error(
+                repo_exceptions.RepositoryError, "Не удалось удалить задачу", e
+            )
+
+    async def get_list(
+        self, substage_uuid: UUID
+    ) -> (
+        list[entities.Task]
+        | repo_exceptions.StageNotFoundError
+        | repo_exceptions.RepositoryError
+    ):
         try:
-            stage_exist_stmt = select(sq.exists().where(models.Stage.uuid == substage_uuid))
-            async def _op(): # type: ignore
+            stage_exist_stmt = select(
+                sq.exists().where(models.Stage.uuid == substage_uuid)
+            )
+
+            async def _op():  # type: ignore
                 result = await self.session.execute(stage_exist_stmt)
                 return result.scalar_one_or_none()
-            
-            stage_exist = await _execute_idempotent(self.session, self._idempotent_retries, self._base_backoff, _op, error_message='Не удалось проверить существование этапа', exception=repo_exceptions.RepositoryError )
+
+            stage_exist = await _execute_idempotent(
+                self.session,
+                self._idempotent_retries,
+                self._base_backoff,
+                _op,
+                error_message="Не удалось проверить существование этапа",
+                exception=repo_exceptions.RepositoryError,
+            )
             if not stage_exist:
                 return repo_exceptions.StageNotFoundError("Этап не найден")
-            
+
             stmt = (
                 select(models.Task)
                 .options(
                     selectinload(models.Task.creator).selectinload(models.User.creator),
-                    selectinload(models.Task.substage).selectinload(models.Stage.creator).selectinload(models.User.creator),
-                    selectinload(models.Task.substage).selectinload(models.Stage.project).selectinload(models.Project.creator),
-                    selectinload(models.Task.substage).selectinload(models.Stage.parent),
-                    selectinload(models.Task.substage).selectinload(models.Stage.parent).selectinload(models.Stage.creator).selectinload(models.User.creator),
-                    selectinload(models.Task.substage).selectinload(models.Stage.parent).selectinload(models.Stage.project).selectinload(models.Project.creator),
+                    selectinload(models.Task.substage)
+                    .selectinload(models.Stage.creator)
+                    .selectinload(models.User.creator),
+                    selectinload(models.Task.substage)
+                    .selectinload(models.Stage.project)
+                    .selectinload(models.Project.creator),
+                    selectinload(models.Task.substage).selectinload(
+                        models.Stage.parent
+                    ),
+                    selectinload(models.Task.substage)
+                    .selectinload(models.Stage.parent)
+                    .selectinload(models.Stage.creator)
+                    .selectinload(models.User.creator),
+                    selectinload(models.Task.substage)
+                    .selectinload(models.Stage.parent)
+                    .selectinload(models.Stage.project)
+                    .selectinload(models.Project.creator),
                 )
                 .where(models.Task.substage_uuid == substage_uuid)
             )
-            
+
             async def _op():
                 result = await self.session.execute(stmt)
                 return result.scalars().all()
-            
-            tasks_models = await _execute_idempotent(self.session, self._idempotent_retries, self._base_backoff, _op, error_message='Не удалось получить задачи этапа', exception=repo_exceptions.RepositoryError )
+
+            tasks_models = await _execute_idempotent(
+                self.session,
+                self._idempotent_retries,
+                self._base_backoff,
+                _op,
+                error_message="Не удалось получить задачи этапа",
+                exception=repo_exceptions.RepositoryError,
+            )
             return [self.map_task_to_entity(task) for task in tasks_models]
-        
+
         except repo_exceptions.RepositoryError as e:
             return self._enrich_error(e)
         except (DBAPIError, TimeoutError) as e:
-            return self._build_error(repo_exceptions.RepositoryError, "Не удалось получить задачи этапа", e)
-    
-    @classmethod    
+            return self._build_error(
+                repo_exceptions.RepositoryError, "Не удалось получить задачи этапа", e
+            )
+
+    @classmethod
     def map_entity_to_task(cls, task_entity: entities.Task) -> models.Task:
         return models.Task(
             uuid=task_entity.uuid,
@@ -1669,9 +2601,9 @@ class TaskRepository(_RepositoryDebugMixin, repository_interfaces.DBTaskReposito
             created_at=task_entity.created_at,
             status=cls.map_task_status_to_model(task_entity.status),
             working_days=list(task_entity.working_dates),
-            completion_date=task_entity.completion_date
+            completion_date=task_entity.completion_date,
         )
-    
+
     @classmethod
     def map_task_to_entity(cls, task_model: models.Task) -> entities.Task:
         return entities.Task(
@@ -1683,12 +2615,13 @@ class TaskRepository(_RepositoryDebugMixin, repository_interfaces.DBTaskReposito
             created_at=task_model.created_at,
             status=cls.map_task_status_to_domain(task_model.status),
             working_dates=frozenset(task_model.working_days),
-            completion_date=task_model.completion_date
-            
-        )            
-    
+            completion_date=task_model.completion_date,
+        )
+
     @classmethod
-    def map_task_status_to_domain(cls, status: models.TaskStatus) -> entities.TaskStatus:
+    def map_task_status_to_domain(
+        cls, status: models.TaskStatus
+    ) -> entities.TaskStatus:
         mapping = {
             models.TaskStatus.PENDING: entities.TaskStatus.PENDING,
             models.TaskStatus.IN_PROGRESS: entities.TaskStatus.IN_PROGRESS,
@@ -1696,7 +2629,7 @@ class TaskRepository(_RepositoryDebugMixin, repository_interfaces.DBTaskReposito
             models.TaskStatus.ARCHIVED: entities.TaskStatus.ARCHIVED,
         }
         return mapping[status]
-    
+
     @classmethod
     def map_task_status_to_model(cls, status: entities.TaskStatus) -> models.TaskStatus:
         mapping = {
@@ -1706,24 +2639,40 @@ class TaskRepository(_RepositoryDebugMixin, repository_interfaces.DBTaskReposito
             entities.TaskStatus.ARCHIVED: models.TaskStatus.ARCHIVED,
         }
         return mapping[status]
-    
 
-class PaymentRepository(_RepositoryDebugMixin, repository_interfaces.DBPaymentRepository):
+
+class PaymentRepository(
+    _RepositoryDebugMixin, repository_interfaces.DBPaymentRepository
+):
     def __init__(self, session: AsyncSession, config: Config):
         self.session = session
         self._idempotent_retries = 2
         self._base_backoff = 0.1
         self._init_debug(config)
-        
-    async def create(self, payment: entities.Payment) -> entities.Payment | repo_exceptions.SubscriptionNotFoundError | repo_exceptions.RepositoryError:
+
+    async def create(
+        self, payment: entities.Payment
+    ) -> (
+        entities.Payment
+        | repo_exceptions.SubscriptionNotFoundError
+        | repo_exceptions.RepositoryError
+    ):
         try:
             payment_model = self.map_entity_to_payment(payment)
-            
+
             self.session.add(payment_model)
-            
+
             async def _op():
                 return await self.session.flush()
-            await _execute_idempotent(self.session, self._idempotent_retries, self._base_backoff, _op, error_message='Не удалось создать платеж', exception=repo_exceptions.RepositoryError)
+
+            await _execute_idempotent(
+                self.session,
+                self._idempotent_retries,
+                self._base_backoff,
+                _op,
+                error_message="Не удалось создать платеж",
+                exception=repo_exceptions.RepositoryError,
+            )
 
             loaded_payment_stmt = (
                 select(models.Payment)
@@ -1744,24 +2693,43 @@ class PaymentRepository(_RepositoryDebugMixin, repository_interfaces.DBPaymentRe
             )
             loaded_payment = loaded_payment_result.scalar_one_or_none()
             if loaded_payment is None:
-                return self._build_error(repo_exceptions.RepositoryError, "Не удалось создать платеж")
+                return self._build_error(
+                    repo_exceptions.RepositoryError, "Не удалось создать платеж"
+                )
 
             return self.map_payment_to_entity(payment_model=loaded_payment)
         except IntegrityError as e:
             await self.session.rollback()
             if isinstance(e.orig, psycopg.errors.ForeignKeyViolation):
-                constraint_name = getattr(getattr(e.orig, "diag", None), "constraint_name", None)
-                if constraint_name and "payments_subscription_uuid_fkey" in constraint_name:
-                    return repo_exceptions.SubscriptionNotFoundError("Подписка не найдена")
-            return self._build_error(repo_exceptions.RepositoryError, "Не удалось создать платеж", e)
+                constraint_name = getattr(
+                    getattr(e.orig, "diag", None), "constraint_name", None
+                )
+                if (
+                    constraint_name
+                    and "payments_subscription_uuid_fkey" in constraint_name
+                ):
+                    return repo_exceptions.SubscriptionNotFoundError(
+                        "Подписка не найдена"
+                    )
+            return self._build_error(
+                repo_exceptions.RepositoryError, "Не удалось создать платеж", e
+            )
         except repo_exceptions.RepositoryError as e:
             await self.session.rollback()
             return self._enrich_error(e)
         except (DBAPIError, TimeoutError) as e:
             await self.session.rollback()
-            return self._build_error(repo_exceptions.RepositoryError, "Не удалось создать платеж", e)
-        
-    async def get_by_uuid(self, payment_uuid: UUID, lock_record: bool = False) -> entities.Payment | repo_exceptions.PaymentNotFoundError | repo_exceptions.RepositoryError:
+            return self._build_error(
+                repo_exceptions.RepositoryError, "Не удалось создать платеж", e
+            )
+
+    async def get_by_uuid(
+        self, payment_uuid: UUID, lock_record: bool = False
+    ) -> (
+        entities.Payment
+        | repo_exceptions.PaymentNotFoundError
+        | repo_exceptions.RepositoryError
+    ):
         try:
             stmt = (
                 select(models.Payment)
@@ -1772,26 +2740,41 @@ class PaymentRepository(_RepositoryDebugMixin, repository_interfaces.DBPaymentRe
                 )
                 .where(models.Payment.uuid == payment_uuid)
             )
-            
+
             if lock_record:
                 stmt = stmt.with_for_update()
-            
+
             async def _op():
                 result = await self.session.execute(stmt)
                 return result.scalar_one_or_none()
-            
-            payment_model = await _execute_idempotent(self.session, self._idempotent_retries, self._base_backoff, _op, error_message='Не удалось получить платеж', exception=repo_exceptions.RepositoryError )
+
+            payment_model = await _execute_idempotent(
+                self.session,
+                self._idempotent_retries,
+                self._base_backoff,
+                _op,
+                error_message="Не удалось получить платеж",
+                exception=repo_exceptions.RepositoryError,
+            )
             if payment_model is None:
                 return repo_exceptions.PaymentNotFoundError("Платеж не найден")
             return self.map_payment_to_entity(payment_model)
-        
+
         except repo_exceptions.RepositoryError as e:
             return self._enrich_error(e)
-        
+
         except (DBAPIError, TimeoutError) as e:
-            return self._build_error(repo_exceptions.RepositoryError, "Не удалось получить платеж", e)
-    
-    async def update(self, payment_uuid: UUID, data: dict[str, Any]) -> entities.Payment | repo_exceptions.PaymentNotFoundError | repo_exceptions.RepositoryError:
+            return self._build_error(
+                repo_exceptions.RepositoryError, "Не удалось получить платеж", e
+            )
+
+    async def update(
+        self, payment_uuid: UUID, data: dict[str, Any]
+    ) -> (
+        entities.Payment
+        | repo_exceptions.PaymentNotFoundError
+        | repo_exceptions.RepositoryError
+    ):
         try:
             stmt = (
                 select(models.Payment)
@@ -1815,11 +2798,18 @@ class PaymentRepository(_RepositoryDebugMixin, repository_interfaces.DBPaymentRe
                 return repo_exceptions.PaymentNotFoundError("Платеж не найден")
             for key, value in data.items():
                 setattr(payment, key, value)
-            
+
             async def _op():
                 await self.session.flush()
-            
-            await _execute_idempotent(self.session, self._idempotent_retries, self._base_backoff, _op, error_message='Не удалось обновить платеж', exception=repo_exceptions.RepositoryError )
+
+            await _execute_idempotent(
+                self.session,
+                self._idempotent_retries,
+                self._base_backoff,
+                _op,
+                error_message="Не удалось обновить платеж",
+                exception=repo_exceptions.RepositoryError,
+            )
 
             loaded_payment_stmt = (
                 select(models.Payment)
@@ -1843,69 +2833,107 @@ class PaymentRepository(_RepositoryDebugMixin, repository_interfaces.DBPaymentRe
                 return repo_exceptions.PaymentNotFoundError("Платеж не найден")
 
             return self.map_payment_to_entity(loaded_payment)
-        
+
         except repo_exceptions.RepositoryError as e:
             await self.session.rollback()
             return self._enrich_error(e)
-        
+
         except (DBAPIError, TimeoutError) as e:
             await self.session.rollback()
-            return self._build_error(repo_exceptions.RepositoryError, "Не удалось обновить платеж", e)
-    
-    async def get_gateway_payment_id(self, payment_uuid: UUID) -> str | repo_exceptions.PaymentNotFoundError | repo_exceptions.RepositoryError:
+            return self._build_error(
+                repo_exceptions.RepositoryError, "Не удалось обновить платеж", e
+            )
+
+    async def get_gateway_payment_id(
+        self, payment_uuid: UUID
+    ) -> str | repo_exceptions.PaymentNotFoundError | repo_exceptions.RepositoryError:
         try:
-            stmt = select(models.Payment.gateway_payment_id).where(models.Payment.uuid == payment_uuid)
-            
+            stmt = select(models.Payment.gateway_payment_id).where(
+                models.Payment.uuid == payment_uuid
+            )
+
             async def _op():
                 result = await self.session.execute(stmt)
                 return result.scalar_one_or_none()
-            
-            gateway_payment_id = await _execute_idempotent(self.session, self._idempotent_retries, self._base_backoff, _op, error_message='Не удалось получить идентификатор платежа в платежной системе', exception=repo_exceptions.RepositoryError )
+
+            gateway_payment_id = await _execute_idempotent(
+                self.session,
+                self._idempotent_retries,
+                self._base_backoff,
+                _op,
+                error_message="Не удалось получить идентификатор платежа в платежной системе",
+                exception=repo_exceptions.RepositoryError,
+            )
             if gateway_payment_id is None:
                 return repo_exceptions.PaymentNotFoundError("Платеж не найден")
             return gateway_payment_id
-        
+
         except repo_exceptions.RepositoryError as e:
             return self._enrich_error(e)
-        
-        except (DBAPIError, TimeoutError) as e:
-            return self._build_error(repo_exceptions.RepositoryError, "Не удалось получить идентификатор платежа в платежной системе", e)
 
-    async def payment_applied_to_subscription(self, payment_uuid: UUID) -> bool | repo_exceptions.PaymentNotFoundError | repo_exceptions.RepositoryError:
+        except (DBAPIError, TimeoutError) as e:
+            return self._build_error(
+                repo_exceptions.RepositoryError,
+                "Не удалось получить идентификатор платежа в платежной системе",
+                e,
+            )
+
+    async def payment_applied_to_subscription(
+        self, payment_uuid: UUID
+    ) -> bool | repo_exceptions.PaymentNotFoundError | repo_exceptions.RepositoryError:
         try:
-            stmt = select(models.Payment.applied_to_subscription).where(models.Payment.uuid == payment_uuid)
-            
+            stmt = select(models.Payment.applied_to_subscription).where(
+                models.Payment.uuid == payment_uuid
+            )
+
             async def _op():
                 result = await self.session.execute(stmt)
                 return result.scalar_one_or_none()
-            
-            applied_to_subscription = await _execute_idempotent(self.session, self._idempotent_retries, self._base_backoff, _op, error_message='Не удалось проверить статус применения платежа к подписке', exception=repo_exceptions.RepositoryError )
+
+            applied_to_subscription = await _execute_idempotent(
+                self.session,
+                self._idempotent_retries,
+                self._base_backoff,
+                _op,
+                error_message="Не удалось проверить статус применения платежа к подписке",
+                exception=repo_exceptions.RepositoryError,
+            )
             if applied_to_subscription is None:
                 return repo_exceptions.PaymentNotFoundError("Платеж не найден")
             return applied_to_subscription
-        
+
         except repo_exceptions.RepositoryError as e:
             return self._enrich_error(e)
-        
+
         except (DBAPIError, TimeoutError) as e:
-            return self._build_error(repo_exceptions.RepositoryError, "Не удалось проверить статус применения платежа к подписке", e)
+            return self._build_error(
+                repo_exceptions.RepositoryError,
+                "Не удалось проверить статус применения платежа к подписке",
+                e,
+            )
 
     @classmethod
-    def map_currency_to_model(cls, currency: entities.value_objects.CurrencyEnum) -> models.CurrencyEnum:
+    def map_currency_to_model(
+        cls, currency: entities.value_objects.CurrencyEnum
+    ) -> models.CurrencyEnum:
         mapping = {
             entities.value_objects.CurrencyEnum.RUB: models.CurrencyEnum.RUB,
         }
         return mapping[currency]
-    
+
     @classmethod
-    def map_currency_to_domain(cls, currency: models.CurrencyEnum) -> entities.value_objects.CurrencyEnum:
+    def map_currency_to_domain(
+        cls, currency: models.CurrencyEnum
+    ) -> entities.value_objects.CurrencyEnum:
         mapping = {
             models.CurrencyEnum.RUB: entities.value_objects.CurrencyEnum.RUB,
         }
         return mapping[currency]
 
     @classmethod
-    def map_payment_status_to_model(cls, status: entities.PaymentStatus) -> models.PaymentStatus:
+    def map_payment_status_to_model(
+        cls, status: entities.PaymentStatus
+    ) -> models.PaymentStatus:
         mapping = {
             entities.PaymentStatus.PENDING: models.PaymentStatus.PENDING,
             entities.PaymentStatus.COMPLETED: models.PaymentStatus.COMPLETED,
@@ -1915,7 +2943,9 @@ class PaymentRepository(_RepositoryDebugMixin, repository_interfaces.DBPaymentRe
         return mapping[status]
 
     @classmethod
-    def map_payment_status_to_domain(cls, status: models.PaymentStatus) -> entities.PaymentStatus:
+    def map_payment_status_to_domain(
+        cls, status: models.PaymentStatus
+    ) -> entities.PaymentStatus:
         mapping = {
             models.PaymentStatus.PENDING: entities.PaymentStatus.PENDING,
             models.PaymentStatus.COMPLETED: entities.PaymentStatus.COMPLETED,
@@ -1949,7 +2979,7 @@ class PaymentRepository(_RepositoryDebugMixin, repository_interfaces.DBPaymentRe
             models.PaymentMethod.CRYPTOCURRENCY: entities.PaymentMethod.CRYPTOCURRENCY,
         }
         return mapping[method]
-    
+
     @classmethod
     def map_entity_to_payment(cls, payment_entity: entities.Payment) -> models.Payment:
         return models.Payment(
@@ -1961,12 +2991,14 @@ class PaymentRepository(_RepositoryDebugMixin, repository_interfaces.DBPaymentRe
             complete_date=payment_entity.complete_date,
             created_at=payment_entity.created_at,
         )
-    
+
     @classmethod
     def map_payment_to_entity(cls, payment_model: models.Payment) -> entities.Payment:
         return entities.Payment(
             uuid=payment_model.uuid,
-            subscription=SubscriptionRepository.map_subscription_to_entity(payment_model.subscription),
+            subscription=SubscriptionRepository.map_subscription_to_entity(
+                payment_model.subscription
+            ),
             amount=entities.value_objects.MoneyAmount(
                 amount=payment_model.amount,
                 currency=cls.map_currency_to_domain(payment_model.currency),
@@ -1976,27 +3008,47 @@ class PaymentRepository(_RepositoryDebugMixin, repository_interfaces.DBPaymentRe
             complete_date=payment_model.complete_date,
         )
 
-class SubscriptionRepository(_RepositoryDebugMixin, repository_interfaces.DBSubscriptionRepository):
+
+class SubscriptionRepository(
+    _RepositoryDebugMixin, repository_interfaces.DBSubscriptionRepository
+):
     def __init__(self, session: AsyncSession, config: Config):
         self.session = session
         self._idempotent_retries = 2
         self._base_backoff = 0.1
         self._init_debug(config)
-        
-    async def create(self, subscription: entities.Subscription) -> entities.Subscription | repo_exceptions.SubscriptionAlreadyExistsError | repo_exceptions.ProjectNotFoundError | repo_exceptions.RepositoryError:
+
+    async def create(
+        self, subscription: entities.Subscription
+    ) -> (
+        entities.Subscription
+        | repo_exceptions.SubscriptionAlreadyExistsError
+        | repo_exceptions.ProjectNotFoundError
+        | repo_exceptions.RepositoryError
+    ):
         try:
             subscription_model = self.map_entity_to_subscription(subscription)
-            
+
             self.session.add(subscription_model)
-            
+
             async def _op():
                 return await self.session.flush()
-            await _execute_idempotent(self.session, self._idempotent_retries, self._base_backoff, _op, error_message='Не удалось создать подписку', exception=repo_exceptions.RepositoryError)
+
+            await _execute_idempotent(
+                self.session,
+                self._idempotent_retries,
+                self._base_backoff,
+                _op,
+                error_message="Не удалось создать подписку",
+                exception=repo_exceptions.RepositoryError,
+            )
 
             loaded_subscription_stmt = (
                 select(models.Subscription)
                 .options(
-                    selectinload(models.Subscription.project).selectinload(models.Project.creator)
+                    selectinload(models.Subscription.project).selectinload(
+                        models.Project.creator
+                    )
                 )
                 .where(models.Subscription.uuid == subscription.uuid)
             )
@@ -2010,59 +3062,102 @@ class SubscriptionRepository(_RepositoryDebugMixin, repository_interfaces.DBSubs
             )
             loaded_subscription = loaded_subscription_result.scalar_one_or_none()
             if loaded_subscription is None:
-                return self._build_error(repo_exceptions.RepositoryError, "Не удалось создать подписку")
+                return self._build_error(
+                    repo_exceptions.RepositoryError, "Не удалось создать подписку"
+                )
 
-            return self.map_subscription_to_entity(subscription_model=loaded_subscription)
+            return self.map_subscription_to_entity(
+                subscription_model=loaded_subscription
+            )
         except IntegrityError as e:
             await self.session.rollback()
             if isinstance(e.orig, psycopg.errors.ForeignKeyViolation):
-                constraint_name = getattr(getattr(e.orig, "diag", None), "constraint_name", None)
-                if constraint_name and "subscriptions_project_uuid_fkey" in constraint_name:
+                constraint_name = getattr(
+                    getattr(e.orig, "diag", None), "constraint_name", None
+                )
+                if (
+                    constraint_name
+                    and "subscriptions_project_uuid_fkey" in constraint_name
+                ):
                     return repo_exceptions.ProjectNotFoundError("Проект не найден")
             if isinstance(e.orig, psycopg.errors.UniqueViolation):
-                return repo_exceptions.SubscriptionAlreadyExistsError("Активная подписка для проекта уже существует")
-            return self._build_error(repo_exceptions.RepositoryError, "Не удалось создать подписку", e)
+                return repo_exceptions.SubscriptionAlreadyExistsError(
+                    "Активная подписка для проекта уже существует"
+                )
+            return self._build_error(
+                repo_exceptions.RepositoryError, "Не удалось создать подписку", e
+            )
         except repo_exceptions.RepositoryError as e:
             await self.session.rollback()
             return self._enrich_error(e)
         except (DBAPIError, TimeoutError) as e:
             await self.session.rollback()
-            return self._build_error(repo_exceptions.RepositoryError, "Не удалось создать подписку", e)
-    
-    async def get_by_project_uuid(self, project_uuid: UUID, lock_record: bool = False) -> entities.Subscription | repo_exceptions.SubscriptionNotFoundError | repo_exceptions.ProjectNotFoundError | repo_exceptions.RepositoryError:
+            return self._build_error(
+                repo_exceptions.RepositoryError, "Не удалось создать подписку", e
+            )
+
+    async def get_by_project_uuid(
+        self, project_uuid: UUID, lock_record: bool = False
+    ) -> (
+        entities.Subscription
+        | repo_exceptions.SubscriptionNotFoundError
+        | repo_exceptions.ProjectNotFoundError
+        | repo_exceptions.RepositoryError
+    ):
         try:
             stmt = (
                 select(models.Subscription)
                 .options(
-                    selectinload(models.Subscription.project).selectinload(models.Project.creator)
+                    selectinload(models.Subscription.project).selectinload(
+                        models.Project.creator
+                    )
                 )
                 .where(models.Subscription.project_uuid == project_uuid)
             )
-            
+
             if lock_record:
                 stmt = stmt.with_for_update()
 
             async def _op():
                 return await self.session.execute(stmt)
-            
-            subscription_model = await _execute_idempotent(self.session, self._idempotent_retries, self._base_backoff, _op, error_message='Не удалось получить подписку по uuid проекта', exception=repo_exceptions.RepositoryError )
+
+            subscription_model = await _execute_idempotent(
+                self.session,
+                self._idempotent_retries,
+                self._base_backoff,
+                _op,
+                error_message="Не удалось получить подписку по uuid проекта",
+                exception=repo_exceptions.RepositoryError,
+            )
             subscription = subscription_model.scalar_one_or_none()
             if subscription is None:
                 return repo_exceptions.SubscriptionNotFoundError("Подписка не найдена")
             return self.map_subscription_to_entity(subscription)
-        
+
         except repo_exceptions.RepositoryError as e:
             return self._enrich_error(e)
-        
+
         except (DBAPIError, TimeoutError) as e:
-            return self._build_error(repo_exceptions.RepositoryError, "Не удалось получить подписку по uuid проекта", e)
-        
-    async def update(self, subscription_uuid: UUID, data: dict[str, Any]) -> entities.Subscription | repo_exceptions.SubscriptionNotFoundError | repo_exceptions.RepositoryError:
+            return self._build_error(
+                repo_exceptions.RepositoryError,
+                "Не удалось получить подписку по uuid проекта",
+                e,
+            )
+
+    async def update(
+        self, subscription_uuid: UUID, data: dict[str, Any]
+    ) -> (
+        entities.Subscription
+        | repo_exceptions.SubscriptionNotFoundError
+        | repo_exceptions.RepositoryError
+    ):
         try:
             stmt = (
                 select(models.Subscription)
                 .options(
-                    selectinload(models.Subscription.project).selectinload(models.Project.creator)
+                    selectinload(models.Subscription.project).selectinload(
+                        models.Project.creator
+                    )
                 )
                 .where(models.Subscription.uuid == subscription_uuid)
             )
@@ -2079,16 +3174,25 @@ class SubscriptionRepository(_RepositoryDebugMixin, repository_interfaces.DBSubs
                 return repo_exceptions.SubscriptionNotFoundError("Подписка не найдена")
             for key, value in data.items():
                 setattr(subscription, key, value)
-            
+
             async def _op():
                 await self.session.flush()
-            
-            await _execute_idempotent(self.session, self._idempotent_retries, self._base_backoff, _op, error_message='Не удалось обновить подписку', exception=repo_exceptions.RepositoryError )
+
+            await _execute_idempotent(
+                self.session,
+                self._idempotent_retries,
+                self._base_backoff,
+                _op,
+                error_message="Не удалось обновить подписку",
+                exception=repo_exceptions.RepositoryError,
+            )
 
             loaded_subscription_stmt = (
                 select(models.Subscription)
                 .options(
-                    selectinload(models.Subscription.project).selectinload(models.Project.creator)
+                    selectinload(models.Subscription.project).selectinload(
+                        models.Project.creator
+                    )
                 )
                 .where(models.Subscription.uuid == subscription_uuid)
             )
@@ -2105,17 +3209,21 @@ class SubscriptionRepository(_RepositoryDebugMixin, repository_interfaces.DBSubs
                 return repo_exceptions.SubscriptionNotFoundError("Подписка не найдена")
 
             return self.map_subscription_to_entity(loaded_subscription)
-        
+
         except repo_exceptions.RepositoryError as e:
             await self.session.rollback()
             return self._enrich_error(e)
-        
+
         except (DBAPIError, TimeoutError) as e:
             await self.session.rollback()
-            return self._build_error(repo_exceptions.RepositoryError, "Не удалось обновить подписку", e)
+            return self._build_error(
+                repo_exceptions.RepositoryError, "Не удалось обновить подписку", e
+            )
 
     @classmethod
-    def map_subscription_status_to_domain(cls, status: models.SubscriptionStatus) -> entities.SubscriptionStatus:
+    def map_subscription_status_to_domain(
+        cls, status: models.SubscriptionStatus
+    ) -> entities.SubscriptionStatus:
         mapping = {
             models.SubscriptionStatus.ACTIVE: entities.SubscriptionStatus.ACTIVE,
             models.SubscriptionStatus.UNACTIVE: entities.SubscriptionStatus.UNACTIVE,
@@ -2123,9 +3231,11 @@ class SubscriptionRepository(_RepositoryDebugMixin, repository_interfaces.DBSubs
             models.SubscriptionStatus.CANCELLED: entities.SubscriptionStatus.CANCELLED,
         }
         return mapping[status]
-    
+
     @classmethod
-    def map_subscription_status_to_model(cls, status: entities.SubscriptionStatus) -> models.SubscriptionStatus:
+    def map_subscription_status_to_model(
+        cls, status: entities.SubscriptionStatus
+    ) -> models.SubscriptionStatus:
         mapping = {
             entities.SubscriptionStatus.ACTIVE: models.SubscriptionStatus.ACTIVE,
             entities.SubscriptionStatus.UNACTIVE: models.SubscriptionStatus.UNACTIVE,
@@ -2133,9 +3243,11 @@ class SubscriptionRepository(_RepositoryDebugMixin, repository_interfaces.DBSubs
             entities.SubscriptionStatus.CANCELLED: models.SubscriptionStatus.CANCELLED,
         }
         return mapping[status]
-    
+
     @classmethod
-    def map_entity_to_subscription(cls, subscription_entity: entities.Subscription) -> models.Subscription:
+    def map_entity_to_subscription(
+        cls, subscription_entity: entities.Subscription
+    ) -> models.Subscription:
         return models.Subscription(
             uuid=subscription_entity.uuid,
             project_uuid=subscription_entity.project.uuid,
@@ -2143,11 +3255,13 @@ class SubscriptionRepository(_RepositoryDebugMixin, repository_interfaces.DBSubs
             auto_renew=subscription_entity.auto_renew,
             start_date=subscription_entity.start_date,
             end_date=subscription_entity.end_date,
-            status=cls.map_subscription_status_to_model(subscription_entity.status)
+            status=cls.map_subscription_status_to_model(subscription_entity.status),
         )
-    
+
     @classmethod
-    def map_subscription_to_entity(cls, subscription_model: models.Subscription) -> entities.Subscription:
+    def map_subscription_to_entity(
+        cls, subscription_model: models.Subscription
+    ) -> entities.Subscription:
         return entities.Subscription(
             uuid=subscription_model.uuid,
             project=ProjectRepository.map_project_to_entity(subscription_model.project),
@@ -2155,9 +3269,10 @@ class SubscriptionRepository(_RepositoryDebugMixin, repository_interfaces.DBSubs
             auto_renew=subscription_model.auto_renew,
             start_date=subscription_model.start_date,
             end_date=subscription_model.end_date,
-            status=cls.map_subscription_status_to_domain(subscription_model.status)
+            status=cls.map_subscription_status_to_domain(subscription_model.status),
         )
-    
+
+
 class FileRepository(_RepositoryDebugMixin, repository_interfaces.DBFileRepository):
     def __init__(self, session: AsyncSession, config: Config):
         self.session = session
@@ -2165,7 +3280,13 @@ class FileRepository(_RepositoryDebugMixin, repository_interfaces.DBFileReposito
         self._base_backoff = 0.1
         self._init_debug(config)
 
-    async def create(self, file: entities.DailyLogFile) -> entities.DailyLogFile | repo_exceptions.FileAlreadyExistsError | repo_exceptions.RepositoryError:
+    async def create(
+        self, file: entities.DailyLogFile
+    ) -> (
+        entities.DailyLogFile
+        | repo_exceptions.FileAlreadyExistsError
+        | repo_exceptions.RepositoryError
+    ):
         try:
             file_model = self.map_entity_to_file(file)
 
@@ -2183,7 +3304,9 @@ class FileRepository(_RepositoryDebugMixin, repository_interfaces.DBFileReposito
                 exception=repo_exceptions.RepositoryError,
             )
 
-            loaded_file_stmt = self._build_file_stmt(models.DailyLogFile.uuid == file.uuid)
+            loaded_file_stmt = self._build_file_stmt(
+                models.DailyLogFile.uuid == file.uuid
+            )
             loaded_file_result = await _execute_statement_idempotent(
                 self.session,
                 self._idempotent_retries,
@@ -2194,23 +3317,37 @@ class FileRepository(_RepositoryDebugMixin, repository_interfaces.DBFileReposito
             )
             loaded_file = loaded_file_result.scalar_one_or_none()
             if loaded_file is None:
-                return self._build_error(repo_exceptions.RepositoryError, "Не удалось создать файл")
+                return self._build_error(
+                    repo_exceptions.RepositoryError, "Не удалось создать файл"
+                )
 
             return self.map_file_to_entity(loaded_file)
 
         except IntegrityError as e:
             await self.session.rollback()
             if isinstance(e.orig, psycopg.errors.UniqueViolation):
-                return repo_exceptions.FileAlreadyExistsError("Файл с таким именем уже существует в ежедневном отчете")
-            return self._build_error(repo_exceptions.RepositoryError, "Не удалось создать файл", e)
+                return repo_exceptions.FileAlreadyExistsError(
+                    "Файл с таким именем уже существует в ежедневном отчете"
+                )
+            return self._build_error(
+                repo_exceptions.RepositoryError, "Не удалось создать файл", e
+            )
         except repo_exceptions.RepositoryError as e:
             await self.session.rollback()
             return self._enrich_error(e)
         except (DBAPIError, TimeoutError) as e:
             await self.session.rollback()
-            return self._build_error(repo_exceptions.RepositoryError, "Не удалось создать файл", e)
+            return self._build_error(
+                repo_exceptions.RepositoryError, "Не удалось создать файл", e
+            )
 
-    async def get(self, file_uuid: UUID) -> entities.DailyLogFile | repo_exceptions.FileNotFoundError | repo_exceptions.RepositoryError:
+    async def get(
+        self, file_uuid: UUID
+    ) -> (
+        entities.DailyLogFile
+        | repo_exceptions.FileNotFoundError
+        | repo_exceptions.RepositoryError
+    ):
         try:
             file_stmt = self._build_file_stmt(models.DailyLogFile.uuid == file_uuid)
             file_result = await _execute_statement_idempotent(
@@ -2229,9 +3366,17 @@ class FileRepository(_RepositoryDebugMixin, repository_interfaces.DBFileReposito
         except repo_exceptions.RepositoryError as e:
             return self._enrich_error(e)
         except (DBAPIError, TimeoutError) as e:
-            return self._build_error(repo_exceptions.RepositoryError, "Не удалось получить файл", e)
+            return self._build_error(
+                repo_exceptions.RepositoryError, "Не удалось получить файл", e
+            )
 
-    async def remove(self, file_uuid: UUID) -> entities.DailyLogFile | repo_exceptions.FileNotFoundError | repo_exceptions.RepositoryError:
+    async def remove(
+        self, file_uuid: UUID
+    ) -> (
+        entities.DailyLogFile
+        | repo_exceptions.FileNotFoundError
+        | repo_exceptions.RepositoryError
+    ):
         try:
             file_stmt = self._build_file_stmt(models.DailyLogFile.uuid == file_uuid)
             file_result = await _execute_statement_idempotent(
@@ -2268,11 +3413,21 @@ class FileRepository(_RepositoryDebugMixin, repository_interfaces.DBFileReposito
             return self._enrich_error(e)
         except (DBAPIError, TimeoutError) as e:
             await self.session.rollback()
-            return self._build_error(repo_exceptions.RepositoryError, "Не удалось удалить файл", e)
+            return self._build_error(
+                repo_exceptions.RepositoryError, "Не удалось удалить файл", e
+            )
 
-    async def get_list(self, daily_log_uuid: UUID) -> list[entities.DailyLogFile] | repo_exceptions.FileNotFoundError | repo_exceptions.RepositoryError:
+    async def get_list(
+        self, daily_log_uuid: UUID
+    ) -> (
+        list[entities.DailyLogFile]
+        | repo_exceptions.FileNotFoundError
+        | repo_exceptions.RepositoryError
+    ):
         try:
-            file_list_stmt = self._build_file_stmt(models.DailyLogFile.daily_log_uuid == daily_log_uuid)
+            file_list_stmt = self._build_file_stmt(
+                models.DailyLogFile.daily_log_uuid == daily_log_uuid
+            )
             file_list_result = await _execute_statement_idempotent(
                 self.session,
                 self._idempotent_retries,
@@ -2289,26 +3444,50 @@ class FileRepository(_RepositoryDebugMixin, repository_interfaces.DBFileReposito
         except repo_exceptions.RepositoryError as e:
             return self._enrich_error(e)
         except (DBAPIError, TimeoutError) as e:
-            return self._build_error(repo_exceptions.RepositoryError, "Не удалось получить список файлов", e)
+            return self._build_error(
+                repo_exceptions.RepositoryError, "Не удалось получить список файлов", e
+            )
 
     @classmethod
     def _build_file_stmt(cls, condition: Any) -> Any:
         return (
             select(models.DailyLogFile)
             .options(
-                selectinload(models.DailyLogFile.daily_log).selectinload(models.DailyLog.creator).selectinload(models.User.creator),
-                selectinload(models.DailyLogFile.daily_log).selectinload(models.DailyLog.project).selectinload(models.Project.creator),
-                selectinload(models.DailyLogFile.daily_log).selectinload(models.DailyLog.substage).selectinload(models.Stage.creator).selectinload(models.User.creator),
-                selectinload(models.DailyLogFile.daily_log).selectinload(models.DailyLog.substage).selectinload(models.Stage.project).selectinload(models.Project.creator),
-                selectinload(models.DailyLogFile.daily_log).selectinload(models.DailyLog.substage).selectinload(models.Stage.parent),
-                selectinload(models.DailyLogFile.daily_log).selectinload(models.DailyLog.substage).selectinload(models.Stage.parent).selectinload(models.Stage.creator).selectinload(models.User.creator),
-                selectinload(models.DailyLogFile.daily_log).selectinload(models.DailyLog.substage).selectinload(models.Stage.parent).selectinload(models.Stage.project).selectinload(models.Project.creator),
+                selectinload(models.DailyLogFile.daily_log)
+                .selectinload(models.DailyLog.creator)
+                .selectinload(models.User.creator),
+                selectinload(models.DailyLogFile.daily_log)
+                .selectinload(models.DailyLog.project)
+                .selectinload(models.Project.creator),
+                selectinload(models.DailyLogFile.daily_log)
+                .selectinload(models.DailyLog.substage)
+                .selectinload(models.Stage.creator)
+                .selectinload(models.User.creator),
+                selectinload(models.DailyLogFile.daily_log)
+                .selectinload(models.DailyLog.substage)
+                .selectinload(models.Stage.project)
+                .selectinload(models.Project.creator),
+                selectinload(models.DailyLogFile.daily_log)
+                .selectinload(models.DailyLog.substage)
+                .selectinload(models.Stage.parent),
+                selectinload(models.DailyLogFile.daily_log)
+                .selectinload(models.DailyLog.substage)
+                .selectinload(models.Stage.parent)
+                .selectinload(models.Stage.creator)
+                .selectinload(models.User.creator),
+                selectinload(models.DailyLogFile.daily_log)
+                .selectinload(models.DailyLog.substage)
+                .selectinload(models.Stage.parent)
+                .selectinload(models.Stage.project)
+                .selectinload(models.Project.creator),
             )
             .where(condition)
         )
 
     @classmethod
-    def map_entity_to_file(cls, file_entity: entities.DailyLogFile) -> models.DailyLogFile:
+    def map_entity_to_file(
+        cls, file_entity: entities.DailyLogFile
+    ) -> models.DailyLogFile:
         return models.DailyLogFile(
             uuid=file_entity.uuid,
             name=file_entity.filename,
@@ -2318,7 +3497,9 @@ class FileRepository(_RepositoryDebugMixin, repository_interfaces.DBFileReposito
         )
 
     @classmethod
-    def map_file_to_entity(cls, file_model: models.DailyLogFile) -> entities.DailyLogFile:
+    def map_file_to_entity(
+        cls, file_model: models.DailyLogFile
+    ) -> entities.DailyLogFile:
         return entities.DailyLogFile(
             uuid=file_model.uuid,
             filename=file_model.name,
@@ -2326,7 +3507,8 @@ class FileRepository(_RepositoryDebugMixin, repository_interfaces.DBFileReposito
             daily_log=DailyLogRepository.map_daily_log_to_entity(file_model.daily_log),
             uploaded_at=file_model.uploaded_at,
         )
-    
+
+
 class ReportRepository(_RepositoryDebugMixin, repository_interfaces.DBReportRepository):
     def __init__(self, session: AsyncSession, config: Config):
         self.session = session
@@ -2334,7 +3516,14 @@ class ReportRepository(_RepositoryDebugMixin, repository_interfaces.DBReportRepo
         self._base_backoff = 0.1
         self._init_debug(config)
 
-    async def create(self, report: entities.Report) -> entities.Report | repo_exceptions.RepositoryError | repo_exceptions.ProjectNotFoundError | repo_exceptions.UserNotFoundError:
+    async def create(
+        self, report: entities.Report
+    ) -> (
+        entities.Report
+        | repo_exceptions.RepositoryError
+        | repo_exceptions.ProjectNotFoundError
+        | repo_exceptions.UserNotFoundError
+    ):
         try:
             report_model = self.map_entity_to_report(report)
 
@@ -2352,7 +3541,9 @@ class ReportRepository(_RepositoryDebugMixin, repository_interfaces.DBReportRepo
                 exception=repo_exceptions.RepositoryError,
             )
 
-            loaded_report_stmt = self._build_report_stmt(models.Report.uuid == report.uuid)
+            loaded_report_stmt = self._build_report_stmt(
+                models.Report.uuid == report.uuid
+            )
             loaded_report_result = await _execute_statement_idempotent(
                 self.session,
                 self._idempotent_retries,
@@ -2363,31 +3554,45 @@ class ReportRepository(_RepositoryDebugMixin, repository_interfaces.DBReportRepo
             )
             loaded_report = loaded_report_result.scalar_one_or_none()
             if loaded_report is None:
-                return self._build_error(repo_exceptions.RepositoryError, "Не удалось создать отчет")
+                return self._build_error(
+                    repo_exceptions.RepositoryError, "Не удалось создать отчет"
+                )
 
             return self.map_report_to_entity(loaded_report)
 
         except IntegrityError as e:
             await self.session.rollback()
             if isinstance(e.orig, psycopg.errors.ForeignKeyViolation):
-                constraint_name = getattr(getattr(e.orig, "diag", None), "constraint_name", None)
+                constraint_name = getattr(
+                    getattr(e.orig, "diag", None), "constraint_name", None
+                )
                 if constraint_name and "reports_project_uuid_fkey" in constraint_name:
                     return repo_exceptions.ProjectNotFoundError("Проект не найден")
                 if constraint_name and "reports_creator_uuid_fkey" in constraint_name:
                     return repo_exceptions.UserNotFoundError("Пользователь не найден")
-            return self._build_error(repo_exceptions.RepositoryError, "Не удалось создать отчет", e)
+            return self._build_error(
+                repo_exceptions.RepositoryError, "Не удалось создать отчет", e
+            )
         except repo_exceptions.RepositoryError as e:
             await self.session.rollback()
             return self._enrich_error(e)
         except (DBAPIError, TimeoutError) as e:
             await self.session.rollback()
-            return self._build_error(repo_exceptions.RepositoryError, "Не удалось создать отчет", e)
-    
-    
-    
-    async def get_by_uuid(self, report_uuid: UUID, lock_record: bool = False) -> entities.Report | repo_exceptions.ReportNotFoundError | repo_exceptions.RepositoryError:
+            return self._build_error(
+                repo_exceptions.RepositoryError, "Не удалось создать отчет", e
+            )
+
+    async def get_by_uuid(
+        self, report_uuid: UUID, lock_record: bool = False
+    ) -> (
+        entities.Report
+        | repo_exceptions.ReportNotFoundError
+        | repo_exceptions.RepositoryError
+    ):
         try:
-            report_stmt = await self._build_report_stmt(models.Report.uuid == report_uuid)
+            report_stmt = await self._build_report_stmt(
+                models.Report.uuid == report_uuid
+            )
             if lock_record:
                 report_stmt = report_stmt.with_for_update()
             report_result = await _execute_statement_idempotent(
@@ -2406,11 +3611,21 @@ class ReportRepository(_RepositoryDebugMixin, repository_interfaces.DBReportRepo
         except repo_exceptions.RepositoryError as e:
             return self._enrich_error(e)
         except (DBAPIError, TimeoutError) as e:
-            return self._build_error(repo_exceptions.RepositoryError, "Не удалось получить отчет", e)
+            return self._build_error(
+                repo_exceptions.RepositoryError, "Не удалось получить отчет", e
+            )
 
-    async def update(self, report_uuid: UUID, data: dict[str, Any]) -> entities.Report | repo_exceptions.ReportNotFoundError | repo_exceptions.RepositoryError:
+    async def update(
+        self, report_uuid: UUID, data: dict[str, Any]
+    ) -> (
+        entities.Report
+        | repo_exceptions.ReportNotFoundError
+        | repo_exceptions.RepositoryError
+    ):
         try:
-            report_stmt = await self._build_report_stmt(models.Report.uuid == report_uuid)
+            report_stmt = await self._build_report_stmt(
+                models.Report.uuid == report_uuid
+            )
             report_result = await _execute_statement_idempotent(
                 self.session,
                 self._idempotent_retries,
@@ -2424,13 +3639,22 @@ class ReportRepository(_RepositoryDebugMixin, repository_interfaces.DBReportRepo
                 return repo_exceptions.ReportNotFoundError("Отчет не найден")
             for key, value in data.items():
                 setattr(report_model, key, value)
-            
+
             async def _op():
                 await self.session.flush()
-            
-            await _execute_idempotent(self.session, self._idempotent_retries, self._base_backoff, _op, error_message='Не удалось обновить отчет', exception=repo_exceptions.RepositoryError )
 
-            loaded_report_stmt = await self._build_report_stmt(models.Report.uuid == report_uuid)
+            await _execute_idempotent(
+                self.session,
+                self._idempotent_retries,
+                self._base_backoff,
+                _op,
+                error_message="Не удалось обновить отчет",
+                exception=repo_exceptions.RepositoryError,
+            )
+
+            loaded_report_stmt = await self._build_report_stmt(
+                models.Report.uuid == report_uuid
+            )
             loaded_report_result = await _execute_statement_idempotent(
                 self.session,
                 self._idempotent_retries,
@@ -2444,30 +3668,38 @@ class ReportRepository(_RepositoryDebugMixin, repository_interfaces.DBReportRepo
                 return repo_exceptions.ReportNotFoundError("Отчет не найден")
 
             return self.map_report_to_entity(loaded_report)
-        
+
         except repo_exceptions.RepositoryError as e:
             await self.session.rollback()
             return self._enrich_error(e)
-        
+
         except (DBAPIError, TimeoutError) as e:
             await self.session.rollback()
-            return self._build_error(repo_exceptions.RepositoryError, "Не удалось обновить отчет", e)
+            return self._build_error(
+                repo_exceptions.RepositoryError, "Не удалось обновить отчет", e
+            )
 
     @classmethod
     async def _build_report_stmt(cls, condition: Any) -> sq.sql.Select[models.Report]:
         return (
             select(models.Report)
             .options(
-                selectinload(models.Report.project).selectinload(models.Project.creator),
+                selectinload(models.Report.project).selectinload(
+                    models.Project.creator
+                ),
                 selectinload(models.Report.creator),
-                selectinload(models.Report.target_users)
+                selectinload(models.Report.target_users),
             )
             .where(condition)
         )
 
     @classmethod
     def map_entity_to_report(cls, report_entity: entities.Report) -> models.Report:
-        target_user_uuids = [user.uuid for user in report_entity.target_users] if report_entity.target_users else []
+        target_user_uuids = (
+            [user.uuid for user in report_entity.target_users]
+            if report_entity.target_users
+            else []
+        )
         return models.Report(
             uuid=report_entity.uuid,
             project_uuid=report_entity.project.uuid,
@@ -2476,8 +3708,7 @@ class ReportRepository(_RepositoryDebugMixin, repository_interfaces.DBReportRepo
             start_date=report_entity.start_date,
             end_date=report_entity.end_date,
             status=cls.map_status_to_model(report_entity.status),
-            target_user_uuids=target_user_uuids
-
+            target_user_uuids=target_user_uuids,
         )
 
     @classmethod
@@ -2490,7 +3721,12 @@ class ReportRepository(_RepositoryDebugMixin, repository_interfaces.DBReportRepo
             start_date=report_model.start_date,
             end_date=report_model.end_date,
             status=cls.map_status_to_domain(report_model.status),
-            target_users=[UserRepository.map_user_to_entity(user) for user in report_model.target_users] if report_model.target_users else []
+            target_users=[
+                UserRepository.map_user_to_entity(user)
+                for user in report_model.target_users
+            ]
+            if report_model.target_users
+            else [],
         )
 
     @classmethod
@@ -2510,4 +3746,3 @@ class ReportRepository(_RepositoryDebugMixin, repository_interfaces.DBReportRepo
             entities.ReportStatus.FAILED: models.ReportStatus.FAILED,
         }
         return mapping[status]
-

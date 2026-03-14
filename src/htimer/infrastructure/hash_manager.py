@@ -1,6 +1,8 @@
 import hashlib
+
 from htimer.application.user import interfaces
 from htimer.config import Config
+
 
 class HashManager(interfaces.HashGenerator, interfaces.HashVerifier):
     def __init__(self, config: Config):
@@ -9,7 +11,7 @@ class HashManager(interfaces.HashGenerator, interfaces.HashVerifier):
     def generate(self, plain_password: str) -> str:
         hash_func = getattr(hashlib, self.hash_method)
         return hash_func(plain_password.encode()).hexdigest()
-    
+
     def verify(self, plain_password: str, hashed_text: str) -> bool:
         return self.generate(plain_password) == hashed_text
 

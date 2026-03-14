@@ -4,9 +4,10 @@ from datetime import date, timedelta
 from typing import Any
 from uuid import UUID, uuid4
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from htimer.domain import entities, value_objects
 from htimer.infrastructure.db import models
-from sqlalchemy.ext.asyncio import AsyncSession
 
 
 def _unique_str(prefix: str) -> str:
@@ -18,6 +19,7 @@ def _today(offset_days: int = 0) -> date:
 
 
 # -------------------- Domain entities --------------------
+
 
 def make_user_entity(
     *,
@@ -184,6 +186,7 @@ def make_file_entity(
 
 
 # -------------------- ORM models --------------------
+
 
 def build_user_model(
     *,

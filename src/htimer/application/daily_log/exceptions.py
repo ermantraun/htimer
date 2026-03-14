@@ -10,9 +10,11 @@ class DayliLogAuthorizationError(common_exceptions.AuthorizationError):
 
 class DayliLogValidationError(Exception):
     """Базовое исключение валидации для записей дня."""
+
     pass
 
 
 class InvalidDailyLogDescriptionError(DayliLogValidationError):
     """Raised when provided description is invalid (too long)."""
+
     pass

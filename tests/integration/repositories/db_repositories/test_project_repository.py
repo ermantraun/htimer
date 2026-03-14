@@ -3,9 +3,10 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from htimer.infrastructure.repositories import exceptions as repo_exceptions, interfaces as repository_interfaces
 from htimer.domain import entities
 from htimer.infrastructure.db import models
+from htimer.infrastructure.repositories import exceptions as repo_exceptions
+from htimer.infrastructure.repositories import interfaces as repository_interfaces
 from tests.integration import factories
 
 
@@ -42,7 +43,9 @@ async def test_create_project_duplicate_name(
     user_repository: repository_interfaces.DBUserRepository,
     project_repository: repository_interfaces.DBProjectRepository,
 ):
-    creator = await user_repository.create(factories.make_user_entity(role=entities.UserRole.ADMIN))
+    creator = await user_repository.create(
+        factories.make_user_entity(role=entities.UserRole.ADMIN)
+    )
     assert isinstance(creator, entities.User)
     project = factories.make_project_entity(creator=creator, name="Same")
     await project_repository.create(project)
@@ -58,10 +61,14 @@ async def test_update_project_success(
     user_repository: repository_interfaces.DBUserRepository,
     project_repository: repository_interfaces.DBProjectRepository,
 ):
-    creator = await user_repository.create(factories.make_user_entity(role=entities.UserRole.ADMIN))
+    creator = await user_repository.create(
+        factories.make_user_entity(role=entities.UserRole.ADMIN)
+    )
     assert isinstance(creator, entities.User)
 
-    project = await project_repository.create(factories.make_project_entity(creator=creator))
+    project = await project_repository.create(
+        factories.make_project_entity(creator=creator)
+    )
     assert isinstance(project, entities.Project)
 
     result = await project_repository.update(project.uuid, {"name": "Updated"})
@@ -84,11 +91,17 @@ async def test_update_project_duplicate_name(
     user_repository: repository_interfaces.DBUserRepository,
     project_repository: repository_interfaces.DBProjectRepository,
 ):
-    creator = await user_repository.create(factories.make_user_entity(role=entities.UserRole.ADMIN))
+    creator = await user_repository.create(
+        factories.make_user_entity(role=entities.UserRole.ADMIN)
+    )
     assert isinstance(creator, entities.User)
 
-    project1 = await project_repository.create(factories.make_project_entity(creator=creator, name="A"))
-    project2 = await project_repository.create(factories.make_project_entity(creator=creator, name="B"))
+    project1 = await project_repository.create(
+        factories.make_project_entity(creator=creator, name="A")
+    )
+    project2 = await project_repository.create(
+        factories.make_project_entity(creator=creator, name="B")
+    )
     assert isinstance(project1, entities.Project)
     assert isinstance(project2, entities.Project)
 
@@ -106,7 +119,9 @@ async def test_get_by_uuid_success(
         factories.make_user_entity(role=entities.UserRole.ADMIN)
     )
     assert isinstance(creator, entities.User)
-    project = await project_repository.create(factories.make_project_entity(creator=creator))
+    project = await project_repository.create(
+        factories.make_project_entity(creator=creator)
+    )
     assert isinstance(project, entities.Project)
 
     result = await project_repository.get_by_uuid(project.uuid)
@@ -225,7 +240,9 @@ async def test_add_members_user_not_found(
     )
     assert isinstance(project, entities.Project)
 
-    missing_user = factories.make_user_entity(role=entities.UserRole.EXECUTOR, creator=owner)
+    missing_user = factories.make_user_entity(
+        role=entities.UserRole.EXECUTOR, creator=owner
+    )
     membership = factories.make_membership_entity(
         user=missing_user, project=project, assigned_by=owner
     )
@@ -275,7 +292,8 @@ async def test_remove_members_success(
         db_session, factories.build_user_model(role=models.UserRole.ADMIN)
     )
     member_model = await factories.persist(
-        db_session, factories.build_user_model(role=models.UserRole.USER, creator=owner_model)
+        db_session,
+        factories.build_user_model(role=models.UserRole.USER, creator=owner_model),
     )
     project_model = await factories.persist(
         db_session, factories.build_project_model(creator=owner_model)
@@ -285,7 +303,9 @@ async def test_remove_members_success(
     )
     await factories.persist(db_session, membership)
 
-    result = await project_repository.remove_members(project_model.uuid, [member_model.uuid])
+    result = await project_repository.remove_members(
+        project_model.uuid, [member_model.uuid]
+    )
 
     assert result is None
 
@@ -316,7 +336,8 @@ async def test_get_members_success(
         db_session, factories.build_user_model(role=models.UserRole.ADMIN)
     )
     member_model = await factories.persist(
-        db_session, factories.build_user_model(role=models.UserRole.USER, creator=owner_model)
+        db_session,
+        factories.build_user_model(role=models.UserRole.USER, creator=owner_model),
     )
     project_model = await factories.persist(
         db_session, factories.build_project_model(creator=owner_model)

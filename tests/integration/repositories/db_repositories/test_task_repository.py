@@ -2,8 +2,9 @@ from uuid import uuid4
 
 import pytest
 
-from htimer.infrastructure.repositories import exceptions as repo_exceptions, interfaces as repository_interfaces
 from htimer.domain import entities
+from htimer.infrastructure.repositories import exceptions as repo_exceptions
+from htimer.infrastructure.repositories import interfaces as repository_interfaces
 from tests.integration import factories
 
 
@@ -27,7 +28,9 @@ async def test_create_task_success(
     )
     assert isinstance(stage, entities.Stage)
     substage = await stage_repository.create(
-        factories.make_stage_entity(creator=owner, project=project, parent=stage, main_path=False)
+        factories.make_stage_entity(
+            creator=owner, project=project, parent=stage, main_path=False
+        )
     )
     assert isinstance(substage, entities.Stage)
 
@@ -80,11 +83,15 @@ async def test_create_task_user_not_found(
     )
     assert isinstance(stage, entities.Stage)
     substage = await stage_repository.create(
-        factories.make_stage_entity(creator=owner, project=project, parent=stage, main_path=False)
+        factories.make_stage_entity(
+            creator=owner, project=project, parent=stage, main_path=False
+        )
     )
     assert isinstance(substage, entities.Stage)
 
-    missing_user = factories.make_user_entity(role=entities.UserRole.EXECUTOR, creator=owner)
+    missing_user = factories.make_user_entity(
+        role=entities.UserRole.EXECUTOR, creator=owner
+    )
     task = factories.make_task_entity(creator=missing_user, substage=substage)
     result = await task_repository.create(task)
 
@@ -111,14 +118,18 @@ async def test_create_task_already_exists(
     )
     assert isinstance(stage, entities.Stage)
     substage = await stage_repository.create(
-        factories.make_stage_entity(creator=owner, project=project, parent=stage, main_path=False)
+        factories.make_stage_entity(
+            creator=owner, project=project, parent=stage, main_path=False
+        )
     )
     assert isinstance(substage, entities.Stage)
 
     task = factories.make_task_entity(creator=owner, substage=substage, name="Task")
     await task_repository.create(task)
 
-    duplicate = factories.make_task_entity(creator=owner, substage=substage, name="Task")
+    duplicate = factories.make_task_entity(
+        creator=owner, substage=substage, name="Task"
+    )
     result = await task_repository.create(duplicate)
 
     assert isinstance(result, repo_exceptions.TaskAlreadyExistsError)
@@ -144,7 +155,9 @@ async def test_get_by_uuid_success(
     )
     assert isinstance(stage, entities.Stage)
     substage = await stage_repository.create(
-        factories.make_stage_entity(creator=owner, project=project, parent=stage, main_path=False)
+        factories.make_stage_entity(
+            creator=owner, project=project, parent=stage, main_path=False
+        )
     )
     assert isinstance(substage, entities.Stage)
 
@@ -188,7 +201,9 @@ async def test_update_task_success(
     )
     assert isinstance(stage, entities.Stage)
     substage = await stage_repository.create(
-        factories.make_stage_entity(creator=owner, project=project, parent=stage, main_path=False)
+        factories.make_stage_entity(
+            creator=owner, project=project, parent=stage, main_path=False
+        )
     )
     assert isinstance(substage, entities.Stage)
 
@@ -232,7 +247,9 @@ async def test_update_task_already_exists(
     )
     assert isinstance(stage, entities.Stage)
     substage = await stage_repository.create(
-        factories.make_stage_entity(creator=owner, project=project, parent=stage, main_path=False)
+        factories.make_stage_entity(
+            creator=owner, project=project, parent=stage, main_path=False
+        )
     )
     assert isinstance(substage, entities.Stage)
 
@@ -270,7 +287,9 @@ async def test_delete_task_success(
     )
     assert isinstance(stage, entities.Stage)
     substage = await stage_repository.create(
-        factories.make_stage_entity(creator=owner, project=project, parent=stage, main_path=False)
+        factories.make_stage_entity(
+            creator=owner, project=project, parent=stage, main_path=False
+        )
     )
     assert isinstance(substage, entities.Stage)
 
@@ -313,7 +332,9 @@ async def test_get_list_success(
     )
     assert isinstance(stage, entities.Stage)
     substage = await stage_repository.create(
-        factories.make_stage_entity(creator=owner, project=project, parent=stage, main_path=False)
+        factories.make_stage_entity(
+            creator=owner, project=project, parent=stage, main_path=False
+        )
     )
     assert isinstance(substage, entities.Stage)
 

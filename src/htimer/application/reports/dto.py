@@ -1,7 +1,9 @@
 from dataclasses import dataclass
 from datetime import date
 from uuid import UUID
+
 from htimer.domain import entities
+
 
 @dataclass
 class CreateReportRequestInDTO:
@@ -10,11 +12,12 @@ class CreateReportRequestInDTO:
     end_date: date | None = None
     target_users: list[UUID] | None = None
 
+
 @dataclass
 class CreateReportRequestOutDTO:
     report: entities.Report
 
+
 @dataclass
 class CreateReportInDTO:
     report_id: str
-

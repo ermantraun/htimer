@@ -1,10 +1,10 @@
 from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config, URL, pool
-
 from alembic import context
-from htimer.infrastructure.db.models import Base
+from sqlalchemy import URL, engine_from_config, pool
+
 from htimer.config import PostgresConfig as psql_config
+from htimer.infrastructure.db.models import Base
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -28,14 +28,19 @@ target_metadata = Base.metadata
 
 psql_config = psql_config()
 
-database_uri = URL.create(drivername=psql_config.sync_driver,
-            username=psql_config.user,
-            password=psql_config.password,
-            host=psql_config.host,
-            port=psql_config.port,
-            database=psql_config.db,)
+database_uri = URL.create(
+    drivername=psql_config.sync_driver,
+    username=psql_config.user,
+    password=psql_config.password,
+    host=psql_config.host,
+    port=psql_config.port,
+    database=psql_config.db,
+)
 
-config.set_main_option('sqlalchemy.url', database_uri.render_as_string(hide_password=False))
+config.set_main_option(
+    "sqlalchemy.url", database_uri.render_as_string(hide_password=False)
+)
+
 
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode.
@@ -76,9 +81,7 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
-        context.configure(
-            connection=connection, target_metadata=target_metadata
-        )
+        context.configure(connection=connection, target_metadata=target_metadata)
 
         with context.begin_transaction():
             context.run_migrations()

@@ -1,8 +1,10 @@
+from typing import Any
 from uuid import uuid4
+
 from htimer.application import common_exceptions, common_interfaces
 from htimer.domain import entities
-from typing import Any
-from . import dto, interfaces, exceptions, validators
+
+from . import dto, exceptions, interfaces, validators
 
 
 class CreateTaskInteractor:
@@ -63,23 +65,36 @@ class CreateTaskInteractor:
             raise actor_uuid
 
         actor = await self.user_repository.get_by_uuid(actor_uuid)
-        if isinstance(actor, (common_exceptions.UserNotFoundError, common_exceptions.RepositoryError)):
+        if isinstance(
+            actor,
+            (common_exceptions.UserNotFoundError, common_exceptions.RepositoryError),
+        ):
             raise actor
 
         substage = await self.stage_repository.get_by_uuid(data.substage_uuid)
-        if isinstance(substage, (common_exceptions.StageNotFoundError, common_exceptions.RepositoryError)):
+        if isinstance(
+            substage,
+            (common_exceptions.StageNotFoundError, common_exceptions.RepositoryError),
+        ):
             raise substage
 
         project = substage.project
         project_members = await self.project_repository.get_members([project.uuid])
-        if isinstance(project_members, (common_exceptions.ProjectNotFoundError, common_exceptions.RepositoryError)):
+        if isinstance(
+            project_members,
+            (common_exceptions.ProjectNotFoundError, common_exceptions.RepositoryError),
+        ):
             raise project_members
 
-        authorization_error = self.authorization_policy.decide_create_task(actor, project, project_members)
+        authorization_error = self.authorization_policy.decide_create_task(
+            actor, project, project_members
+        )
         if isinstance(authorization_error, exceptions.TaskAuthorizationError):
             raise authorization_error
 
-        subscription = await self.project_repository.get_current_subscription(project.uuid)
+        subscription = await self.project_repository.get_current_subscription(
+            project.uuid
+        )
         if isinstance(subscription, common_exceptions.ProjectNotFoundError):
             raise subscription
         if isinstance(subscription, common_exceptions.RepositoryError):
@@ -101,9 +116,18 @@ class CreateTaskInteractor:
         )
 
         created = await self.task_repository.create(task)
-        if isinstance(created, (common_exceptions.StageNotFoundError, common_exceptions.UserNotFoundError)):
+        if isinstance(
+            created,
+            (common_exceptions.StageNotFoundError, common_exceptions.UserNotFoundError),
+        ):
             raise created
-        if isinstance(created, (common_exceptions.TaskAlreadyExistsError, common_exceptions.RepositoryError)):
+        if isinstance(
+            created,
+            (
+                common_exceptions.TaskAlreadyExistsError,
+                common_exceptions.RepositoryError,
+            ),
+        ):
             raise created
 
         await self.db_session.commit()
@@ -150,22 +174,42 @@ class GetTaskInteractor:
             raise actor_uuid
 
         actor = await self.user_repository.get_by_uuid(actor_uuid)
-        if isinstance(actor, (common_exceptions.UserNotFoundError, common_exceptions.RepositoryError)):
+        if isinstance(
+            actor,
+            (common_exceptions.UserNotFoundError, common_exceptions.RepositoryError),
+        ):
             raise actor
 
         task = await self.task_repository.get_by_uuid(data.uuid)
-        if isinstance(task, (common_exceptions.TaskNotFoundError, common_exceptions.TaskAlreadyExistsError, common_exceptions.RepositoryError)):
+        if isinstance(
+            task,
+            (
+                common_exceptions.TaskNotFoundError,
+                common_exceptions.TaskAlreadyExistsError,
+                common_exceptions.RepositoryError,
+            ),
+        ):
             raise task
 
-        project_members = await self.project_repository.get_members([task.substage.project.uuid])
-        if isinstance(project_members, (common_exceptions.ProjectNotFoundError, common_exceptions.RepositoryError)):
+        project_members = await self.project_repository.get_members(
+            [task.substage.project.uuid]
+        )
+        if isinstance(
+            project_members,
+            (common_exceptions.ProjectNotFoundError, common_exceptions.RepositoryError),
+        ):
             raise project_members
-        
+
         project = await self.project_repository.get_by_uuid(task.substage.project.uuid)
-        if isinstance(project, (common_exceptions.ProjectNotFoundError, common_exceptions.RepositoryError)):
+        if isinstance(
+            project,
+            (common_exceptions.ProjectNotFoundError, common_exceptions.RepositoryError),
+        ):
             raise project
-        
-        authorization_error = self.authorization_policy.decide_get_task(actor, project, project_members)
+
+        authorization_error = self.authorization_policy.decide_get_task(
+            actor, project, project_members
+        )
         if isinstance(authorization_error, exceptions.TaskAuthorizationError):
             raise authorization_error
 
@@ -233,14 +277,26 @@ class UpdateTaskInteractor:
             raise actor_uuid
 
         actor = await self.user_repository.get_by_uuid(actor_uuid)
-        if isinstance(actor, (common_exceptions.UserNotFoundError, common_exceptions.RepositoryError)):
+        if isinstance(
+            actor,
+            (common_exceptions.UserNotFoundError, common_exceptions.RepositoryError),
+        ):
             raise actor
 
         task = await self.task_repository.get_by_uuid(data.uuid, lock_record=True)
-        if isinstance(task, (common_exceptions.TaskNotFoundError, common_exceptions.TaskAlreadyExistsError, common_exceptions.RepositoryError)):
+        if isinstance(
+            task,
+            (
+                common_exceptions.TaskNotFoundError,
+                common_exceptions.TaskAlreadyExistsError,
+                common_exceptions.RepositoryError,
+            ),
+        ):
             raise task
 
-        subscription = await self.project_repository.get_current_subscription(task.substage.project.uuid)
+        subscription = await self.project_repository.get_current_subscription(
+            task.substage.project.uuid
+        )
         if isinstance(subscription, common_exceptions.ProjectNotFoundError):
             raise subscription
         if isinstance(subscription, common_exceptions.SubscriptionNotFoundError):
@@ -252,29 +308,51 @@ class UpdateTaskInteractor:
         if ensure_err:
             raise exceptions.CantUpdateTask(ensure_err)
 
-        project_members = await self.project_repository.get_members([task.substage.project.uuid])
-        if isinstance(project_members, (common_exceptions.ProjectNotFoundError, common_exceptions.RepositoryError)):
+        project_members = await self.project_repository.get_members(
+            [task.substage.project.uuid]
+        )
+        if isinstance(
+            project_members,
+            (common_exceptions.ProjectNotFoundError, common_exceptions.RepositoryError),
+        ):
             raise project_members
 
-        authorization_error = self.authorization_policy.decide_update_task(actor, task, project_members)
+        authorization_error = self.authorization_policy.decide_update_task(
+            actor, task, project_members
+        )
         if isinstance(authorization_error, exceptions.TaskAuthorizationError):
             raise authorization_error
 
         update_data: dict[str, Any] = {}
         if data.name is not None:
-            update_data['name'] = self.text_normalizer.normalize(data.name)
+            update_data["name"] = self.text_normalizer.normalize(data.name)
         if data.description is not None:
-            update_data['description'] = self.text_normalizer.normalize(data.description)
+            update_data["description"] = self.text_normalizer.normalize(
+                data.description
+            )
         if data.substage_uuid is not None:
             substage = await self.stage_repository.get_by_uuid(data.substage_uuid)
-            if isinstance(substage, (common_exceptions.StageNotFoundError, common_exceptions.RepositoryError)):
+            if isinstance(
+                substage,
+                (
+                    common_exceptions.StageNotFoundError,
+                    common_exceptions.RepositoryError,
+                ),
+            ):
                 raise substage
-            update_data['substage'] = substage
+            update_data["substage"] = substage
         if data.completed is not None:
-            update_data['completed'] = data.completed
+            update_data["completed"] = data.completed
 
         updated = await self.task_repository.update(data.uuid, update_data)
-        if isinstance(updated, (common_exceptions.TaskNotFoundError, common_exceptions.TaskAlreadyExistsError, common_exceptions.RepositoryError)):
+        if isinstance(
+            updated,
+            (
+                common_exceptions.TaskNotFoundError,
+                common_exceptions.TaskAlreadyExistsError,
+                common_exceptions.RepositoryError,
+            ),
+        ):
             raise updated
 
         await self.db_session.commit()
@@ -321,18 +399,35 @@ class DeleteTaskInteractor:
             raise actor_uuid
 
         actor = await self.user_repository.get_by_uuid(actor_uuid)
-        if isinstance(actor, (common_exceptions.UserNotFoundError, common_exceptions.RepositoryError)):
+        if isinstance(
+            actor,
+            (common_exceptions.UserNotFoundError, common_exceptions.RepositoryError),
+        ):
             raise actor
 
         task = await self.task_repository.get_by_uuid(data.uuid, lock_record=True)
-        if isinstance(task, (common_exceptions.TaskNotFoundError, common_exceptions.TaskAlreadyExistsError, common_exceptions.RepositoryError)):
+        if isinstance(
+            task,
+            (
+                common_exceptions.TaskNotFoundError,
+                common_exceptions.TaskAlreadyExistsError,
+                common_exceptions.RepositoryError,
+            ),
+        ):
             raise task
 
-        project_members = await self.project_repository.get_members([task.substage.project.uuid])
-        if isinstance(project_members, (common_exceptions.ProjectNotFoundError, common_exceptions.RepositoryError)):
+        project_members = await self.project_repository.get_members(
+            [task.substage.project.uuid]
+        )
+        if isinstance(
+            project_members,
+            (common_exceptions.ProjectNotFoundError, common_exceptions.RepositoryError),
+        ):
             raise project_members
 
-        authorization_error = self.authorization_policy.decide_delete_task(actor, task, project_members)
+        authorization_error = self.authorization_policy.decide_delete_task(
+            actor, task, project_members
+        )
         if isinstance(authorization_error, exceptions.TaskAuthorizationError):
             raise authorization_error
 
@@ -385,24 +480,38 @@ class GetTaskListInteractor:
             raise actor_uuid
 
         actor = await self.user_repository.get_by_uuid(actor_uuid)
-        if isinstance(actor, (common_exceptions.UserNotFoundError, common_exceptions.RepositoryError)):
+        if isinstance(
+            actor,
+            (common_exceptions.UserNotFoundError, common_exceptions.RepositoryError),
+        ):
             raise actor
 
         substage = await self.stage_repository.get_by_uuid(data.substage_uuid)
-        if isinstance(substage, (common_exceptions.StageNotFoundError, common_exceptions.RepositoryError)):
+        if isinstance(
+            substage,
+            (common_exceptions.StageNotFoundError, common_exceptions.RepositoryError),
+        ):
             raise substage
 
         project = substage.project
         project_members = await self.project_repository.get_members([project.uuid])
-        if isinstance(project_members, (common_exceptions.ProjectNotFoundError, common_exceptions.RepositoryError)):
+        if isinstance(
+            project_members,
+            (common_exceptions.ProjectNotFoundError, common_exceptions.RepositoryError),
+        ):
             raise project_members
 
-        authorization_error = self.authorization_policy.decide_get_task(actor, project, project_members)
+        authorization_error = self.authorization_policy.decide_get_task(
+            actor, project, project_members
+        )
         if isinstance(authorization_error, exceptions.TaskAuthorizationError):
             raise authorization_error
 
         tasks = await self.task_repository.get_list(data.substage_uuid)
-        if isinstance(tasks, (common_exceptions.StageNotFoundError, common_exceptions.RepositoryError)):
+        if isinstance(
+            tasks,
+            (common_exceptions.StageNotFoundError, common_exceptions.RepositoryError),
+        ):
             raise tasks
 
         return dto.ListTasksOutDTO(tasks=tasks)

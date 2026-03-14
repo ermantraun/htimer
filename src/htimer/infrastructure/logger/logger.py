@@ -1,5 +1,6 @@
-from htimer.config import Config
 from htimer.application import common_interfaces
+from htimer.config import Config
+
 from . import interfaces
 
 
@@ -8,6 +9,5 @@ class Logger(common_interfaces.Logger):
         self.config = config.logger_config
         self.clock = clock
 
-        
     async def info(self, operation: str, message: str) -> None:
         print(f"[INFO] {operation}: {message}, Time: {await self.clock.now()}")
